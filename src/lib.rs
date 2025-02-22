@@ -1,5 +1,3 @@
-use std::time::Instant;
-
 use rand::{rngs::ThreadRng, Rng};
 
 pub const RANGE: std::ops::Range<i64> = -1000..1000;
@@ -17,13 +15,17 @@ fn lagrange_pol(x: i64, pol: &[(i64, i64)]) -> i64 {
 
     for i in 0..n {
         let (xi, yi) = pol[i];
+
         let xi = xi as f64;
         let yi = yi as f64;
+
         let mut term = yi;
+
         for j in 0..n {
             if j != i {
                 let (xj, _) = pol[j];
                 let xj = xj as f64;
+
                 term *= (x - xj) / (xi - xj);
             }
         }
@@ -79,10 +81,9 @@ pub fn recover_secret(shares: &[(i64, i64)]) -> i64 {
 
 #[test]
 fn test_create_recover() {
-    let start = Instant::now();
     let mut rgn = rand::rng();
 
-    let key: i64 = rgn.random_range(-100..100);
+    let key: i64 = rgn.random_range(RANGE);
     let k = 2;
     let n = 5;
 
@@ -91,11 +92,9 @@ fn test_create_recover() {
 
     let recovered_key = recover_secret(subset);
 
-    let runtime = start.elapsed();
-
     assert_eq!(
         key, recovered_key,
-        "Secret Shares: {:?} \n{key} compared to {recovered_key} in {:?}\n",
-        shares, runtime
+        "Secret Shares: {:?} \n{key} compared to {recovered_key}\n",
+        shares
     );
 }
