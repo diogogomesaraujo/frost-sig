@@ -83,18 +83,20 @@ pub fn recover_secret(shares: &[(i64, i64)]) -> i64 {
 fn test_create_recover() {
     let mut rgn = rand::rng();
 
-    let key: i64 = rgn.random_range(RANGE);
-    let k = 2;
-    let n = 5;
+    for _i in 0..100 {
+        let key: i64 = rgn.random_range(RANGE);
+        let k = 2;
+        let n = 5;
 
-    let shares = create_secret_shares(key, k, n);
-    let subset = &shares[0..(k as usize)];
+        let shares = create_secret_shares(key, k, n);
+        let subset = &shares[0..(k as usize)];
 
-    let recovered_key = recover_secret(subset);
+        let recovered_key = recover_secret(subset);
 
-    assert_eq!(
-        key, recovered_key,
-        "Secret Shares: {:?} \n{key} compared to {recovered_key}\n",
-        shares
-    );
+        assert_eq!(
+            key, recovered_key,
+            "Secret Shares: {:?} \n{key} compared to {recovered_key}\n",
+            shares
+        );
+    }
 }
