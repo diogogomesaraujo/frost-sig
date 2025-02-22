@@ -1,4 +1,8 @@
+use std::time::Instant;
+
 use rand::{rngs::ThreadRng, Rng};
+
+pub const RANGE: std::ops::Range<i64> = -1000..1000;
 
 fn calculate_y(x: i64, pol: &[i64]) -> i64 {
     pol.iter().enumerate().fold(0, |acc, (i, &p)| {
@@ -7,29 +11,32 @@ fn calculate_y(x: i64, pol: &[i64]) -> i64 {
 }
 
 fn lagrange_pol(x: i64, pol: &[(i64, i64)]) -> i64 {
+    let x = x as f64;
     let n = pol.len();
-    let mut result: i64 = 0;
+    let mut result: f64 = 0.;
 
     for i in 0..n {
         let (xi, yi) = pol[i];
+        let xi = xi as f64;
+        let yi = yi as f64;
         let mut term = yi;
         for j in 0..n {
             if j != i {
                 let (xj, _) = pol[j];
-                term = term.wrapping_mul((x.wrapping_sub(xj)).wrapping_div(xi.wrapping_sub(xj)));
+                let xj = xj as f64;
+                term *= (x - xj) / (xi - xj);
             }
         }
-        result = result.wrapping_add(term);
+        result += term;
     }
 
-    result
+    result.round() as i64
 }
 
 fn generate_unique(rgn: &mut ThreadRng, v: &[i64]) -> i64 {
-    let mut r: i64 = rgn.random();
-    r %= 997;
+    let r: i64 = rgn.random_range(RANGE);
 
-    match v.contains(&r) {
+    match v.contains(&r) && r != 0 {
         true => generate_unique(rgn, v),
         false => r,
     }
@@ -42,6 +49,8 @@ fn generate_pol(key: i64, k: u64, rgn: &mut ThreadRng) -> Vec<i64> {
         let r: i64 = generate_unique(rgn, &pol);
         pol.push(r);
     }
+
+    println!("{:?}", pol);
 
     pol
 }
@@ -70,9 +79,10 @@ pub fn recover_secret(shares: &[(i64, i64)]) -> i64 {
 
 #[test]
 fn test_create_recover() {
+    let start = Instant::now();
     let mut rgn = rand::rng();
 
-    let key: i64 = rgn.random();
+    let key: i64 = rgn.random_range(-100..100);
     let k = 2;
     let n = 5;
 
@@ -81,5 +91,11 @@ fn test_create_recover() {
 
     let recovered_key = recover_secret(subset);
 
-    assert_eq!(key, recovered_key, "{key} compared to {recovered_key}");
+    let runtime = start.elapsed();
+
+    assert_eq!(
+        key, recovered_key,
+        "Secret Shares: {:?} \n{key} compared to {recovered_key} in {:?}\n",
+        shares, runtime
+    );
 }
