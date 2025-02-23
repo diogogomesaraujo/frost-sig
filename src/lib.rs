@@ -1,6 +1,6 @@
 use rand::{rngs::ThreadRng, Rng};
 
-pub const RANGE: std::ops::Range<i64> = -1000..1000;
+pub const RANGE: std::ops::Range<i64> = -100000..100000;
 
 fn calculate_y(x: i64, pol: &[i64]) -> i64 {
     pol.iter().enumerate().fold(0, |acc, (i, &p)| {
@@ -52,8 +52,6 @@ fn generate_pol(key: i64, k: u64, rgn: &mut ThreadRng) -> Vec<i64> {
         pol.push(r);
     }
 
-    println!("{:?}", pol);
-
     pol
 }
 
@@ -83,7 +81,7 @@ pub fn recover_secret(shares: &[(i64, i64)]) -> i64 {
 fn test_create_recover() {
     let mut rgn = rand::rng();
 
-    for _i in 0..100 {
+    for _i in 0..1000000 {
         let key: i64 = rgn.random_range(RANGE);
         let k = 2;
         let n = 5;
