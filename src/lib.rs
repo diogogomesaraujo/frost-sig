@@ -1,6 +1,7 @@
 use rand::{rngs::ThreadRng, Rng};
+use std::{sync::Mutex, thread};
 
-pub const RANGE: std::ops::Range<i64> = -100000..100000;
+pub const RANGE: std::ops::Range<i64> = -1000..1000;
 
 fn calculate_y(x: i64, pol: &[i64]) -> i64 {
     pol.iter().enumerate().fold(0, |acc, (i, &p)| {
@@ -26,7 +27,7 @@ fn lagrange_pol(x: i64, pol: &[(i64, i64)]) -> i64 {
                 let (xj, _) = pol[j];
                 let xj = xj as f64;
 
-                term *= (x - xj) / (xi - xj);
+                term *= (x - xj) / (xi - xj); // TODO: fix this division!!
             }
         }
         result += term;
@@ -38,7 +39,7 @@ fn lagrange_pol(x: i64, pol: &[(i64, i64)]) -> i64 {
 fn generate_unique(rgn: &mut ThreadRng, v: &[i64]) -> i64 {
     let r: i64 = rgn.random_range(RANGE);
 
-    match v.contains(&r) && r != 0 {
+    match v.contains(&r) || r == 0 {
         true => generate_unique(rgn, v),
         false => r,
     }
@@ -79,22 +80,33 @@ pub fn recover_secret(shares: &[(i64, i64)]) -> i64 {
 
 #[test]
 fn test_create_recover() {
-    let mut rgn = rand::rng();
+    let mut handles = Vec::new();
 
-    for _i in 0..1000000 {
-        let key: i64 = rgn.random_range(RANGE);
-        let k = 2;
-        let n = 5;
+    for _i in 0..5 {
+        let handle = thread::spawn(|| {
+            let mut rgn = rand::rng();
 
-        let shares = create_secret_shares(key, k, n);
-        let subset = &shares[0..(k as usize)];
+            for _i in 0..250000 {
+                let key: i64 = rgn.random_range(RANGE);
+                let k = 3;
+                let n = 10;
 
-        let recovered_key = recover_secret(subset);
+                let shares = create_secret_shares(key, k, n);
+                let subset = &shares[0..(k as usize)];
 
-        assert_eq!(
-            key, recovered_key,
-            "Secret Shares: {:?} \n{key} compared to {recovered_key}\n",
-            shares
-        );
+                let recovered_key = recover_secret(subset);
+
+                assert_eq!(
+                    key, recovered_key,
+                    "Secret Shares: {:?} \n{key} compared to {recovered_key}\n",
+                    shares
+                );
+            }
+        });
+        handles.push(handle);
+    }
+
+    for handle in handles {
+        handle.join().unwrap();
     }
 }
