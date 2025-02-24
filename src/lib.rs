@@ -1,7 +1,41 @@
 use rand::{rngs::ThreadRng, Rng};
 use std::{sync::Mutex, thread};
 
-pub const RANGE: std::ops::Range<i64> = -1000..1000;
+pub const RANGE: std::ops::Range<i64> = -100..100;
+
+struct Ratio {
+    dividend: i128,
+    divisor: i128,
+}
+
+fn lcm_and_sum(a: Ratio, b: Ratio) -> Ratio {
+    fn gcd(a: i128, b: i128) -> i128 {
+        if b == 0 {
+            a.abs()
+        } else {
+            gcd(b, a % b)
+        }
+    }
+
+    fn lcm(a: i128, b: i128) -> i128 {
+        (a.abs().wrapping_div(gcd(a, b))).wrapping_mul(b.abs())
+    }
+
+    let min_divisor = lcm(a.divisor, b.divisor);
+
+    let factor_a = min_divisor.wrapping_div(a.divisor);
+    let factor_b = min_divisor.wrapping_div(b.divisor);
+
+    let result_dividend = a
+        .dividend
+        .wrapping_mul(factor_a)
+        .wrapping_add(b.dividend.wrapping_mul(factor_b));
+
+    Ratio {
+        dividend: result_dividend,
+        divisor: min_divisor,
+    }
+}
 
 fn calculate_y(x: i64, pol: &[i64]) -> i64 {
     pol.iter().enumerate().fold(0, |acc, (i, &p)| {
@@ -10,37 +44,39 @@ fn calculate_y(x: i64, pol: &[i64]) -> i64 {
 }
 
 fn lagrange_pol(x: i64, pol: &[(i64, i64)]) -> i64 {
-    let x = x as f64;
-    let n = pol.len();
-    let mut result: f64 = 0.;
+    let k = pol.len();
+    let mut result: Ratio = Ratio {
+        dividend: 0,
+        divisor: 1,
+    };
 
-    for i in 0..n {
+    for i in 0..k {
         let (xi, yi) = pol[i];
 
-        let xi = xi as f64;
-        let yi = yi as f64;
+        let mut term: Ratio = Ratio {
+            dividend: yi as i128,
+            divisor: 1,
+        };
 
-        let mut term = yi;
-
-        for j in 0..n {
+        for j in 0..k {
             if j != i {
                 let (xj, _) = pol[j];
-                let xj = xj as f64;
 
-                term *= (x - xj) / (xi - xj); // TODO: fix this division!!
+                term.dividend = term.dividend.wrapping_mul((x - xj) as i128);
+                term.divisor = term.divisor.wrapping_mul((xi - xj) as i128);
             }
         }
-        result += term;
+        result = lcm_and_sum(result, term);
     }
 
-    result.round() as i64
+    result.dividend.wrapping_div(result.divisor) as i64
 }
 
-fn generate_unique(rgn: &mut ThreadRng, v: &[i64]) -> i64 {
-    let r: i64 = rgn.random_range(RANGE);
+fn generate_unique(rgn: &mut ThreadRng, v: &[i64], range: std::ops::Range<i64>) -> i64 {
+    let r: i64 = rgn.random_range(range.clone());
 
     match v.contains(&r) || r == 0 {
-        true => generate_unique(rgn, v),
+        true => generate_unique(rgn, v, range),
         false => r,
     }
 }
@@ -49,7 +85,7 @@ fn generate_pol(key: i64, k: u64, rgn: &mut ThreadRng) -> Vec<i64> {
     let mut pol: Vec<i64> = vec![key];
 
     for _i in 1..k {
-        let r: i64 = generate_unique(rgn, &pol);
+        let r: i64 = generate_unique(rgn, &pol, RANGE);
         pol.push(r);
     }
 
@@ -64,7 +100,7 @@ pub fn create_secret_shares(key: i64, k: u64, n: u64) -> Vec<(i64, i64)> {
     let mut xs = Vec::new();
 
     for _i in 0..n {
-        let x = generate_unique(&mut rgn, &xs);
+        let x = generate_unique(&mut rgn, &xs, RANGE);
         xs.push(x);
 
         let y = calculate_y(x, &pol);
@@ -86,9 +122,9 @@ fn test_create_recover() {
         let handle = thread::spawn(|| {
             let mut rgn = rand::rng();
 
-            for _i in 0..250000 {
+            for _i in 0..200000 {
                 let key: i64 = rgn.random_range(RANGE);
-                let k = 3;
+                let k = 6;
                 let n = 10;
 
                 let shares = create_secret_shares(key, k, n);
