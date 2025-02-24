@@ -1,7 +1,7 @@
 use rand::{rngs::ThreadRng, Rng};
 use std::{sync::Mutex, thread};
 
-pub const RANGE: std::ops::Range<i64> = -100..100;
+pub const RANGE: std::ops::Range<i64> = -400..400;
 
 struct Ratio {
     dividend: i128,
@@ -10,10 +10,9 @@ struct Ratio {
 
 fn lcm_and_sum(a: Ratio, b: Ratio) -> Ratio {
     fn gcd(a: i128, b: i128) -> i128 {
-        if b == 0 {
-            a.abs()
-        } else {
-            gcd(b, a % b)
+        match b == 0 {
+            true => a.abs(),
+            false => gcd(b, a % b),
         }
     }
 
@@ -124,8 +123,8 @@ fn test_create_recover() {
 
             for _i in 0..200000 {
                 let key: i64 = rgn.random_range(RANGE);
-                let k = 6;
-                let n = 10;
+                let k = 3;
+                let n = 5;
 
                 let shares = create_secret_shares(key, k, n);
                 let subset = &shares[0..(k as usize)];
