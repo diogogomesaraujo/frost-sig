@@ -20,7 +20,7 @@ fn lagrange_pol(x: i64, pol: &[(i64, i64)]) -> i64 {
     let n = pol.len();
     let mut result = 0;
 
-    for i in 0..k {
+    for i in 0..n {
         let (xi, yi) = pol[i];
 
         let mut num = 1;
@@ -42,11 +42,11 @@ fn lagrange_pol(x: i64, pol: &[(i64, i64)]) -> i64 {
     result
 }
 
-fn generate_unique(rgn: &mut ThreadRng, v: &[i64], range: std::ops::Range<i64>) -> i64 {
-    let r: i64 = rgn.random_range(range.clone());
+fn generate_unique(rgn: &mut ThreadRng, v: &[i64]) -> i64 {
+    let r: i64 = rgn.random_range(RANGE);
 
     match v.contains(&r) || r == 0 {
-        true => generate_unique(rgn, v, range),
+        true => generate_unique(rgn, v),
         false => r,
     }
 }
@@ -55,7 +55,7 @@ fn generate_pol(key: i64, k: u64, rgn: &mut ThreadRng) -> Vec<i64> {
     let mut pol: Vec<i64> = vec![key];
 
     for _i in 1..k {
-        let r: i64 = generate_unique(rgn, &pol, RANGE);
+        let r: i64 = generate_unique(rgn, &pol);
         pol.push(r);
     }
 
@@ -70,7 +70,7 @@ pub fn create_secret_shares(key: i64, k: u64, n: u64) -> Vec<(i64, i64)> {
     let mut xs = Vec::new();
 
     for _i in 0..n {
-        let x = generate_unique(&mut rgn, &xs, RANGE);
+        let x = generate_unique(&mut rgn, &xs);
         xs.push(x);
 
         let y = calculate_y(x, &pol);
@@ -92,7 +92,7 @@ fn test_create_recover() {
         let handle = std::thread::spawn(|| {
             let mut rgn = rand::rng();
 
-            for _i in 0..200000 {
+            for _i in 0..250000 {
                 let key: i64 = rgn.random_range(RANGE);
                 let k = 5;
                 let n = 5;
