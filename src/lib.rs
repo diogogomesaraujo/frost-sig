@@ -1,74 +1,45 @@
 use rand::{rngs::ThreadRng, Rng};
-use std::{sync::Mutex, thread};
 
-pub const RANGE: std::ops::Range<i64> = -400..400;
+mod modular;
 
-struct Ratio {
-    dividend: i128,
-    divisor: i128,
-}
+pub const RANGE: std::ops::Range<i64> = 0..6700416;
 
-fn lcm_and_sum(a: Ratio, b: Ratio) -> Ratio {
-    fn gcd(a: i128, b: i128) -> i128 {
-        match b == 0 {
-            true => a.abs(),
-            false => gcd(b, a % b),
-        }
-    }
+pub const PRIME: i64 = 6700417;
 
-    fn lcm(a: i128, b: i128) -> i128 {
-        (a.abs().wrapping_div(gcd(a, b))).wrapping_mul(b.abs())
-    }
-
-    let min_divisor = lcm(a.divisor, b.divisor);
-
-    let factor_a = min_divisor.wrapping_div(a.divisor);
-    let factor_b = min_divisor.wrapping_div(b.divisor);
-
-    let result_dividend = a
-        .dividend
-        .wrapping_mul(factor_a)
-        .wrapping_add(b.dividend.wrapping_mul(factor_b));
-
-    Ratio {
-        dividend: result_dividend,
-        divisor: min_divisor,
-    }
-}
-
-fn calculate_y(x: i64, pol: &[i64]) -> i64 {
+pub fn calculate_y(x: i64, pol: &[i64]) -> i64 {
     pol.iter().enumerate().fold(0, |acc, (i, &p)| {
-        acc.wrapping_add(p.wrapping_mul(x.wrapping_pow(i as u32)))
+        modular::add(
+            acc,
+            modular::mul(p, modular::pow(x, i as u64, PRIME), PRIME),
+            PRIME,
+        )
     })
 }
 
 fn lagrange_pol(x: i64, pol: &[(i64, i64)]) -> i64 {
-    let k = pol.len();
-    let mut result: Ratio = Ratio {
-        dividend: 0,
-        divisor: 1,
-    };
+    let n = pol.len();
+    let mut result = 0;
 
     for i in 0..k {
         let (xi, yi) = pol[i];
 
-        let mut term: Ratio = Ratio {
-            dividend: yi as i128,
-            divisor: 1,
-        };
+        let mut num = 1;
+        let mut den = 1;
 
-        for j in 0..k {
+        for j in 0..n {
             if j != i {
                 let (xj, _) = pol[j];
-
-                term.dividend = term.dividend.wrapping_mul((x - xj) as i128);
-                term.divisor = term.divisor.wrapping_mul((xi - xj) as i128);
+                num = modular::mul(num, modular::sub(x, xj, PRIME), PRIME);
+                den = modular::mul(den, modular::sub(xi, xj, PRIME), PRIME);
             }
         }
-        result = lcm_and_sum(result, term);
+        let div = modular::div(num, den, PRIME);
+        let term = modular::mul(yi, div, PRIME);
+
+        result = modular::add(result, term, PRIME);
     }
 
-    result.dividend.wrapping_div(result.divisor) as i64
+    result
 }
 
 fn generate_unique(rgn: &mut ThreadRng, v: &[i64], range: std::ops::Range<i64>) -> i64 {
@@ -118,12 +89,12 @@ fn test_create_recover() {
     let mut handles = Vec::new();
 
     for _i in 0..5 {
-        let handle = thread::spawn(|| {
+        let handle = std::thread::spawn(|| {
             let mut rgn = rand::rng();
 
             for _i in 0..200000 {
                 let key: i64 = rgn.random_range(RANGE);
-                let k = 3;
+                let k = 5;
                 let n = 5;
 
                 let shares = create_secret_shares(key, k, n);
