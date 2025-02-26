@@ -2,9 +2,9 @@ use rand::{rngs::ThreadRng, Rng};
 
 mod modular;
 
-pub const RANGE: std::ops::Range<i64> = 0..6700416;
+pub const RANGE: std::ops::Range<i64> = 0..2147483646;
 
-pub const PRIME: i64 = 6700417;
+pub const PRIME: i64 = 2147483647;
 
 pub fn calculate_y(x: i64, pol: &[i64]) -> i64 {
     pol.iter().enumerate().fold(0, |acc, (i, &p)| {
