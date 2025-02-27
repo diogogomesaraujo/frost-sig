@@ -2,11 +2,11 @@ use rand::{rngs::ThreadRng, Rng};
 
 mod modular;
 
-pub const RANGE: std::ops::Range<i64> = 0..2147483646;
+pub const RANGE: std::ops::Range<u64> = 0..3657500100;
 
-pub const PRIME: i64 = 2147483647;
+pub const PRIME: u64 = 3657500101;
 
-pub fn calculate_y(x: i64, pol: &[i64]) -> i64 {
+pub fn calculate_y(x: u64, pol: &[u64]) -> u64 {
     pol.iter().enumerate().fold(0, |acc, (i, &p)| {
         modular::add(
             acc,
@@ -16,7 +16,7 @@ pub fn calculate_y(x: i64, pol: &[i64]) -> i64 {
     })
 }
 
-fn lagrange_pol(x: i64, pol: &[(i64, i64)]) -> i64 {
+fn lagrange_pol(x: u64, pol: &[(u64, u64)]) -> u64 {
     let n = pol.len();
     let mut result = 0;
 
@@ -42,8 +42,8 @@ fn lagrange_pol(x: i64, pol: &[(i64, i64)]) -> i64 {
     result
 }
 
-fn generate_unique(rgn: &mut ThreadRng, v: &[i64]) -> i64 {
-    let r: i64 = rgn.random_range(RANGE);
+fn generate_unique(rgn: &mut ThreadRng, v: &[u64]) -> u64 {
+    let r: u64 = rgn.random_range(RANGE);
 
     match v.contains(&r) || r == 0 {
         true => generate_unique(rgn, v),
@@ -51,22 +51,22 @@ fn generate_unique(rgn: &mut ThreadRng, v: &[i64]) -> i64 {
     }
 }
 
-fn generate_pol(key: i64, k: u64, rgn: &mut ThreadRng) -> Vec<i64> {
-    let mut pol: Vec<i64> = vec![key];
+fn generate_pol(key: u64, k: u64, rgn: &mut ThreadRng) -> Vec<u64> {
+    let mut pol: Vec<u64> = vec![key];
 
     for _i in 1..k {
-        let r: i64 = generate_unique(rgn, &pol);
+        let r: u64 = generate_unique(rgn, &pol);
         pol.push(r);
     }
 
     pol
 }
 
-pub fn create_secret_shares(key: i64, k: u64, n: u64) -> Vec<(i64, i64)> {
+pub fn create_secret_shares(key: u64, k: u64, n: u64) -> Vec<(u64, u64)> {
     let mut rgn = rand::rng();
 
     let pol = generate_pol(key, k, &mut rgn);
-    let mut shares: Vec<(i64, i64)> = Vec::new();
+    let mut shares: Vec<(u64, u64)> = Vec::new();
     let mut xs = Vec::new();
 
     for _i in 0..n {
@@ -80,7 +80,7 @@ pub fn create_secret_shares(key: i64, k: u64, n: u64) -> Vec<(i64, i64)> {
     shares
 }
 
-pub fn recover_secret(shares: &[(i64, i64)]) -> i64 {
+pub fn recover_secret(shares: &[(u64, u64)]) -> u64 {
     lagrange_pol(0, shares)
 }
 
@@ -93,7 +93,7 @@ fn test_create_recover() {
             let mut rgn = rand::rng();
 
             for _i in 0..250000 {
-                let key: i64 = rgn.random_range(RANGE);
+                let key: u64 = rgn.random_range(RANGE);
                 let k = 5;
                 let n = 5;
 
