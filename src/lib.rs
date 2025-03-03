@@ -13,21 +13,21 @@ pub fn calculate_biggest_prime(rnd: &mut RandState) -> Integer {
     }
 }
 
-pub fn calculate_y(x: Integer, pol: &[Integer], prime: Integer) -> Integer {
+pub fn calculate_y(x: Integer, pol: &[Integer], prime: &Integer) -> Integer {
     pol.iter().enumerate().fold(Integer::ZERO, |acc, (i, p)| {
         modular::add(
             acc,
             modular::mul(
                 p.clone(),
-                modular::pow(x.clone(), Integer::from(i.clone()), prime.clone()),
-                prime.clone(),
+                modular::pow(x.clone(), Integer::from(i.clone()), prime),
+                prime,
             ),
-            prime.clone(),
+            prime,
         )
     })
 }
 
-fn lagrange_pol(x: Integer, pol: &[(Integer, Integer)], prime: Integer) -> Integer {
+fn lagrange_pol(x: Integer, pol: &[(Integer, Integer)], prime: &Integer) -> Integer {
     let n = pol.len();
     let mut result = Integer::from(0);
 
@@ -42,24 +42,16 @@ fn lagrange_pol(x: Integer, pol: &[(Integer, Integer)], prime: Integer) -> Integ
                 let (xj, _) = pol[j].clone();
                 num = modular::mul(
                     num.clone(),
-                    modular::sub(
-                        Integer::from(x.clone()),
-                        Integer::from(xj.clone()),
-                        prime.clone(),
-                    ),
-                    prime.clone(),
+                    modular::sub(Integer::from(x.clone()), Integer::from(xj.clone()), prime),
+                    prime,
                 );
-                den = modular::mul(
-                    den,
-                    modular::sub(xi.clone(), xj, prime.clone()),
-                    prime.clone(),
-                );
+                den = modular::mul(den, modular::sub(xi.clone(), xj, prime), prime);
             }
         }
-        let div = modular::div(num, den, prime.clone());
-        let term = modular::mul(yi, div, prime.clone());
+        let div = modular::div(num, den, prime);
+        let term = modular::mul(yi, div, prime);
 
-        result = modular::add(result, term, prime.clone());
+        result = modular::add(result, term, prime);
     }
 
     result
@@ -89,7 +81,7 @@ pub fn create_secret_shares(
     key: Integer,
     k: u64,
     n: u64,
-    prime: Integer,
+    prime: &Integer,
 ) -> Vec<(Integer, Integer)> {
     let mut rnd = RandState::new();
 
@@ -101,14 +93,14 @@ pub fn create_secret_shares(
         let x = generate_unique(&mut rnd, &xs);
         xs.push(x.clone());
 
-        let y = calculate_y(x.clone(), &pol, prime.clone());
+        let y = calculate_y(x.clone(), &pol, prime);
         shares.push((x.clone(), y));
     }
 
     shares
 }
 
-pub fn recover_secret(shares: &[(Integer, Integer)], prime: Integer) -> Integer {
+pub fn recover_secret(shares: &[(Integer, Integer)], prime: &Integer) -> Integer {
     lagrange_pol(Integer::from(0), shares, prime)
 }
 
@@ -122,10 +114,10 @@ fn test_create_recover() {
     let k = 10;
     let n = 15;
 
-    let shares = create_secret_shares(key.clone(), k, n, prime.clone());
+    let shares = create_secret_shares(key.clone(), k, n, &prime);
     let subset = &shares[0..(k as usize)];
 
-    let recovered_key = recover_secret(subset, prime);
+    let recovered_key = recover_secret(subset, &prime);
 
     assert_eq!(
         key, recovered_key,
@@ -133,7 +125,7 @@ fn test_create_recover() {
         shares
     );
 }
-/*
+
 #[test]
 fn test_create_recover_bulk() {
     let mut handles = Vec::new();
@@ -143,15 +135,15 @@ fn test_create_recover_bulk() {
             let mut rnd = RandState::new();
             let prime = calculate_biggest_prime(&mut rnd);
 
-            for _i in 0..10000 {
+            for _i in 0..100000 {
                 let key = Integer::from(Integer::random_bits(BITS, &mut rnd)).modulo(&prime);
                 let k = 2;
                 let n = 3;
 
-                let shares = create_secret_shares(key.clone(), k, n, prime.clone());
+                let shares = create_secret_shares(key.clone(), k, n, &prime);
                 let subset = &shares[0..(k as usize)];
 
-                let recovered_key = recover_secret(subset, prime.clone());
+                let recovered_key = recover_secret(subset, &prime);
 
                 assert_eq!(
                     key, recovered_key,
@@ -167,4 +159,3 @@ fn test_create_recover_bulk() {
         handle.join().unwrap();
     }
 }
-*/
