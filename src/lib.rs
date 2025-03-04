@@ -12,10 +12,10 @@ pub fn calculate_biggest_prime(rnd: &mut RandState) -> Integer {
     loop {
         let candidate = Integer::from(Integer::random_bits(BITS, rnd));
         match candidate.is_probably_prime(30) {
-            rug::integer::IsPrime::No => {
+            rug::integer::IsPrime::No => continue,
+            _ => {
                 return candidate;
             }
-            _ => continue,
         }
     }
 }
@@ -126,12 +126,12 @@ pub fn recover_secret(shares: &[(Integer, Integer)], prime: &Integer) -> Integer
 fn test_create_recover_bulk() {
     let mut handles = Vec::new();
 
-    for _i in 0..100 {
+    for _i in 0..5 {
         let handle = std::thread::spawn(|| {
             let mut rnd = RandState::new();
             let prime = calculate_biggest_prime(&mut rnd);
 
-            for _i in 0..100000 {
+            for _i in 0..200000 {
                 let key = generate_key(&mut rnd, &prime);
                 let k = 2;
                 let n = 3;

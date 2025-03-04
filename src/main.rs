@@ -1,4 +1,4 @@
-use rug::{rand::RandState, Integer};
+use rug::rand::RandState;
 use sss::*;
 
 fn main() {
