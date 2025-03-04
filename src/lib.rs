@@ -21,22 +21,18 @@ pub fn calculate_biggest_prime(rnd: &mut RandState) -> Integer {
 }
 
 //// Function that calculates the y value for a given polinomial and an x value.
-pub fn calculate_y(x: Integer, pol: &[Integer], prime: &Integer) -> Integer {
+pub fn calculate_y(x: &Integer, pol: &[Integer], prime: &Integer) -> Integer {
     pol.iter().enumerate().fold(Integer::ZERO, |acc, (i, p)| {
         modular::add(
             acc,
-            modular::mul(
-                p.clone(),
-                modular::pow(x.clone(), Integer::from(i.clone()), prime),
-                prime,
-            ),
+            modular::mul(p.clone(), modular::pow(x, &Integer::from(i), prime), prime),
             prime,
         )
     })
 }
 
 /// Function that calculates the lagrange polinomial (it is the algorythm used to recover a secret).
-fn lagrange_pol(x: Integer, pol: &[(Integer, Integer)], prime: &Integer) -> Integer {
+fn lagrange_pol(x: &Integer, pol: &[(Integer, Integer)], prime: &Integer) -> Integer {
     let n = pol.len();
     let mut result = Integer::from(0);
 
@@ -51,7 +47,7 @@ fn lagrange_pol(x: Integer, pol: &[(Integer, Integer)], prime: &Integer) -> Inte
                 let (xj, _) = pol[j].clone();
                 num = modular::mul(
                     num.clone(),
-                    modular::sub(Integer::from(x.clone()), Integer::from(xj.clone()), prime),
+                    modular::sub(Integer::from(x), Integer::from(&xj), prime),
                     prime,
                 );
                 den = modular::mul(den, modular::sub(xi.clone(), xj, prime), prime);
@@ -105,8 +101,8 @@ pub fn create_secret_shares(
         let x = generate_unique(&mut rnd, &xs);
         xs.push(x.clone());
 
-        let y = calculate_y(x.clone(), &pol, prime);
-        shares.push((x.clone(), y));
+        let y = calculate_y(&x, &pol, prime);
+        shares.push((x, y));
     }
 
     shares
@@ -119,7 +115,7 @@ pub fn generate_key(rnd: &mut RandState, prime: &Integer) -> Integer {
 
 /// Function that recovers the secret.
 pub fn recover_secret(shares: &[(Integer, Integer)], prime: &Integer) -> Integer {
-    lagrange_pol(Integer::from(0), shares, prime)
+    lagrange_pol(&Integer::from(0), shares, prime)
 }
 
 #[test]

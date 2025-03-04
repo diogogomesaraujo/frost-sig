@@ -25,8 +25,8 @@ pub fn div(a: Integer, b: Integer, m: &Integer) -> Integer {
 }
 
 /// Function to calculate the modular power of two values.
-pub fn pow(x: Integer, y: Integer, p: &Integer) -> Integer {
-    match x.pow_mod(&y, p) {
+pub fn pow(x: &Integer, y: &Integer, p: &Integer) -> Integer {
+    match x.clone().pow_mod(y, p) {
         Ok(i) => i,
         Err(_) => unreachable!(),
     }
