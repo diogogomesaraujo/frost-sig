@@ -1,4 +1,4 @@
-//! This file contains all the functions to generate and share secret keys. The secret keys' bit size can be ajusted by changing the const.
+//! This crate contains all the functions to generate and share secret keys. The secret keys' bit size can be ajusted by changing the const.
 
 use rug::{rand::RandState, Integer};
 
@@ -7,7 +7,7 @@ mod modular;
 /// Const value of the Integers' size in bits.
 pub const BITS: u32 = 256;
 
-/// Function that calculates the biggest prime for the number of bits available.
+/// Function that calculates the biggest prime for the number of bits available (if needed).
 pub fn calculate_biggest_prime(rnd: &mut RandState) -> Integer {
     loop {
         let candidate = Integer::from(Integer::random_bits(BITS, rnd));
@@ -20,7 +20,7 @@ pub fn calculate_biggest_prime(rnd: &mut RandState) -> Integer {
     }
 }
 
-//// Function that calculates the y value for a given polinomial and an x value.
+/// Function that calculates the y value for a given polinomial and an x value.
 pub fn calculate_y(x: &Integer, pol: &[Integer], prime: &Integer) -> Integer {
     pol.iter().enumerate().fold(Integer::ZERO, |acc, (i, p)| {
         modular::add(
@@ -32,7 +32,7 @@ pub fn calculate_y(x: &Integer, pol: &[Integer], prime: &Integer) -> Integer {
 }
 
 /// Function that calculates the lagrange polinomial (it is the algorythm used to recover a secret).
-fn lagrange_pol(x: &Integer, pol: &[(Integer, Integer)], prime: &Integer) -> Integer {
+pub fn lagrange_pol(x: &Integer, pol: &[(Integer, Integer)], prime: &Integer) -> Integer {
     let n = pol.len();
     let mut result = Integer::from(0);
 
@@ -63,7 +63,7 @@ fn lagrange_pol(x: &Integer, pol: &[(Integer, Integer)], prime: &Integer) -> Int
 }
 
 /// Function that generates a unique number for a given vector.
-fn generate_unique(rnd: &mut RandState, v: &[Integer]) -> Integer {
+pub fn generate_unique(rnd: &mut RandState, v: &[Integer]) -> Integer {
     let r = Integer::from(Integer::random_bits(BITS, rnd));
 
     match v.iter().find(|&i| i == &r) {
@@ -73,7 +73,7 @@ fn generate_unique(rnd: &mut RandState, v: &[Integer]) -> Integer {
 }
 
 /// Function that generates a polinomial (it is used to divide the secret into multiple shares).
-fn generate_pol(key: Integer, k: u64, rnd: &mut RandState) -> Vec<Integer> {
+pub fn generate_pol(key: Integer, k: u64, rnd: &mut RandState) -> Vec<Integer> {
     let mut pol: Vec<Integer> = vec![key];
 
     for _i in 1..k {
@@ -118,6 +118,7 @@ pub fn recover_secret(shares: &[(Integer, Integer)], prime: &Integer) -> Integer
     lagrange_pol(&Integer::from(0), shares, prime)
 }
 
+/// Bulk test for the Shamir Secret Sharing library using randomly generated numbers.
 #[test]
 fn test_create_recover_bulk() {
     let mut handles = Vec::new();
