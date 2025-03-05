@@ -1,3 +1,4 @@
+use rand::Rng;
 use rug::rand::RandState;
 use sss::*;
 use std::time::Instant;
@@ -5,14 +6,17 @@ use std::time::Instant;
 fn main() {
     let start = Instant::now();
 
+    let seed: i32 = rand::rng().random();
     let mut rnd = RandState::new();
+    rnd.seed(&rug::Integer::from(seed));
+
     let prime = calculate_biggest_prime(&mut rnd);
 
     let key = generate_key(&mut rnd, &prime);
-    let k = 2;
-    let n = 3;
+    let k = 7;
+    let n = 10;
 
-    let shares = create_secret_shares(key.clone(), k, n, &prime);
+    let shares = create_secret_shares(key.clone(), k, n, &prime, &mut rnd);
     let subset = &shares[0..(k as usize)];
 
     let recovered_key = recover_secret(subset, &prime);

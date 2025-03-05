@@ -1,5 +1,6 @@
-//! This crate contains all the functions to generate and share secret keys. The secret keys' bit size can be ajusted by changing the const.
+//! This crate contains all the functions to generate and share secret keys. The secret keys' bit size is defaulted to 256.
 
+use rand::Rng;
 use rug::{rand::RandState, Integer};
 
 mod modular;
@@ -90,15 +91,14 @@ pub fn create_secret_shares(
     k: u64,
     n: u64,
     prime: &Integer,
+    rnd: &mut RandState,
 ) -> Vec<(Integer, Integer)> {
-    let mut rnd = RandState::new();
-
-    let pol = generate_pol(key, k, &mut rnd);
+    let pol = generate_pol(key, k, rnd);
     let mut shares: Vec<(Integer, Integer)> = Vec::new();
     let mut xs = Vec::new();
 
     for _i in 0..n {
-        let x = generate_unique(&mut rnd, &xs);
+        let x = generate_unique(rnd, &xs);
         xs.push(x.clone());
 
         let y = calculate_y(&x, &pol, prime);
@@ -125,7 +125,10 @@ fn test_create_recover_bulk() {
 
     for _i in 0..5 {
         let handle = std::thread::spawn(|| {
+            let seed: i32 = rand::rng().random();
             let mut rnd = RandState::new();
+            rnd.seed(&rug::Integer::from(seed));
+
             let prime = calculate_biggest_prime(&mut rnd);
 
             for _i in 0..200000 {
@@ -133,7 +136,7 @@ fn test_create_recover_bulk() {
                 let k = 2;
                 let n = 3;
 
-                let shares = create_secret_shares(key.clone(), k, n, &prime);
+                let shares = create_secret_shares(key.clone(), k, n, &prime, &mut rnd);
                 let subset = &shares[0..(k as usize)];
 
                 let recovered_key = recover_secret(subset, &prime);

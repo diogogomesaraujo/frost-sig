@@ -10,4 +10,5 @@ keywords = ["sss", "keys"]
 readme = "README.md"
 
 [dependencies]
+rand = "0.9.0"
 rug = "1.27.0"
