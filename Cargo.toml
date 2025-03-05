@@ -1,5 +1,5 @@
 [package]
-name = "shamir-secret-sharing"
+name = "ss-sharing"
 version = "0.0.1"
 edition = "2021"
 description = "A Shamir Secret Sharing"

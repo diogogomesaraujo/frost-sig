@@ -130,7 +130,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "shamir-secret-sharing"
+name = "ss-sharing"
 version = "0.0.1"
 dependencies = [
  "rand",
