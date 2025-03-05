@@ -1,6 +1,6 @@
 use rand::Rng;
 use rug::rand::RandState;
-use sss::*;
+use shamir_secret_sharing::*;
 use std::time::Instant;
 
 fn main() {
