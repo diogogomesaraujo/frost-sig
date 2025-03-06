@@ -1,10 +1,10 @@
 [package]
 name = "ss-sharing"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2021"
 description = "A Shamir Secret Sharing"
 license = "MIT"
-repository = "https://github.com/diogogomesaraujo/sss"
+repository = "https://github.com/diogogomesaraujo/ss-sharing"
 categories = ["cryptography"]
 keywords = ["sss", "keys"]
 readme = "README.md"

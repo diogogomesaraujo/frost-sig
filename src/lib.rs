@@ -123,7 +123,7 @@ pub fn recover_secret(shares: &[(Integer, Integer)], prime: &Integer) -> Integer
 fn test_create_recover_bulk() {
     let mut handles = Vec::new();
 
-    for _i in 0..5 {
+    for _i in 0..20 {
         let handle = std::thread::spawn(|| {
             let seed: i32 = rand::rng().random();
             let mut rnd = RandState::new();
@@ -131,7 +131,7 @@ fn test_create_recover_bulk() {
 
             let prime = calculate_biggest_prime(&mut rnd);
 
-            for _i in 0..200000 {
+            for _i in 0..50000 {
                 let key = generate_key(&mut rnd, &prime);
                 let k = 2;
                 let n = 3;
