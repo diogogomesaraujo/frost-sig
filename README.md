@@ -1,6 +1,6 @@
-# sss
+# ss-sharing
 
-`sss` is an implementation of the Shamir Secret Sharing algorythm for numbers of any number of bits (defaulted to 256).
+`ss-sharing` is an implementation of the Shamir Secret Sharing algorythm for numbers of any number of bits (defaulted to 256).
 
 ## Features
 
