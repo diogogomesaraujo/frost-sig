@@ -1,6 +1,8 @@
 //! This file contains all the modular arithmetic functions needed.
 
-use rug::Integer;
+use rug::{rand::RandState, Integer};
+
+use crate::BITS;
 
 /// Function to calculate the modular addition of two values.
 pub fn add(a: Integer, b: Integer, m: &Integer) -> Integer {

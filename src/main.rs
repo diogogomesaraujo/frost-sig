@@ -1,7 +1,8 @@
 use rand::Rng;
-use rug::rand::RandState;
-use ss_sharing::*;
-use std::time::Instant;
+use rug::{rand::RandState, Integer};
+use sss::*;
+use std::{str::FromStr, time::Instant};
+use thresh::*;
 
 fn main() {
     let start = Instant::now();
@@ -10,7 +11,7 @@ fn main() {
     let mut rnd = RandState::new();
     rnd.seed(&rug::Integer::from(seed));
 
-    let prime = calculate_biggest_prime(&mut rnd);
+    let prime = Integer::from_str(PRIME).expect("Shouldn't happen.");
 
     let key = generate_key(&mut rnd, &prime);
     let k = 7;
