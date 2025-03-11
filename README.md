@@ -1,6 +1,6 @@
 # ss-sharing
 
-`ss-sharing` is an implementation of the Shamir Secret Sharing algorythm for numbers of any number of bits (defaulted to 256).
+`thresh` is a threshold signature library that implements both Schnorr and Shamir Secret Sharing.
 
 ## Features
 
@@ -28,4 +28,4 @@
 
 ## Future Work
 
-- Optimization
+- Optimize the Schnorr implementation.

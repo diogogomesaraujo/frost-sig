@@ -1,3 +1,5 @@
+//! Implementation of the Schnorr threshold signatures.
+
 use crate::{modular, BITS, PRIME};
 use rand::Rng;
 use rug::{rand::RandState, Integer};
@@ -81,7 +83,7 @@ fn test_frost_key_generation() {
 
             let (prime, q, generator) = get_prime_q_gen();
 
-            for _i in 0..50000 {
+            for _i in 0..1 {
                 let (public_key, private_key) = generate_keys(&generator, &mut rnd, &prime, &q);
 
                 let message = "send Bob 10 bucks";

@@ -1,7 +1,7 @@
-//! This crate contains all the functions to generate and share secret keys. The secret keys' bit size is defaulted to 256.
+//! This crate contains all the functions to implement threshold signature systems.
 
-pub mod frost;
 pub mod modular;
+pub mod schnorr;
 pub mod sss;
 
 /// Const value of the Integers' size in bits.

@@ -1,4 +1,4 @@
-//! This file contains all the modular arithmetic functions needed.
+//! Implementation of the modular arythmetic functions.
 
 use rug::{rand::RandState, Integer};
 

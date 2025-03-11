@@ -1,3 +1,5 @@
+//! Implementation of the Shamir Secret Sharing threshold signatures.
+
 use crate::{modular, BITS, PRIME};
 use rand::Rng;
 use rug::{rand::RandState, Integer};
