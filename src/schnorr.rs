@@ -6,65 +6,68 @@ use rug::{rand::RandState, Integer};
 use sha256::digest;
 use std::str::FromStr;
 
-/// Const value of the generator in str.
-const GENERATOR: &str = "4";
+/// Struct that saves the state of the constants for the schnorr signature operations.
+pub struct SchnorrState {
+    prime: Integer,
+    q: Integer,
+    generator: Integer,
+}
 
-/// Function to get all the constants needed for the operations.
-pub fn get_prime_q_gen() -> (Integer, Integer, Integer) {
-    let prime = Integer::from_str(PRIME).expect("Shouldn't happen.");
-    let q = Integer::from((Integer::from_str(PRIME).expect("Shouldn't happen.") - 1) / 2);
-    let generator = Integer::from_str(GENERATOR).expect("Shouldn't happen.");
-    (prime, q, generator)
+impl SchnorrState {
+    /// Function to init the State and get all the constants needed for the operations.
+    pub fn init() -> SchnorrState {
+        SchnorrState {
+            prime: Integer::from_str(PRIME).expect("Shouldn't happen."),
+            q: Integer::from((Integer::from_str(PRIME).expect("Shouldn't happen.") - 1) / 2),
+            generator: Integer::from(4),
+        }
+    }
 }
 
 /// Function to generate the public and private key pair.
-pub fn generate_keys(
-    generator: &Integer,
-    rnd: &mut RandState,
-    prime: &Integer,
-) -> (Integer, Integer) {
+pub fn generate_keys(state: &SchnorrState, rnd: &mut RandState) -> (Integer, Integer) {
     let private_key = Integer::from(Integer::random_bits(BITS, rnd));
-    let public_key = modular::pow(generator, &private_key, &prime);
+    let public_key = modular::pow(&(state.generator), &private_key, &(state.prime));
     (public_key, private_key)
 }
 
 /// Function to sign a message using a private key.
 pub fn sign(
+    state: &SchnorrState,
+    rnd: &mut RandState,
     message: &str,
     private_key: Integer,
-    rnd: &mut RandState,
-    generator: &Integer,
-    prime: &Integer,
-    q: &Integer,
 ) -> (Integer, Integer) {
     let k = Integer::from(Integer::random_bits(BITS, rnd));
-    let r = modular::pow(generator, &k, prime);
+    let r = modular::pow(&(state.generator), &k, &(state.prime));
     let hash = Integer::from(
         Integer::from_str_radix(digest(format!("{r}{message}")).as_str(), 16).unwrap(),
     );
-    let e = Integer::from(hash % q);
-    let s = Integer::from((k - private_key * e) % q);
+    let e = Integer::from(hash % &(state.q));
+    let s = Integer::from(modular::sub(
+        k,
+        modular::mul(private_key, e, &(state.q)),
+        &(state.q),
+    ));
     (r, s)
 }
 
 /// Function to verify a message using the public key.
 pub fn verify(
+    state: &SchnorrState,
     message: &str,
     r: &Integer,
     s: &Integer,
     public_key: &Integer,
-    prime: &Integer,
-    q: &Integer,
-    generator: &Integer,
 ) -> bool {
     let hash = Integer::from(
         Integer::from_str_radix(digest(format!("{r}{message}")).as_str(), 16).unwrap(),
     );
-    let e = Integer::from(hash % q);
+    let e = Integer::from(hash % &(state.q));
     let v1 = Integer::from(modular::mul(
-        modular::pow(generator, &s, prime),
-        modular::pow(public_key, &e, prime),
-        prime,
+        modular::pow(&(state.generator), &s, &(state.prime)),
+        modular::pow(public_key, &e, &(state.prime)),
+        &(state.prime),
     ));
     v1 == *r
 }
@@ -79,15 +82,15 @@ fn test_frost_key_generation_bulk() {
             let mut rnd = RandState::new();
             rnd.seed(&rug::Integer::from(seed));
 
-            let (prime, q, generator) = get_prime_q_gen();
+            let state = SchnorrState::init();
 
             for _i in 0..50000 {
-                let (public_key, private_key) = generate_keys(&generator, &mut rnd, &prime);
+                let (public_key, private_key) = generate_keys(&state, &mut rnd);
 
-                let message = "send Bob 10 bucks";
-                let (r, s) = sign(message, private_key, &mut rnd, &generator, &prime, &q);
+                let message = "send Bob 10 bucks.";
+                let (r, s) = sign(&state, &mut rnd, message, private_key);
 
-                assert!(verify(message, &r, &s, &public_key, &prime, &q, &generator));
+                assert!(verify(&state, message, &r, &s, &public_key));
             }
         });
 
