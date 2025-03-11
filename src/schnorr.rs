@@ -22,7 +22,6 @@ pub fn generate_keys(
     generator: &Integer,
     rnd: &mut RandState,
     prime: &Integer,
-    q: &Integer,
 ) -> (Integer, Integer) {
     let private_key = Integer::from(Integer::random_bits(BITS, rnd));
     let public_key = modular::pow(generator, &private_key, &prime);
@@ -67,15 +66,14 @@ pub fn verify(
         modular::pow(public_key, &e, prime),
         prime,
     ));
-    println!("{v1} --------- {r}");
     v1 == *r
 }
 
 #[test]
-fn test_frost_key_generation() {
+fn test_frost_key_generation_bulk() {
     let mut handles = Vec::new();
 
-    for i in 0..20 {
+    for _i in 0..20 {
         let handle = std::thread::spawn(|| {
             let seed: i32 = rand::rng().random();
             let mut rnd = RandState::new();
@@ -83,8 +81,8 @@ fn test_frost_key_generation() {
 
             let (prime, q, generator) = get_prime_q_gen();
 
-            for _i in 0..1 {
-                let (public_key, private_key) = generate_keys(&generator, &mut rnd, &prime, &q);
+            for _i in 0..50000 {
+                let (public_key, private_key) = generate_keys(&generator, &mut rnd, &prime);
 
                 let message = "send Bob 10 bucks";
                 let (r, s) = sign(message, private_key, &mut rnd, &generator, &prime, &q);
