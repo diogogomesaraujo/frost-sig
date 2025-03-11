@@ -1,4 +1,4 @@
-# ss-sharing
+# thresh
 
 `thresh` is a threshold signature library that implements both Schnorr and Shamir Secret Sharing.
 
