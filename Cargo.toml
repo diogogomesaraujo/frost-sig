@@ -2,11 +2,11 @@
 name = "thresh"
 version = "0.0.2"
 edition = "2021"
-description = "A Shamir Secret Sharing"
+description = "A threshold signature library."
 license = "MIT"
-repository = "https://github.com/diogogomesaraujo/ss-sharing"
+repository = "https://github.com/diogogomesaraujo/thresh"
 categories = ["cryptography"]
-keywords = ["sss", "keys"]
+keywords = ["sss", "threshold signatures", "schnorr"]
 readme = "README.md"
 
 [dependencies]
