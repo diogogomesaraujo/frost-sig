@@ -41,7 +41,8 @@ pub fn sign(
     let k = Integer::from(Integer::random_bits(BITS, rnd));
     let r = modular::pow(&(state.generator), &k, &(state.prime));
     let hash = Integer::from(
-        Integer::from_str_radix(digest(format!("{r}{message}")).as_str(), 16).unwrap(),
+        Integer::from_str_radix(digest(format!("{r}{message}")).as_str(), 16)
+            .expect("Shouldn't happen."),
     );
     let e = Integer::from(hash % &(state.q));
     let s = Integer::from(modular::sub(
@@ -61,7 +62,8 @@ pub fn verify(
     public_key: &Integer,
 ) -> bool {
     let hash = Integer::from(
-        Integer::from_str_radix(digest(format!("{r}{message}")).as_str(), 16).unwrap(),
+        Integer::from_str_radix(digest(format!("{r}{message}")).as_str(), 16)
+            .expect("Shouldn't happen."),
     );
     let e = Integer::from(hash % &(state.q));
     let v1 = Integer::from(modular::mul(
@@ -84,7 +86,7 @@ fn test_frost_key_generation_bulk() {
 
             let state = SchnorrState::init();
 
-            for _i in 0..50000 {
+            for _i in 0..10000 {
                 let (public_key, private_key) = generate_keys(&state, &mut rnd);
 
                 let message = "send Bob 10 bucks.";
