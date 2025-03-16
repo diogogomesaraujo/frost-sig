@@ -6,7 +6,7 @@ description = "A threshold signature library."
 license = "MIT"
 repository = "https://github.com/diogogomesaraujo/thresh"
 categories = ["cryptography"]
-keywords = ["sss", "threshold signatures", "schnorr"]
+keywords = ["sss", "threshold", "schnorr"]
 readme = "README.md"
 
 [dependencies]
