@@ -63,6 +63,7 @@ pub fn sign(
         .iter()
         .map(|nonce| modular::pow(&(state.generator), &nonce, &state.prime))
         .collect();
+
     let shared_nonce = nonces.iter().fold(Integer::ZERO, |acc, nonce| {
         modular::add(acc, (*nonce).clone(), &state.q)
     });
@@ -72,17 +73,20 @@ pub fn sign(
     let shared_secret_key = secret_keys.iter().fold(Integer::ZERO, |acc, sk| {
         modular::add(acc, (*sk).clone(), &state.q)
     });
-    let hash = Integer::from(
+
+    let challenge_hash = Integer::from(
         Integer::from_str_radix(digest(format!("{shared_point}{message}")).as_str(), 16)
             .expect("Shouldn't happen."),
     );
-    let e = Integer::from(hash % &state.q);
-    let s = Integer::from(modular::sub(
+    let challenge = Integer::from(challenge_hash % &state.q);
+
+    let response = Integer::from(modular::sub(
         shared_nonce,
-        modular::mul(shared_secret_key, e, &(state.q)),
+        modular::mul(shared_secret_key, challenge, &(state.q)),
         &(state.q),
     ));
-    (shared_point, s)
+
+    (shared_point, response)
 }
 
 /// Function to verify a message using the shared public key.
@@ -90,20 +94,22 @@ pub fn verify(
     state: &SchnorrThresholdState,
     message: &str,
     shared_point: &Integer,
-    s: &Integer,
+    response: &Integer,
     shared_public_key: &Integer,
 ) -> bool {
-    let hash = Integer::from(
+    let challenge_hash = Integer::from(
         Integer::from_str_radix(digest(format!("{shared_point}{message}")).as_str(), 16)
             .expect("Shouldn't happen."),
     );
-    let e = Integer::from(hash % &(state.q));
-    let v1 = Integer::from(modular::mul(
-        modular::pow(&(state.generator), &s, &(state.prime)),
-        modular::pow(shared_public_key, &e, &(state.prime)),
+    let challenge = Integer::from(challenge_hash % &(state.q));
+
+    let expected_point = Integer::from(modular::mul(
+        modular::pow(&(state.generator), &response, &(state.prime)),
+        modular::pow(shared_public_key, &challenge, &(state.prime)),
         &(state.prime),
     ));
-    v1 == *shared_point
+
+    expected_point == *shared_point
 }
 
 #[test]
@@ -116,7 +122,7 @@ fn test_schnorr_bulk() {
             let mut rnd = RandState::new();
             rnd.seed(&rug::Integer::from(seed));
 
-            let state = SchnorrThresholdState::init(5, 3);
+            let state = SchnorrThresholdState::init(10, 5);
 
             for _i in 0..100 {
                 let shares = generate_shares(&state, &mut rnd);
