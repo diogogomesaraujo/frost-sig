@@ -308,7 +308,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "thresh"
+name = "thresh-sig"
 version = "0.0.3"
 dependencies = [
  "rand",

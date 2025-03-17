@@ -1,5 +1,5 @@
 [package]
-name = "thresh"
+name = "thresh-sig"
 version = "0.0.3"
 edition = "2021"
 description = "A threshold signature library."

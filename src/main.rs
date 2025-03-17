@@ -2,7 +2,7 @@ use rand::Rng;
 use rug::{rand::RandState, Integer};
 use shamir::*;
 use std::{str::FromStr, time::Instant};
-use thresh::*;
+use thresh_sig::*;
 
 fn main() {
     let start = Instant::now();
