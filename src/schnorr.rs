@@ -28,22 +28,25 @@ impl SchnorrThresholdState {
     }
 }
 
-/// Function to generate the shared public key and private shares.
-pub fn generate_shared_key_and_shares(
-    state: &SchnorrThresholdState,
-    rnd: &mut RandState,
-) -> (Integer, Vec<Integer>) {
-    let secret_keys: Vec<Integer> = (0..state.participants)
+/// Function to generate private shares.
+pub fn generate_shares(state: &SchnorrThresholdState, rnd: &mut RandState) -> Vec<Integer> {
+    (0..state.participants)
         .map(|_| Integer::from(Integer::random_bits(BITS, rnd)))
-        .collect();
-    let shared_public_key = secret_keys.iter().fold(Integer::ZERO, |acc, sk| {
+        .collect()
+}
+
+/// Function to generate the shared key from the private shares given.
+pub fn generate_shared_key(
+    state: &SchnorrThresholdState,
+    secret_keys_subset: &[Integer],
+) -> Integer {
+    secret_keys_subset.iter().fold(Integer::from(1), |acc, sk| {
         modular::mul(
             acc,
             modular::pow(&(state.generator), &sk, &state.prime),
             &state.prime,
         )
-    });
-    (shared_public_key, secret_keys)
+    })
 }
 
 /// Function to sign a message using a subset of the private shares (the number of shares should match the threshold).
@@ -63,7 +66,7 @@ pub fn sign(
     let shared_nonce = nonces.iter().fold(Integer::ZERO, |acc, nonce| {
         modular::add(acc, (*nonce).clone(), &state.q)
     });
-    let shared_point = points.iter().fold(Integer::ZERO, |acc, point| {
+    let shared_point = points.iter().fold(Integer::from(1), |acc, point| {
         modular::mul(acc, (*point).clone(), &state.prime)
     });
     let shared_secret_key = secret_keys.iter().fold(Integer::ZERO, |acc, sk| {
@@ -100,7 +103,6 @@ pub fn verify(
         modular::pow(shared_public_key, &e, &(state.prime)),
         &(state.prime),
     ));
-    println!("{} ------ {}", v1, *shared_point);
     v1 == *shared_point
 }
 
@@ -116,13 +118,25 @@ fn test_schnorr_bulk() {
 
             let state = SchnorrThresholdState::init(5, 3);
 
-            for _i in 0..10000 {
-                let (shared_public_key, shares) = generate_shared_key_and_shares(&state, &mut rnd);
+            for _i in 0..100 {
+                let shares = generate_shares(&state, &mut rnd);
+                let subset = &shares[0..(state.threshold)];
+                let shared_public_key = generate_shared_key(&state, subset);
 
                 let message = "send Bob 10 bucks.";
-                let (r, s) = sign(&state, &mut rnd, message, &shares[0..(state.threshold)]);
+                let (r, s) = sign(&state, &mut rnd, message, subset);
+                let valid = verify(&state, message, &r, &s, &shared_public_key);
 
-                assert!(verify(&state, message, &r, &s, &shared_public_key));
+                assert!(valid);
+
+                println!(
+                    "
+                    Shared Public Key: {:?}\n
+                    Shares:            {:?}\n
+                    Message:           {}\n
+                    Valid:             {}\n",
+                    shared_public_key, shares, message, valid
+                );
             }
         });
 
