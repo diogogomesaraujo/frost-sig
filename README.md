@@ -1,6 +1,6 @@
 # thresh
 
-`thresh` is a threshold signature library that implements both Schnorr and Shamir Secret Sharing.
+`thresh` is a threshold signature library that implements both Schnorr Threshold and Shamir Secret Sharing.
 
 ## Features
 

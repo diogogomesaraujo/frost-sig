@@ -43,7 +43,6 @@ pub fn generate_shared_key_and_shares(
             &state.prime,
         )
     });
-
     (shared_public_key, secret_keys)
 }
 
@@ -61,7 +60,6 @@ pub fn sign(
         .iter()
         .map(|nonce| modular::pow(&(state.generator), &nonce, &state.prime))
         .collect();
-
     let shared_nonce = nonces.iter().fold(Integer::ZERO, |acc, nonce| {
         modular::add(acc, (*nonce).clone(), &state.q)
     });
@@ -71,19 +69,16 @@ pub fn sign(
     let shared_secret_key = secret_keys.iter().fold(Integer::ZERO, |acc, sk| {
         modular::add(acc, (*sk).clone(), &state.q)
     });
-
     let hash = Integer::from(
         Integer::from_str_radix(digest(format!("{shared_point}{message}")).as_str(), 16)
             .expect("Shouldn't happen."),
     );
     let e = Integer::from(hash % &state.q);
-
     let s = Integer::from(modular::sub(
         shared_nonce,
         modular::mul(shared_secret_key, e, &(state.q)),
         &(state.q),
     ));
-
     (shared_point, s)
 }
 

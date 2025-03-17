@@ -2,7 +2,7 @@
 
 pub mod modular;
 pub mod schnorr;
-pub mod sss;
+pub mod shamir;
 
 /// Const value of the Integers' size in bits.
 pub const BITS: u32 = 256;

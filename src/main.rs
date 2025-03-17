@@ -1,6 +1,6 @@
 use rand::Rng;
 use rug::{rand::RandState, Integer};
-use sss::*;
+use shamir::*;
 use std::{str::FromStr, time::Instant};
 use thresh::*;
 
