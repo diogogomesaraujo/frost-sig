@@ -1,4 +1,5 @@
 //! Implementation of the Schnorr threshold signatures (simplified).
+//! It uses 256bit integers, modular arythmetic to simplify calculations and handles all the operations for server-side usage.
 
 use crate::{modular, BITS, PRIME};
 use rand::Rng;
@@ -6,7 +7,7 @@ use rug::{rand::RandState, Integer};
 use sha256::digest;
 use std::str::FromStr;
 
-/// Struct that saves the state of the constants for the schnorr threshold signature operations.
+/// Struct that saves the constants needed for all Schnorr Threshold Signature operations.
 pub struct SchnorrThresholdState {
     pub prime: Integer,
     pub q: Integer,
@@ -16,7 +17,9 @@ pub struct SchnorrThresholdState {
 }
 
 impl SchnorrThresholdState {
-    /// Function to init the State and get all the constants needed for the operations.
+    /// Function that initializes the SchnorrThresholdState.
+    /// Recieves two parameters: number of participants and threshold that will determine how many shares are generated and the minimum used for signing operations.
+    /// The rest of the parameters are initialized internally.
     pub fn init(p: usize, t: usize) -> SchnorrThresholdState {
         SchnorrThresholdState {
             prime: Integer::from_str(PRIME).expect("Shouldn't happen."),
@@ -28,28 +31,32 @@ impl SchnorrThresholdState {
     }
 }
 
-/// Function to generate private shares.
-pub fn generate_shares(state: &SchnorrThresholdState, rnd: &mut RandState) -> Vec<Integer> {
+/// Function that generates private shares according to the number of participants in the SchnorrThresholdState.
+/// Each share should be stored securly by each participant.
+pub fn generate_secret_shares(state: &SchnorrThresholdState, rnd: &mut RandState) -> Vec<Integer> {
     (0..state.participants)
         .map(|_| Integer::from(Integer::random_bits(BITS, rnd)))
         .collect()
 }
 
-/// Function to generate the shared key from the private shares given.
+/// Function that generates a shared (public) key for the specific subset of secret shares given.
+/// The number of shares should match with the threshold in the SchnorrTresholdState.
 pub fn generate_shared_key(
     state: &SchnorrThresholdState,
-    secret_keys_subset: &[Integer],
+    secret_shares_subset: &[Integer],
 ) -> Integer {
-    secret_keys_subset.iter().fold(Integer::from(1), |acc, sk| {
-        modular::mul(
-            acc,
-            modular::pow(&(state.generator), &sk, &state.prime),
-            &state.prime,
-        )
-    })
+    secret_shares_subset
+        .iter()
+        .fold(Integer::from(1), |acc, sk| {
+            modular::mul(
+                acc,
+                modular::pow(&(state.generator), &sk, &state.prime),
+                &state.prime,
+            )
+        })
 }
 
-/// Function to sign a message using a subset of the private shares (the number of shares should match the threshold).
+/// Function that signs a message using a subset of the private shares (the number of shares should match the threshold).
 pub fn sign(
     state: &SchnorrThresholdState,
     rnd: &mut RandState,
@@ -89,7 +96,7 @@ pub fn sign(
     (shared_commitment, signature_response)
 }
 
-/// Function to verify a message using the shared public key.
+/// Function that verifies a message using the shared key and the signature response that was recieved.
 pub fn verify(
     state: &SchnorrThresholdState,
     message: &str,
@@ -112,6 +119,7 @@ pub fn verify(
     expected_point == *shared_commitment
 }
 
+/// Bulk test for the Schnorr Threshold Signature library using randomly generated numbers.
 #[test]
 fn test_schnorr_bulk() {
     let mut handles = Vec::new();
@@ -125,7 +133,7 @@ fn test_schnorr_bulk() {
             let state = SchnorrThresholdState::init(10, 5);
 
             for _i in 0..100 {
-                let shares = generate_shares(&state, &mut rnd);
+                let shares = generate_secret_shares(&state, &mut rnd);
                 let subset = &shares[0..(state.threshold)];
                 let shared_public_key = generate_shared_key(&state, subset);
 

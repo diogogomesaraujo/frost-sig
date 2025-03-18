@@ -14,7 +14,7 @@ fn main() {
 
     let state = SchnorrThresholdState::init(10, 5);
 
-    let shares = generate_shares(&state, &mut rnd);
+    let shares = generate_secret_shares(&state, &mut rnd);
     let subset = &shares[0..(state.threshold)];
 
     let shared_public_key = generate_shared_key(&state, subset);

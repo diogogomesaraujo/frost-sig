@@ -1,11 +1,12 @@
 //! Implementation of the Shamir Secret Sharing threshold signatures.
+//! It uses 256bit integers and uses modular arythmetic to simplify calculations.
 
 use crate::{modular, BITS, PRIME};
 use rand::Rng;
 use rug::{rand::RandState, Integer};
 use std::str::FromStr;
 
-/// Function that calculates the y value for a given polinomial and an x value.
+/// Function that calculates the y value for a given polinomial and an x.
 pub fn calculate_y(x: &Integer, pol: &[Integer], prime: &Integer) -> Integer {
     pol.iter().enumerate().fold(Integer::ZERO, |acc, (i, p)| {
         modular::add(
@@ -16,7 +17,8 @@ pub fn calculate_y(x: &Integer, pol: &[Integer], prime: &Integer) -> Integer {
     })
 }
 
-/// Function that calculates the lagrange polinomial (it is the algorythm used to recover a secret).
+/// Function that calculates the lagrange polinomial.
+/// It is used to recover a secret using a subset with an equal or bigger size to the threshold defined.
 pub fn lagrange_pol(x: &Integer, pol: &[(Integer, Integer)], prime: &Integer) -> Integer {
     let n = pol.len();
     let mut result = Integer::from(0);
@@ -57,7 +59,8 @@ pub fn generate_unique(rnd: &mut RandState, v: &[Integer]) -> Integer {
     }
 }
 
-/// Function that generates a polinomial (it is used to divide the secret into multiple shares).
+/// Function that generates a polinomial.
+/// It is used to divide the secret into multiple shares that can be used to sign a secret.
 pub fn generate_pol(key: Integer, k: u64, rnd: &mut RandState) -> Vec<Integer> {
     let mut pol: Vec<Integer> = vec![key];
 
@@ -69,11 +72,12 @@ pub fn generate_pol(key: Integer, k: u64, rnd: &mut RandState) -> Vec<Integer> {
     pol
 }
 
-/// Function that creates the secret shares.
+/// Function that creates the secret shares according to the number of participants (n).
+/// It uses a pol according to the threshold (k) to generate the shares.
 pub fn create_secret_shares(
     key: Integer,
-    k: u64,
     n: u64,
+    k: u64,
     prime: &Integer,
     rnd: &mut RandState,
 ) -> Vec<(Integer, Integer)> {
@@ -92,17 +96,18 @@ pub fn create_secret_shares(
     shares
 }
 
-/// Function that generates the secret key (if needed).
+/// Function that generates a secret key.
 pub fn generate_key(rnd: &mut RandState, prime: &Integer) -> Integer {
     Integer::from(Integer::random_bits(BITS, rnd)).modulo(&prime)
 }
 
-/// Function that recovers the secret.
+/// Function that recovers the secret from the given private shares.
+/// It is only able to recover the secret if the number of shares is at least as big as the threshold.
 pub fn recover_secret(shares: &[(Integer, Integer)], prime: &Integer) -> Integer {
     lagrange_pol(&Integer::from(0), shares, prime)
 }
 
-/// Bulk test for the Shamir Secret Sharing library using randomly generated numbers.
+/// Bulk test for the Shamir Secret Sharing module using randomly generated numbers.
 #[test]
 fn test_create_recover_bulk() {
     let mut handles = Vec::new();
@@ -120,7 +125,7 @@ fn test_create_recover_bulk() {
                 let k = 2;
                 let n = 3;
 
-                let shares = create_secret_shares(key.clone(), k, n, &prime, &mut rnd);
+                let shares = create_secret_shares(key.clone(), n, k, &prime, &mut rnd);
                 let subset = &shares[0..(k as usize)];
 
                 let recovered_key = recover_secret(subset, &prime);
