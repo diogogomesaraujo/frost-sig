@@ -1,5 +1,6 @@
-//! Implementation of the Schnorr threshold signatures (simplified).
-//! It uses 256bit integers, modular arythmetic to simplify calculations and handles all the operations for server-side usage.
+//! Implementation of the Schnorr Threshold Signatures (simplified).
+//! It uses 256bit integers, modular arythmetic to simplify calculations and SHA-256 as the predefined hashing algorythm.
+//! This variant of Schnorr Threshold Signatures is designed for a server-focused system, where the server is responsible for all operations. The participants only sign transactions with their key.
 
 use crate::{modular, BITS, PRIME};
 use rand::Rng;
@@ -142,6 +143,12 @@ fn test_schnorr_bulk() {
                 let valid = verify(&state, message, &r, &s, &shared_public_key);
 
                 assert!(valid);
+
+                let shares: Vec<String> = shares
+                    .iter()
+                    .map(|share| share.to_string_radix(16))
+                    .collect();
+                let shared_public_key = shared_public_key.to_string_radix(16);
 
                 println!(
                     "

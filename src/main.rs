@@ -19,7 +19,25 @@ fn main() {
 
     let shared_public_key = generate_shared_key(&state, subset);
 
-    let message = "send Diogo 10 bucks.";
+    let serialize_transaction_block = |shared_key: &Integer,
+                                       reciever_address: &Integer,
+                                       ammount: &f64,
+                                       threshold: &usize,
+                                       participants: &usize| {
+        format!(
+            "{}:{}:{}:{}:{}",
+            shared_key, reciever_address, ammount, threshold, participants,
+        )
+    };
+
+    let message = serialize_transaction_block(
+        &shared_public_key,
+        &Integer::from(1),
+        &2.4,
+        &state.threshold,
+        &state.participants,
+    );
+
     let (shared_commitment, signature_response) = sign(&state, &mut rnd, &message, subset);
 
     let result = verify(
