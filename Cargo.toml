@@ -1,6 +1,6 @@
 [package]
 name = "thresh-sig"
-version = "0.0.4"
+version = "0.0.5"
 edition = "2021"
 description = "A threshold signature library."
 license = "MIT"
