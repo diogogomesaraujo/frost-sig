@@ -8,11 +8,11 @@ use std::str::FromStr;
 
 /// Struct that saves the state of the constants for the schnorr threshold signature operations.
 pub struct SchnorrThresholdState {
-    prime: Integer,
-    q: Integer,
-    generator: Integer,
-    participants: usize,
-    threshold: usize,
+    pub prime: Integer,
+    pub q: Integer,
+    pub generator: Integer,
+    pub participants: usize,
+    pub threshold: usize,
 }
 
 impl SchnorrThresholdState {
@@ -67,7 +67,7 @@ pub fn sign(
     let shared_nonce = nonces.iter().fold(Integer::ZERO, |acc, nonce| {
         modular::add(acc, (*nonce).clone(), &state.q)
     });
-    let shared_point = points.iter().fold(Integer::from(1), |acc, point| {
+    let shared_commitment = points.iter().fold(Integer::from(1), |acc, point| {
         modular::mul(acc, (*point).clone(), &state.prime)
     });
     let shared_secret_key = secret_keys.iter().fold(Integer::ZERO, |acc, sk| {
@@ -75,30 +75,30 @@ pub fn sign(
     });
 
     let challenge_hash = Integer::from(
-        Integer::from_str_radix(digest(format!("{shared_point}{message}")).as_str(), 16)
+        Integer::from_str_radix(digest(format!("{shared_commitment}{message}")).as_str(), 16)
             .expect("Shouldn't happen."),
     );
     let challenge = Integer::from(challenge_hash % &state.q);
 
-    let response = Integer::from(modular::sub(
+    let signature_response = Integer::from(modular::sub(
         shared_nonce,
         modular::mul(shared_secret_key, challenge, &(state.q)),
         &(state.q),
     ));
 
-    (shared_point, response)
+    (shared_commitment, signature_response)
 }
 
 /// Function to verify a message using the shared public key.
 pub fn verify(
     state: &SchnorrThresholdState,
     message: &str,
-    shared_point: &Integer,
+    shared_commitment: &Integer,
     response: &Integer,
     shared_public_key: &Integer,
 ) -> bool {
     let challenge_hash = Integer::from(
-        Integer::from_str_radix(digest(format!("{shared_point}{message}")).as_str(), 16)
+        Integer::from_str_radix(digest(format!("{shared_commitment}{message}")).as_str(), 16)
             .expect("Shouldn't happen."),
     );
     let challenge = Integer::from(challenge_hash % &(state.q));
@@ -109,7 +109,7 @@ pub fn verify(
         &(state.prime),
     ));
 
-    expected_point == *shared_point
+    expected_point == *shared_commitment
 }
 
 #[test]
