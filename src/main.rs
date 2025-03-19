@@ -25,14 +25,22 @@ fn main() {
                                        threshold: &usize,
                                        participants: &usize| {
         format!(
-            "{}:{}:{}:{}:{}",
-            shared_key, reciever_address, ammount, threshold, participants,
+            "{}::{}::{}::{}::{}",
+            shared_key.to_string_radix(16),
+            reciever_address.to_string_radix(16),
+            ammount,
+            threshold,
+            participants,
         )
     };
 
     let message = serialize_transaction_block(
         &shared_public_key,
-        &Integer::from(1),
+        &Integer::from_str_radix(
+            "38fe14d8c7191e6c3671b75cfb627b928a19ddeb16edf8dfff9336632315880a",
+            16,
+        )
+        .unwrap(),
         &2.4,
         &state.threshold,
         &state.participants,
@@ -47,6 +55,16 @@ fn main() {
         &signature_response,
         &shared_public_key,
     );
+
+    let shares: Vec<String> = shares
+        .iter()
+        .map(|share| share.to_string_radix(16))
+        .collect();
+    let subset: Vec<String> = subset
+        .iter()
+        .map(|share| share.to_string_radix(16))
+        .collect();
+    let shared_public_key = shared_public_key.to_string_radix(16);
 
     println!(
         "
