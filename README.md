@@ -1,12 +1,18 @@
 # thresh-sig
 
-`thresh-sig` is a threshold signature library that implements both Schnorr Threshold and Shamir Secret Sharing.
+`thresh-sig` is a threshold signature library that implements threshold algorythms for 256bit integers.
 
 ## Features
 
-- Creation of secret shares.
-- Recover secret from shares.
-- Key generation.
+- Shamir Secret Sharing.
+- Schnorr Threshold Signatures.
+- Modular Arythmetic for `rug` integers.
+
+## Dependencies
+
+- `rug` is a arbitrary precision numbers crate and provides infrastructure for the 256bit numbers and calculations.
+- `rand` is a random number generation crate and it is used to generate a random seed for the 256bit numbers generation.
+- `sha-256` is an implementation of SHA-256 and it is the predefined hashing algorythm for the threshold signature system.
 
 ## Usage
 
@@ -28,4 +34,4 @@
 
 ## Future Work
 
-- Optimize the Schnorr implementation.
+- Implement FROST.
