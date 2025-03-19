@@ -36,8 +36,8 @@
 //! let shared_public_key = generate_shared_key(&state, subset);
 //!
 //! let message = "send Bob 10 bucks.";
-//! let (r, s) = sign(&state, &mut rnd, message, subset);
-//! let valid = verify(&state, message, &r, &s, &shared_public_key);
+//! let (shared_commitment, signature_response) = sign(&state, &mut rnd, message, subset);
+//! let valid = verify(&state, message, &shared_commitment, &signature_response, &shared_public_key);
 //!
 //! assert!(valid);
 //!
@@ -65,9 +65,9 @@ use std::str::FromStr;
 
 /// Struct that saves the constants needed for all Schnorr Threshold Signature operations.
 pub struct SchnorrThresholdState {
-    /// `prime` is a prime number bigger than any possible key or share generated and is used for modular arythmetic.
+    /// `prime` is a prime number bigger than any possible key or share generated and is used for modular arithmetic.
     pub prime: Integer,
-    /// `q` is computed as `(prime - 1) / 2` and it is also used for modular arythmetic.
+    /// `q` is computed as `(prime - 1) / 2` and it is also used for modular arithmetic.
     pub q: Integer,
     /// `generator` is a constant value used for generating secret shares.
     pub generator: Integer,
