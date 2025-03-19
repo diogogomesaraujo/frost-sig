@@ -35,7 +35,7 @@
 //! let subset = &shares[0..(state.threshold)];
 //! let shared_public_key = generate_shared_key(&state, subset);
 //!
-//! et message = "send Bob 10 bucks.";
+//! let message = "send Bob 10 bucks.";
 //! let (r, s) = sign(&state, &mut rnd, message, subset);
 //! let valid = verify(&state, message, &r, &s, &shared_public_key);
 //!
@@ -81,6 +81,7 @@ impl SchnorrThresholdState {
     /// Function that initializes the SchnorrThresholdState.
     ///
     /// ## Parameters
+    ///
     /// - `p` is the number of participants.
     /// - `t` is the threshold.
     ///
@@ -88,6 +89,7 @@ impl SchnorrThresholdState {
     /// The rest of the parameters are initialized internally.
     ///
     /// ## Returns
+    ///
     /// - `SchnorrThresholdState` initialized with the participants and threshold defined.
     pub fn init(p: usize, t: usize) -> SchnorrThresholdState {
         SchnorrThresholdState {
@@ -103,10 +105,12 @@ impl SchnorrThresholdState {
 /// Function that generates private shares according to the number of participants in the SchnorrThresholdState.
 ///
 /// ## Parameters
+///
 /// - `state` has the constants needed for Schnorr Threshold operations.
 /// - `rnd` is a state for generating the 256bit integers.
 ///
 /// ## Returns
+///
 /// - `Vec<Integer>` that contains a secret share for each participant.
 ///
 /// It is a good practice for a participant to store the key himself.
@@ -119,10 +123,12 @@ pub fn generate_secret_shares(state: &SchnorrThresholdState, rnd: &mut RandState
 /// Function that generates a shared (public) key for the specific subset of secret shares given.
 ///
 /// ## Parameters
+///
 /// - `state` has the constants needed for Schnorr Threshold operations.
 /// - `secret_shares_subset` is a subset of the participants whose size should match the threshold in the state.
 ///
 /// ## Returns
+///
 /// - `Integer` that is a generated shared public key for the subset of participants given.
 pub fn generate_shared_key(
     state: &SchnorrThresholdState,
@@ -142,12 +148,14 @@ pub fn generate_shared_key(
 /// Function that signs a message using a subset of the private shares.
 ///
 /// ## Parameters
+///
 /// - `state` has the constants needed for Schnorr Threshold operations.
 /// - `rnd` is a state for generating the 256bit integers.
 /// - `message` is a string that will be signed by the subset of participants.
 /// - `secret_shares_subset` is the subset of participants whose size should match the threshold in the state and that will sign the operation.
 ///
 /// ## Returns
+///
 /// - `Integer` that is the shared commitment that will validate the response.
 /// - `Integer` that is the signed message.
 pub fn sign(
@@ -192,6 +200,7 @@ pub fn sign(
 /// Function that verifies a message using the shared key and the signature response that was recieved.
 ///
 /// ## Parameters
+///
 /// - `state` has the constants needed for Schnorr Threshold operations.
 /// - `message` is a string that will be signed by the subset of participants.
 /// - `shared_commitment` is used to validate the response and is unique to the subset used for the signing operation and the message signed.
@@ -199,6 +208,7 @@ pub fn sign(
 /// - `shared_public_key` is used to identify the group that signed the operation.
 ///
 /// ## Returns
+///
 /// - `bool` that is true or false depending if it was able to validate the signature or not.
 pub fn verify(
     state: &SchnorrThresholdState,
