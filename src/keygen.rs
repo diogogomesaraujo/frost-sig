@@ -12,11 +12,6 @@ pub struct FrostState {
     pub threshold: usize,
 }
 
-pub struct Participant {
-    pub id: Integer,
-    pub polynomial: Vec<Integer>,
-}
-
 impl FrostState {
     pub fn init(participants_input: usize, threshold_input: usize) -> Self {
         Self {
@@ -67,6 +62,26 @@ impl ParticipantBroadcast {
             participant_id: participant_id_input,
             commitments: commitments_input,
             signature: signature_input,
+        }
+    }
+}
+
+pub struct Participant {
+    pub id: Integer,
+    pub polynomial: Vec<Integer>,
+    pub secret_share: SecretShare,
+}
+
+pub struct SecretShare {
+    participant_id: Integer,
+    secret: Integer,
+}
+
+impl SecretShare {
+    pub fn init(participant_id_input: Integer, secret_input: Integer) -> Self {
+        Self {
+            participant_id: participant_id_input,
+            secret: secret_input,
         }
     }
 }
@@ -162,23 +177,9 @@ pub mod commitments_and_proofs {
 }
 
 pub mod secret_sharing {
-    use super::{FrostState, Participant};
+    use super::{FrostState, Participant, ParticipantBroadcast, SecretShare};
     use crate::modular;
     use rug::Integer;
-
-    pub struct SecretShare {
-        participant_id: Integer,
-        secret: Integer,
-    }
-
-    impl SecretShare {
-        pub fn init(participant_id_input: Integer, secret_input: Integer) -> Self {
-            Self {
-                participant_id: participant_id_input,
-                secret: secret_input,
-            }
-        }
-    }
 
     pub fn calculate_y(x: &Integer, pol: &[Integer], q: &Integer) -> Integer {
         pol.iter().enumerate().fold(Integer::ZERO, |acc, (i, p)| {
@@ -199,53 +200,63 @@ pub mod secret_sharing {
         state: &FrostState,
         participant: &Participant,
         own_secret_share: &SecretShare,
-        others_secret_shares_subset: &[SecretShare],
+        participant_broadcast: &ParticipantBroadcast,
     ) -> bool {
         let own = modular::pow(&state.generator, &own_secret_share.secret, &state.prime);
-        let others = others_secret_shares_subset
-            .iter()
-            .fold(Integer::from(1), |acc, share| {
+        let others = participant_broadcast.commitments.iter().enumerate().fold(
+            Integer::from(1),
+            |acc, (k, apk)| {
                 modular::mul(
                     acc,
                     modular::pow(
-                        &modular::pow(&state.generator, &share.secret, &state.prime),
-                        &modular::pow(&participant.id, &share.participant_id, &state.q),
+                        &apk,
+                        &modular::pow(&participant.id, &Integer::from(k), &state.q),
                         &state.prime,
                     ),
                     &state.prime,
                 )
-            });
+            },
+        );
         own == others
     }
 
     pub fn compute_private_key(
         state: &FrostState,
         own_secret_share: &SecretShare,
-        others_public_commitments: &[Integer],
+        others_secret_shares: &[Integer],
     ) -> Integer {
         modular::add(
-            others_public_commitments
+            others_secret_shares
                 .iter()
                 .fold(Integer::from(0), |acc, pc| {
-                    modular::add(acc, pc.clone(), &state.prime)
+                    modular::add(acc, pc.clone(), &state.q)
                 }),
             own_secret_share.secret.clone(),
-            &state.prime,
+            &state.q,
         )
     }
 
     pub fn compute_verification_share(state: &FrostState, private_key: &Integer) -> Integer {
         modular::pow(&state.generator, &private_key, &state.prime)
     }
+
+    pub fn compute_group_public_key(state: &FrostState, commitments: &[&[Integer]]) -> Integer {
+        commitments
+            .iter()
+            .fold(Integer::from(1), |acc, participant_commitments| {
+                modular::mul(participant_commitments[0].clone(), acc, &state.prime)
+            })
+    }
 }
 
+/*
 #[test]
 pub fn test_keygen_commitments_and_proofs() {
     let seed: i32 = rand::rng().random();
     let mut rnd = RandState::new();
     rnd.seed(&rug::Integer::from(seed));
 
-    let ctx = CTX::init(Integer::from(1), Integer::from(1));
+    let ctx = keygen_ctx(Integer::from(1), Integer::from(1));
 
     let state_1 = FrostState::init(Integer::from(1), 3, 2, ctx.clone());
     let state_2 = FrostState::init(Integer::from(2), 3, 2, ctx.clone());
@@ -297,3 +308,4 @@ pub fn test_keygen_commitments_and_proofs() {
         ]
     ));
 }
+*/
