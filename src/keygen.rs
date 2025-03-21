@@ -1,6 +1,8 @@
 use crate::{modular, PRIME};
+use commitments_and_proofs::*;
 use rand::Rng;
 use rug::{rand::RandState, Integer};
+use secret_sharing::{create_secret_share, verify_secret_shares};
 use sha256::digest;
 use std::str::FromStr;
 
@@ -69,12 +71,20 @@ impl ParticipantBroadcast {
 pub struct Participant {
     pub id: Integer,
     pub polynomial: Vec<Integer>,
-    pub secret_share: SecretShare,
+}
+
+impl Participant {
+    pub fn init(id_input: Integer, polynomial_input: Vec<Integer>) -> Self {
+        Self {
+            id: id_input,
+            polynomial: polynomial_input,
+        }
+    }
 }
 
 pub struct SecretShare {
-    participant_id: Integer,
-    secret: Integer,
+    pub participant_id: Integer,
+    pub secret: Integer,
 }
 
 impl SecretShare {
@@ -249,63 +259,131 @@ pub mod secret_sharing {
     }
 }
 
-/*
 #[test]
 pub fn test_keygen_commitments_and_proofs() {
+    // part 1
     let seed: i32 = rand::rng().random();
     let mut rnd = RandState::new();
     rnd.seed(&rug::Integer::from(seed));
 
     let ctx = keygen_ctx(Integer::from(1), Integer::from(1));
+    let state = FrostState::init(3, 2);
 
-    let state_1 = FrostState::init(Integer::from(1), 3, 2, ctx.clone());
-    let state_2 = FrostState::init(Integer::from(2), 3, 2, ctx.clone());
-    let state_3 = FrostState::init(Integer::from(3), 3, 2, ctx.clone());
+    let pol_1 = commitments_and_proofs::generate_polynomial(&state, &mut rnd);
+    let pol_2 = commitments_and_proofs::generate_polynomial(&state, &mut rnd);
+    let pol_3 = commitments_and_proofs::generate_polynomial(&state, &mut rnd);
 
-    let pol_1 = commitments_and_proofs::generate_polynomial(&state_1, &mut rnd);
-    let pol_2 = commitments_and_proofs::generate_polynomial(&state_2, &mut rnd);
-    let pol_3 = commitments_and_proofs::generate_polynomial(&state_3, &mut rnd);
+    let participant_1 = Participant::init(Integer::from(1), pol_1);
+    let participant_2 = Participant::init(Integer::from(2), pol_2);
+    let participant_3 = Participant::init(Integer::from(3), pol_3);
 
-    let signature_1 = compute_proof_of_knowlodge(&state_1, &mut rnd, &pol_1);
-    let signature_2 = compute_proof_of_knowlodge(&state_2, &mut rnd, &pol_2);
-    let signature_3 = compute_proof_of_knowlodge(&state_3, &mut rnd, &pol_3);
+    let signature_1 = compute_proof_of_knowlodge(&state, &mut rnd, &participant_1, &ctx);
+    let signature_2 = compute_proof_of_knowlodge(&state, &mut rnd, &participant_2, &ctx);
+    let signature_3 = compute_proof_of_knowlodge(&state, &mut rnd, &participant_3, &ctx);
 
-    let commitments_1 = compute_public_commitments(&state_1, &pol_1);
-    let commitments_2 = compute_public_commitments(&state_2, &pol_2);
-    let commitments_3 = compute_public_commitments(&state_3, &pol_3);
+    let commitments_1 = compute_public_commitments(&state, &participant_1);
+    let commitments_2 = compute_public_commitments(&state, &participant_2);
+    let commitments_3 = compute_public_commitments(&state, &participant_3);
 
     let participant_broadcast_1 =
-        ParticipantBroadcast::init(state_1.participant_id.clone(), commitments_1, signature_1);
+        ParticipantBroadcast::init(participant_1.id.clone(), commitments_1, signature_1);
     let participant_broadcast_2 =
-        ParticipantBroadcast::init(state_2.participant_id.clone(), commitments_2, signature_2);
+        ParticipantBroadcast::init(participant_2.id.clone(), commitments_2, signature_2);
     let participant_broadcast_3 =
-        ParticipantBroadcast::init(state_3.participant_id.clone(), commitments_3, signature_3);
+        ParticipantBroadcast::init(participant_3.id.clone(), commitments_3, signature_3);
 
-    // verify the first one
     assert!(verify_proofs(
-        &state_1,
+        &state,
+        &[
+            participant_broadcast_2.clone(),
+            participant_broadcast_3.clone(),
+        ],
+        &ctx
+    ));
+
+    assert!(verify_proofs(
+        &state,
         &[
             participant_broadcast_2.clone(),
             participant_broadcast_3.clone()
-        ]
+        ],
+        &ctx
     ));
 
-    // verify the second one
     assert!(verify_proofs(
-        &state_2,
-        &[
-            participant_broadcast_2.clone(),
-            participant_broadcast_3.clone()
-        ]
-    ));
-
-    // verify the third one
-    assert!(verify_proofs(
-        &state_2,
+        &state,
         &[
             participant_broadcast_1.clone(),
             participant_broadcast_3.clone()
-        ]
+        ],
+        &ctx
+    ));
+
+    // part 2
+
+    let share_from_3_to_1 = create_secret_share(
+        &state,
+        &Participant::init(participant_1.id.clone(), participant_3.polynomial.clone()),
+    );
+    let share_from_2_to_1 = create_secret_share(
+        &state,
+        &Participant::init(participant_1.id.clone(), participant_2.polynomial.clone()),
+    );
+
+    let share_from_1_to_2 = create_secret_share(
+        &state,
+        &Participant::init(participant_2.id.clone(), participant_1.polynomial.clone()),
+    );
+    let share_from_3_to_2 = create_secret_share(
+        &state,
+        &Participant::init(participant_2.id.clone(), participant_3.polynomial.clone()),
+    );
+
+    let share_from_1_to_3 = create_secret_share(
+        &state,
+        &Participant::init(participant_3.id.clone(), participant_1.polynomial.clone()),
+    );
+    let share_from_2_to_3 = create_secret_share(
+        &state,
+        &Participant::init(participant_3.id.clone(), participant_2.polynomial.clone()),
+    );
+
+    assert!(verify_secret_shares(
+        &state,
+        &participant_1,
+        &share_from_3_to_1,
+        &participant_broadcast_3,
+    ));
+    assert!(verify_secret_shares(
+        &state,
+        &participant_1,
+        &share_from_2_to_1,
+        &participant_broadcast_2,
+    ));
+
+    assert!(verify_secret_shares(
+        &state,
+        &participant_2,
+        &share_from_1_to_2,
+        &participant_broadcast_1,
+    ));
+    assert!(verify_secret_shares(
+        &state,
+        &participant_2,
+        &share_from_3_to_2,
+        &participant_broadcast_3,
+    ));
+
+    assert!(verify_secret_shares(
+        &state,
+        &participant_3,
+        &share_from_1_to_3,
+        &participant_broadcast_1,
+    ));
+    assert!(verify_secret_shares(
+        &state,
+        &participant_3,
+        &share_from_2_to_3,
+        &participant_broadcast_2,
     ));
 }
-*/
