@@ -1,6 +1,6 @@
 //! This crate contains all the functions to implement threshold signature systems.
 
-pub mod frost;
+pub mod keygen;
 pub mod modular;
 pub mod shamir;
 
