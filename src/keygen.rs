@@ -1,21 +1,21 @@
 //! Implementation of the FROST's key-gen.
 //!
-//! ## Dependencies
+//! # Dependencies
 //!
 //! - `rug` is a arbitrary precision numbers crate and provides infrastructure for the 256bit numbers and calculations.
 //! - `rand` is a random number generation crate and it is used to generate a random seed for the 256bit numbers generation.
 //! - `sha-256` is an implementation of SHA-256 and it is the predefined hashing algorythm for the threshold signature system.
 //!
-//! ## Features
+//! # Features
 //!
-//! - Generation of a participant's secret share, public commitments and group and verifying key.
+//! - Generation of a participant's secret share, public commitments, verifying key and the group's public key.
 //! - Verification of other participants' public commitments and verifying keys.
 //!
-//! ## Support
+//! # Support
 //!
-//! The steps to generate keys using FROST are as follows:
+//! To learn more about the algorythms used for the key-generation process, bellow is a detailed explanation of each step:
 //!
-//! ### Round 1:
+//! ### Round 1
 //!
 //! 1. Each participant Pi draws t random values (ai0, . , ai(t-1))) <-$-Zq and uses these values as coefficients to define a polynomial fi(x) = SUM(aij xj, j=0.. .t-1).
 //! 2. Each Pi computes a proof of knowledge corresponding to the secret ai0 by using ai0 as the key to compute the Schnorr signature SIGi = (wi, ci) such that k <-$- Zq, Ri = gk, ci = H(i, CTX, g^{ai0}, Ri), wi = k + ai0* ci, where CTX is the context string to prevent replay attacks.
@@ -23,30 +23,49 @@
 //! 4. Each Pi broadcasts Ci, SIGi to all other participants.
 //! 5. After receiving Cp, SIGi from participant 1 <= p <= n, p ! = i for Cp, SIGp, participant Pi verifies SIGp = (wp, cp) and terminates on failure, checking: cp =? = H(p, CTX, Ap0, g^{wp} * Ap0^{ cp})
 //!
-//! ### Round 2：
+//! ### Round 2
 //!
 //! 1. Each Pi securely sends a secret share (p, fi(p)) to the other participants Pp and keeps (i, fi(i)) for itself.
 //! 2. Each Pi sends a secret share to the other Pi by computing: g^{fp(i)} =? = PROD(Apk(i^k mod q),k=0.. .t-1) to verify their shares and abort if the check fails.
 //! 3. Each Pi calculates their share by computing si = SUM(fp(i), p=1... . n) to compute their long-standing private signature shares and store si securely.
 //! 4. Each Pi computes their public verification share Yi = g^{si} and the group's public key Y = PROD(Aj0, j=1... .n). Any participant can compute the public key by computing Yi = PROD( (Ajk)(i^k mod q), j=1... .n, k=0... .t-1) to calculate the publicly verified share of any other participant.
 //!
+//! See the [resources](https://github.com/chainx-org/chainx-technical-archive/blob/main/LiuBinXiao/Taproot/06_Schnorr%20threshold%20signatures%20FROST.md) here.
 
 use crate::{modular, PRIME};
 use rand::Rng;
-use round_2::compute_others_verification_share;
 use rug::{rand::RandState, Integer};
 use sha256::digest;
 use std::str::FromStr;
 
+/// Struct that saves the constants needed for FROST. These values should be used by all participants throughout the signing session and discarted after.
 pub struct FrostState {
+    /// `prime` is a prime number bigger than any possible key or share generated and is used for modular arithmetic.
     pub prime: Integer,
+    /// `q` is computed as `(prime - 1) / 2` and it is also used for modular arithmetic.
     pub q: Integer,
+    /// `generator` is a constant value used for generating secret shares.
     pub generator: Integer,
+    /// `participants` is the chosen number of participants that hold a secret share and can participate in signing operations.
     pub participants: usize,
+    /// `threshold` is the minimum ammount of participants needed to sign a message.
     pub threshold: usize,
 }
 
 impl FrostState {
+    /// Function that initializes the FrostState.
+    ///
+    /// ## Parameters
+    ///
+    /// - `p` is the number of participants.
+    /// - `t` is the threshold.
+    ///
+    /// They will determine how many shares are generated and the minimum used for signing operations.
+    /// The rest of the parameters are initialized internally.
+    ///
+    /// ## Returns
+    ///
+    /// - `FrostState` initialized with the participants and threshold defined.
     pub fn init(participants_input: usize, threshold_input: usize) -> Self {
         Self {
             prime: Integer::from_str(PRIME).expect("Shouldn't happen."),
@@ -58,14 +77,30 @@ impl FrostState {
     }
 }
 
+// Struct that identifies the group, session and protocol being used.
 #[derive(Clone, Debug)]
 pub struct CTX {
+    /// `protocol` is the name of the current protocol being used.
     pub protocol: String,
+    /// `group_id` is the id of the group making the transaction
     pub group_id: Integer,
+    /// `session_id` is the id of the current session.
     pub session_id: Integer,
 }
 
 impl CTX {
+    /// Function that initializes the CTX.
+    ///
+    /// ## Parameters
+    ///
+    /// - `protocol` is the step of FROST currently being used.
+    /// - `group_id` is the id of the group.
+    /// - `session_id` is the id of the current session (each transaction should have it's own section).
+    ///
+    ///
+    /// ## Returns
+    ///
+    /// - `CTX` initialized with the information of the session, group and protocol.
     pub fn init(protocol: &str, group_id_input: Integer, session_id_input: Integer) -> Self {
         Self {
             protocol: protocol.to_string(),
@@ -74,19 +109,44 @@ impl CTX {
         }
     }
 
+    /// Function that serializes the CTX.
+    ///
+    /// ## Parameters
+    ///
+    /// - `ctx` is the CTX being serialized.
+    ///
+    ///
+    /// ## Returns
+    ///
+    /// - `String` that is the ctx with the parameters separated by "::".
     pub fn to_string(ctx: &CTX) -> String {
         format!("{}::{}::{}", ctx.protocol, ctx.group_id, ctx.session_id)
     }
 }
 
+/// Struct that is the broadcast sent by a participant to all others.
 #[derive(Clone, Debug)]
 pub struct ParticipantBroadcast {
+    /// `participant_id` is the id of the participant sending the broadcast.
     pub participant_id: Integer,
+    /// `commitments` are the public commitments sent by the participant.
     pub commitments: Vec<Integer>,
+    /// `signature` is used to verify if a participant is not mallicious.
     pub signature: (Integer, Integer),
 }
 
 impl ParticipantBroadcast {
+    /// Function that initializes the ParticipantBroadcast.
+    ///
+    /// ## Parameters
+    ///
+    /// - `participant_id_input` is the input for the participant id.
+    /// - `commitments_input` is the input for the public commitments of the participant.
+    /// - `signature_input` is the input for the signature of the participant.
+    ///
+    /// ## Returns
+    ///
+    /// - `ParticipantBroadcast` initialized with a participant id, public commitments and signature.
     pub fn init(
         participant_id_input: Integer,
         commitments_input: Vec<Integer>,
@@ -100,12 +160,26 @@ impl ParticipantBroadcast {
     }
 }
 
+/// Struct that represents the participant.
 pub struct Participant {
+    /// `id` is the identifier for the participant.
     pub id: Integer,
+    /// `polynomial` is used for calculations but shouldn't be accessible not even by the participant.
     pub polynomial: Vec<Integer>,
 }
 
 impl Participant {
+    /// Function that initializes the Participant.
+    ///
+    /// ## Parameters
+    ///
+    /// - `id_input` is the input for the participant id.
+    /// - `polynomial` is a randomly generated vector that is used for important calculations.
+    ///
+    ///
+    /// ## Returns
+    ///
+    /// - `Participant` with it's id and polynomial.
     pub fn init(id_input: Integer, polynomial_input: Vec<Integer>) -> Self {
         Self {
             id: id_input,
@@ -114,12 +188,24 @@ impl Participant {
     }
 }
 
+/// Struct that represents a participant's secret share and the recomputed shares from other participants.
 pub struct SecretShare {
     pub participant_id: Integer,
     pub secret: Integer,
 }
 
 impl SecretShare {
+    /// Function that initializes the SecretShare.
+    ///
+    /// ## Parameters
+    ///
+    /// - `participant_id_input` is the input for the participant id.
+    /// - `secret_input` is the input for the secret calculated by the participant.
+    ///
+    ///
+    /// ## Returns
+    ///
+    /// - `SecretShare` with the participant's id and corresponding secret.
     pub fn init(participant_id_input: Integer, secret_input: Integer) -> Self {
         Self {
             participant_id: participant_id_input,
@@ -436,7 +522,7 @@ pub fn test_keygen_commitments_and_proofs() {
         );
 
         // Combine the other verification shares.
-        let public_verification_share_1 = compute_others_verification_share(
+        let public_verification_share_1 = round_2::compute_others_verification_share(
             &state,
             &[
                 public_verification_share_1,
