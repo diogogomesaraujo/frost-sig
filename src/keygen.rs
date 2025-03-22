@@ -1,4 +1,4 @@
-//! Implementation of the FROST key generation step.
+//! Implementation of the FROST's key-gen.
 //!
 //! ## Dependencies
 //!
@@ -8,12 +8,12 @@
 //!
 //! ## Features
 //!
-//! - Generation of a participant's secret share, public commitments and the group public key and verifying key.
+//! - Generation of a participant's secret share, public commitments and group and verifying key.
 //! - Verification of other participants' public commitments and verifying keys.
 //!
 //! ## Support
 //!
-//! The steps to generate keys using FROST are computed using the following steps.
+//! The steps to generate keys using FROST are as follows:
 //!
 //! ### Round 1:
 //!
@@ -30,13 +30,10 @@
 //! 3. Each Pi calculates their share by computing si = SUM(fp(i), p=1... . n) to compute their long-standing private signature shares and store si securely.
 //! 4. Each Pi computes their public verification share Yi = g^{si} and the group's public key Y = PROD(Aj0, j=1... .n). Any participant can compute the public key by computing Yi = PROD( (Ajk)(i^k mod q), j=1... .n, k=0... .t-1) to calculate the publicly verified share of any other participant.
 //!
-//! ## Example
-//!
-//!
 
 use crate::{modular, PRIME};
 use rand::Rng;
-use round_2::{compute_group_public_key, compute_own_verification_share, compute_private_key};
+use round_2::compute_others_verification_share;
 use rug::{rand::RandState, Integer};
 use sha256::digest;
 use std::str::FromStr;
@@ -293,7 +290,7 @@ pub mod round_2 {
             })
     }
 
-    pub fn compute_public_verification_share(
+    pub fn compute_participant_verification_share(
         state: &FrostState,
         participant: &Participant,
         participant_broadcast: &ParticipantBroadcast,
@@ -313,6 +310,17 @@ pub mod round_2 {
             },
         )
     }
+
+    pub fn compute_others_verification_share(
+        state: &FrostState,
+        verifying_shares: &[Integer],
+    ) -> Integer {
+        verifying_shares
+            .iter()
+            .fold(Integer::from(1), |acc, share| {
+                modular::mul(acc, share.clone(), &state.prime)
+            })
+    }
 }
 
 #[test]
@@ -328,123 +336,128 @@ pub fn test_keygen_commitments_and_proofs() {
 
     // ROUND 1
 
-    // Creating polynomials for each participant. No one but the server should have access to them.
-    let pol_1 = round_1::generate_polynomial(&state, &mut rnd);
-    let pol_2 = round_1::generate_polynomial(&state, &mut rnd);
-    let pol_3 = round_1::generate_polynomial(&state, &mut rnd);
+    {
+        // Creating polynomials for each participant. No one but the server should have access to them.
+        let pol_1 = round_1::generate_polynomial(&state, &mut rnd);
+        let pol_2 = round_1::generate_polynomial(&state, &mut rnd);
+        let pol_3 = round_1::generate_polynomial(&state, &mut rnd);
 
-    // Creating three participants for the example with their respective id and poynomial.
-    let participant_1 = Participant::init(Integer::from(1), pol_1);
-    let participant_2 = Participant::init(Integer::from(2), pol_2);
-    let participant_3 = Participant::init(Integer::from(3), pol_3);
+        // Creating three participants for the example with their respective id and poynomial.
+        let participant_1 = Participant::init(Integer::from(1), pol_1);
+        let participant_2 = Participant::init(Integer::from(2), pol_2);
+        let participant_3 = Participant::init(Integer::from(3), pol_3);
 
-    // Creating signatures for each participant.
-    let signature_1 = round_1::compute_proof_of_knowlodge(&state, &mut rnd, &participant_1, &ctx);
-    let signature_2 = round_1::compute_proof_of_knowlodge(&state, &mut rnd, &participant_2, &ctx);
-    let signature_3 = round_1::compute_proof_of_knowlodge(&state, &mut rnd, &participant_3, &ctx);
+        // Creating signatures for each participant.
+        let signature_1 =
+            round_1::compute_proof_of_knowlodge(&state, &mut rnd, &participant_1, &ctx);
+        let signature_2 =
+            round_1::compute_proof_of_knowlodge(&state, &mut rnd, &participant_2, &ctx);
+        let signature_3 =
+            round_1::compute_proof_of_knowlodge(&state, &mut rnd, &participant_3, &ctx);
 
-    // Creating public commitments for each participant.
-    let commitments_1 = round_1::compute_public_commitments(&state, &participant_1);
-    let commitments_2 = round_1::compute_public_commitments(&state, &participant_2);
-    let commitments_3 = round_1::compute_public_commitments(&state, &participant_3);
+        // Creating public commitments for each participant.
+        let commitments_1 = round_1::compute_public_commitments(&state, &participant_1);
+        let commitments_2 = round_1::compute_public_commitments(&state, &participant_2);
+        let commitments_3 = round_1::compute_public_commitments(&state, &participant_3);
 
-    // Creating a broadcast for each participant that will be sent to all.
-    let participant_broadcast_1 =
-        ParticipantBroadcast::init(participant_1.id.clone(), commitments_1, signature_1);
-    let participant_broadcast_2 =
-        ParticipantBroadcast::init(participant_2.id.clone(), commitments_2, signature_2);
-    let participant_broadcast_3 =
-        ParticipantBroadcast::init(participant_3.id.clone(), commitments_3, signature_3);
+        // Creating a broadcast for each participant that will be sent to all.
+        let participant_broadcast_1 =
+            ParticipantBroadcast::init(participant_1.id.clone(), commitments_1, signature_1);
+        let participant_broadcast_2 =
+            ParticipantBroadcast::init(participant_2.id.clone(), commitments_2, signature_2);
+        let participant_broadcast_3 =
+            ParticipantBroadcast::init(participant_3.id.clone(), commitments_3, signature_3);
 
-    // Verifying the other participants broadcasts.
-    assert!(round_1::verify_proofs(
-        &state,
-        &[
-            participant_broadcast_2.clone(),
-            participant_broadcast_3.clone(),
-        ],
-        &ctx
-    ));
+        // Verifying the other participants broadcasts.
+        assert!(round_1::verify_proofs(
+            &state,
+            &[
+                participant_broadcast_2.clone(),
+                participant_broadcast_3.clone(),
+            ],
+            &ctx
+        ));
 
-    // ROUND 2
+        // ROUND 2
 
-    // Create participant's private share.
-    let own_share_1 = round_2::create_secret_share(&state, &participant_1);
+        // Create participant's private share.
+        let own_share_1 = round_2::create_secret_share(&state, &participant_1);
 
-    // Create shares that will be sent to other participants.
-    let share_from_3_to_1 = round_2::create_secret_share(
-        &state,
-        &Participant::init(participant_1.id.clone(), participant_3.polynomial.clone()),
-    );
-    let share_from_2_to_1 = round_2::create_secret_share(
-        &state,
-        &Participant::init(participant_1.id.clone(), participant_2.polynomial.clone()),
-    );
+        // Create shares that will be sent to other participants.
+        let share_from_3_to_1 = round_2::create_secret_share(
+            &state,
+            &Participant::init(participant_1.id.clone(), participant_3.polynomial.clone()),
+        );
+        let share_from_2_to_1 = round_2::create_secret_share(
+            &state,
+            &Participant::init(participant_1.id.clone(), participant_2.polynomial.clone()),
+        );
 
-    // Verify the shares recieved from other participants.
-    assert!(round_2::verify_secret_shares(
-        &state,
-        &participant_1,
-        &share_from_3_to_1,
-        &participant_broadcast_3,
-    ));
-    assert!(round_2::verify_secret_shares(
-        &state,
-        &participant_1,
-        &share_from_2_to_1,
-        &participant_broadcast_2,
-    ));
+        // Verify the shares recieved from other participants.
+        assert!(round_2::verify_secret_shares(
+            &state,
+            &participant_1,
+            &share_from_3_to_1,
+            &participant_broadcast_3,
+        ));
+        assert!(round_2::verify_secret_shares(
+            &state,
+            &participant_1,
+            &share_from_2_to_1,
+            &participant_broadcast_2,
+        ));
 
-    // Create the account's private key. It should not be saved.
-    let private_key_1 = compute_private_key(
-        &state,
-        &own_share_1,
-        &[share_from_2_to_1.secret, share_from_3_to_1.secret],
-    );
+        // Create the account's private key. It should not be saved.
+        let private_key_1 = round_2::compute_private_key(
+            &state,
+            &own_share_1,
+            &[share_from_2_to_1.secret, share_from_3_to_1.secret],
+        );
 
-    // Create the verification share that will be used to confirm other's verification shares.
-    let own_verification_share_1 = compute_own_verification_share(&state, &private_key_1);
+        // Create the verification share that will be used to confirm other's verification shares.
+        let own_verification_share_1 =
+            round_2::compute_own_verification_share(&state, &private_key_1);
 
-    // Compute public verification share from commitments of all other participants.
-    let public_verification_share_1 = round_2::compute_public_verification_share(
-        &state,
-        &participant_1,
-        &participant_broadcast_1,
-    );
-    let public_verification_share_1_from_2 = round_2::compute_public_verification_share(
-        &state,
-        &participant_1,
-        &participant_broadcast_2,
-    );
-    let public_verification_share_1_from_3 = round_2::compute_public_verification_share(
-        &state,
-        &participant_1,
-        &participant_broadcast_3,
-    );
+        // Compute public verification share from commitments of all other participants.
+        let public_verification_share_1 = round_2::compute_participant_verification_share(
+            &state,
+            &participant_1,
+            &participant_broadcast_1,
+        );
+        let public_verification_share_1_from_2 = round_2::compute_participant_verification_share(
+            &state,
+            &participant_1,
+            &participant_broadcast_2,
+        );
+        let public_verification_share_1_from_3 = round_2::compute_participant_verification_share(
+            &state,
+            &participant_1,
+            &participant_broadcast_3,
+        );
 
-    // Combine the other verification shares.
-    let public_verification_share_1 = modular::mul(
-        modular::mul(
-            public_verification_share_1,
-            public_verification_share_1_from_2,
-            &state.prime,
-        ),
-        public_verification_share_1_from_3,
-        &state.prime,
-    );
+        // Combine the other verification shares.
+        let public_verification_share_1 = compute_others_verification_share(
+            &state,
+            &[
+                public_verification_share_1,
+                public_verification_share_1_from_2,
+                public_verification_share_1_from_3,
+            ],
+        );
 
-    // Verify if the verification shares are valid.
-    assert_eq!(own_verification_share_1, public_verification_share_1);
+        // Verify if the verification shares are valid.
+        assert_eq!(own_verification_share_1, public_verification_share_1);
 
-    // Create the group public key that will be used to sign.
-    let group_public_key = compute_group_public_key(
-        &state,
-        &[
-            &participant_broadcast_1.commitments.clone(),
-            &participant_broadcast_2.commitments.clone(),
-            &participant_broadcast_3.commitments.clone(),
-        ],
-    );
+        // Create the group public key that will be used to sign.
+        let group_public_key = round_2::compute_group_public_key(
+            &state,
+            &[
+                &participant_broadcast_1.commitments.clone(),
+                &participant_broadcast_2.commitments.clone(),
+                &participant_broadcast_3.commitments.clone(),
+            ],
+        );
 
-    println!("The generated group public key is: {group_public_key}.");
+        println!("The generated group public key is: {group_public_key}.");
+    }
 }
