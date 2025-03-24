@@ -1,5 +1,4 @@
 //! Implementation of the Shamir Secret Sharing threshold signatures.
-//! It uses 256bit integers and uses modular arythmetic to simplify calculations.
 //!
 //! ## Dependencies
 //!

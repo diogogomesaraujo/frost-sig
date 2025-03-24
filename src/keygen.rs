@@ -34,7 +34,7 @@
 //!
 //! See the [resources](https://github.com/chainx-org/chainx-technical-archive/blob/main/LiuBinXiao/Taproot/06_Schnorr%20threshold%20signatures%20FROST.md) here.
 
-use crate::{modular, CTX, PRIME};
+use crate::{modular, CTX};
 use rand::Rng;
 use rug::{rand::RandState, Integer};
 use sha256::digest;

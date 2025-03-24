@@ -76,7 +76,7 @@ impl FrostState {
     }
 }
 
-// Struct that identifies the group, session and protocol being used.
+/// Struct that identifies the group, session and protocol being used.
 #[derive(Clone, Debug)]
 pub struct CTX {
     /// `protocol` is the name of the current protocol being used.
