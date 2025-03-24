@@ -32,97 +32,10 @@
 //!
 //! See the [resources](https://github.com/chainx-org/chainx-technical-archive/blob/main/LiuBinXiao/Taproot/06_Schnorr%20threshold%20signatures%20FROST.md) here.
 
-use crate::{modular, PRIME};
+use crate::{modular, CTX, PRIME};
 use rand::Rng;
 use rug::{rand::RandState, Integer};
 use sha256::digest;
-use std::str::FromStr;
-
-/// Struct that saves the constants needed for FROST. These values should be used by all participants throughout the signing session and discarted after.
-pub struct FrostState {
-    /// `prime` is a prime number bigger than any possible key or share generated and is used for modular arithmetic.
-    pub prime: Integer,
-    /// `q` is computed as `(prime - 1) / 2` and it is also used for modular arithmetic.
-    pub q: Integer,
-    /// `generator` is a constant value used for generating secret shares.
-    pub generator: Integer,
-    /// `participants` is the chosen number of participants that hold a secret share and can participate in signing operations.
-    pub participants: usize,
-    /// `threshold` is the minimum ammount of participants needed to sign a message.
-    pub threshold: usize,
-}
-
-impl FrostState {
-    /// Function that initializes the FrostState.
-    ///
-    /// ## Parameters
-    ///
-    /// - `p` is the number of participants.
-    /// - `t` is the threshold.
-    ///
-    /// They will determine how many shares are generated and the minimum used for signing operations.
-    /// The rest of the parameters are initialized internally.
-    ///
-    /// ## Returns
-    ///
-    /// - `FrostState` initialized with the participants and threshold defined.
-    pub fn init(participants_input: usize, threshold_input: usize) -> Self {
-        Self {
-            prime: Integer::from_str(PRIME).expect("Shouldn't happen."),
-            q: Integer::from((Integer::from_str(PRIME).expect("Shouldn't happen.") - 1) / 2),
-            generator: Integer::from(4),
-            participants: participants_input,
-            threshold: threshold_input,
-        }
-    }
-}
-
-// Struct that identifies the group, session and protocol being used.
-#[derive(Clone, Debug)]
-pub struct CTX {
-    /// `protocol` is the name of the current protocol being used.
-    pub protocol: String,
-    /// `group_id` is the id of the group making the transaction
-    pub group_id: Integer,
-    /// `session_id` is the id of the current session.
-    pub session_id: Integer,
-}
-
-impl CTX {
-    /// Function that initializes the CTX.
-    ///
-    /// ## Parameters
-    ///
-    /// - `protocol` is the step of FROST currently being used.
-    /// - `group_id` is the id of the group.
-    /// - `session_id` is the id of the current session (each transaction should have it's own section).
-    ///
-    ///
-    /// ## Returns
-    ///
-    /// - `CTX` initialized with the information of the session, group and protocol.
-    pub fn init(protocol: &str, group_id_input: Integer, session_id_input: Integer) -> Self {
-        Self {
-            protocol: protocol.to_string(),
-            group_id: group_id_input,
-            session_id: session_id_input,
-        }
-    }
-
-    /// Function that serializes the CTX.
-    ///
-    /// ## Parameters
-    ///
-    /// - `ctx` is the CTX being serialized.
-    ///
-    ///
-    /// ## Returns
-    ///
-    /// - `String` that is the ctx with the parameters separated by "::".
-    pub fn to_string(ctx: &CTX) -> String {
-        format!("{}::{}::{}", ctx.protocol, ctx.group_id, ctx.session_id)
-    }
-}
 
 /// Struct that is the broadcast sent by a participant to all others.
 #[derive(Clone, Debug)]
@@ -214,16 +127,13 @@ impl SecretShare {
     }
 }
 
-pub fn generate_integer(state: &FrostState, rnd: &mut RandState) -> Integer {
-    Integer::from(Integer::random_below(state.q.clone(), rnd))
-}
-
 pub fn keygen_ctx(group_id: Integer, session_id: Integer) -> CTX {
     CTX::init("keygen", group_id, session_id)
 }
 
-pub mod round_1 {
+pub mod keygen_round_1 {
     use super::*;
+    use crate::*;
 
     pub fn generate_polynomial(state: &FrostState, rnd: &mut RandState) -> Vec<Integer> {
         let mut polynomial: Vec<Integer> = Vec::new();
@@ -304,9 +214,9 @@ pub mod round_1 {
     }
 }
 
-pub mod round_2 {
-    use super::{FrostState, Participant, ParticipantBroadcast, SecretShare};
-    use crate::modular;
+pub mod keygen_round_2 {
+    use super::{Participant, ParticipantBroadcast, SecretShare};
+    use crate::{modular, FrostState};
     use rug::Integer;
 
     pub fn calculate_y(x: &Integer, pol: &[Integer], q: &Integer) -> Integer {
@@ -410,7 +320,7 @@ pub mod round_2 {
 }
 
 #[test]
-pub fn test_keygen_commitments_and_proofs() {
+pub fn test_keygen() {
     // Initializing state for random number generation.
     let seed: i32 = rand::rng().random();
     let mut rnd = RandState::new();
@@ -418,15 +328,15 @@ pub fn test_keygen_commitments_and_proofs() {
 
     // Initializing the ctx and the state that will be used for the key generation session (common across all participants).
     let ctx = keygen_ctx(Integer::from(1), Integer::from(1));
-    let state = FrostState::init(3, 2);
+    let state = crate::FrostState::init(3, 2);
 
     // ROUND 1
 
     {
         // Creating polynomials for each participant. No one but the server should have access to them.
-        let pol_1 = round_1::generate_polynomial(&state, &mut rnd);
-        let pol_2 = round_1::generate_polynomial(&state, &mut rnd);
-        let pol_3 = round_1::generate_polynomial(&state, &mut rnd);
+        let pol_1 = keygen_round_1::generate_polynomial(&state, &mut rnd);
+        let pol_2 = keygen_round_1::generate_polynomial(&state, &mut rnd);
+        let pol_3 = keygen_round_1::generate_polynomial(&state, &mut rnd);
 
         // Creating three participants for the example with their respective id and poynomial.
         let participant_1 = Participant::init(Integer::from(1), pol_1);
@@ -435,16 +345,16 @@ pub fn test_keygen_commitments_and_proofs() {
 
         // Creating signatures for each participant.
         let signature_1 =
-            round_1::compute_proof_of_knowlodge(&state, &mut rnd, &participant_1, &ctx);
+            keygen_round_1::compute_proof_of_knowlodge(&state, &mut rnd, &participant_1, &ctx);
         let signature_2 =
-            round_1::compute_proof_of_knowlodge(&state, &mut rnd, &participant_2, &ctx);
+            keygen_round_1::compute_proof_of_knowlodge(&state, &mut rnd, &participant_2, &ctx);
         let signature_3 =
-            round_1::compute_proof_of_knowlodge(&state, &mut rnd, &participant_3, &ctx);
+            keygen_round_1::compute_proof_of_knowlodge(&state, &mut rnd, &participant_3, &ctx);
 
         // Creating public commitments for each participant.
-        let commitments_1 = round_1::compute_public_commitments(&state, &participant_1);
-        let commitments_2 = round_1::compute_public_commitments(&state, &participant_2);
-        let commitments_3 = round_1::compute_public_commitments(&state, &participant_3);
+        let commitments_1 = keygen_round_1::compute_public_commitments(&state, &participant_1);
+        let commitments_2 = keygen_round_1::compute_public_commitments(&state, &participant_2);
+        let commitments_3 = keygen_round_1::compute_public_commitments(&state, &participant_3);
 
         // Creating a broadcast for each participant that will be sent to all.
         let participant_broadcast_1 =
@@ -455,7 +365,7 @@ pub fn test_keygen_commitments_and_proofs() {
             ParticipantBroadcast::init(participant_3.id.clone(), commitments_3, signature_3);
 
         // Verifying the other participants broadcasts.
-        assert!(round_1::verify_proofs(
+        assert!(keygen_round_1::verify_proofs(
             &state,
             &[
                 participant_broadcast_2.clone(),
@@ -467,26 +377,26 @@ pub fn test_keygen_commitments_and_proofs() {
         // ROUND 2
 
         // Create participant's private share.
-        let own_share_1 = round_2::create_secret_share(&state, &participant_1);
+        let own_share_1 = keygen_round_2::create_secret_share(&state, &participant_1);
 
         // Create shares that will be sent to other participants.
-        let share_from_3_to_1 = round_2::create_secret_share(
+        let share_from_3_to_1 = keygen_round_2::create_secret_share(
             &state,
             &Participant::init(participant_1.id.clone(), participant_3.polynomial.clone()),
         );
-        let share_from_2_to_1 = round_2::create_secret_share(
+        let share_from_2_to_1 = keygen_round_2::create_secret_share(
             &state,
             &Participant::init(participant_1.id.clone(), participant_2.polynomial.clone()),
         );
 
         // Verify the shares recieved from other participants.
-        assert!(round_2::verify_secret_shares(
+        assert!(keygen_round_2::verify_secret_shares(
             &state,
             &participant_1,
             &share_from_3_to_1,
             &participant_broadcast_3,
         ));
-        assert!(round_2::verify_secret_shares(
+        assert!(keygen_round_2::verify_secret_shares(
             &state,
             &participant_1,
             &share_from_2_to_1,
@@ -494,7 +404,7 @@ pub fn test_keygen_commitments_and_proofs() {
         ));
 
         // Create the account's private key. It should not be saved.
-        let private_key_1 = round_2::compute_private_key(
+        let private_key_1 = keygen_round_2::compute_private_key(
             &state,
             &own_share_1,
             &[share_from_2_to_1.secret, share_from_3_to_1.secret],
@@ -502,27 +412,29 @@ pub fn test_keygen_commitments_and_proofs() {
 
         // Create the verification share that will be used to confirm other's verification shares.
         let own_verification_share_1 =
-            round_2::compute_own_verification_share(&state, &private_key_1);
+            keygen_round_2::compute_own_verification_share(&state, &private_key_1);
 
         // Compute public verification share from commitments of all other participants.
-        let public_verification_share_1 = round_2::compute_participant_verification_share(
+        let public_verification_share_1 = keygen_round_2::compute_participant_verification_share(
             &state,
             &participant_1,
             &participant_broadcast_1,
         );
-        let public_verification_share_1_from_2 = round_2::compute_participant_verification_share(
-            &state,
-            &participant_1,
-            &participant_broadcast_2,
-        );
-        let public_verification_share_1_from_3 = round_2::compute_participant_verification_share(
-            &state,
-            &participant_1,
-            &participant_broadcast_3,
-        );
+        let public_verification_share_1_from_2 =
+            keygen_round_2::compute_participant_verification_share(
+                &state,
+                &participant_1,
+                &participant_broadcast_2,
+            );
+        let public_verification_share_1_from_3 =
+            keygen_round_2::compute_participant_verification_share(
+                &state,
+                &participant_1,
+                &participant_broadcast_3,
+            );
 
         // Combine the other verification shares.
-        let public_verification_share_1 = round_2::compute_others_verification_share(
+        let public_verification_share_1 = keygen_round_2::compute_others_verification_share(
             &state,
             &[
                 public_verification_share_1,
@@ -535,7 +447,7 @@ pub fn test_keygen_commitments_and_proofs() {
         assert_eq!(own_verification_share_1, public_verification_share_1);
 
         // Create the group public key that will be used to sign.
-        let group_public_key = round_2::compute_group_public_key(
+        let group_public_key = keygen_round_2::compute_group_public_key(
             &state,
             &[
                 &participant_broadcast_1.commitments.clone(),
