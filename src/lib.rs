@@ -106,7 +106,7 @@ impl CTX {
 ///
 /// ## Parameters
 ///
-/// - `state` is has the constants needed for FROST.
+/// - `state` has the constants needed for FROST.
 /// - `rnd` is the state for generating random 256bit numbers.
 ///
 ///

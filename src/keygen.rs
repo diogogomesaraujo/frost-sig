@@ -1,4 +1,4 @@
-//! Implementation of the FROST's key-gen.
+//! Implementation of FROST's key-gen step.
 //!
 //! # Dependencies
 //!
@@ -144,11 +144,22 @@ pub fn keygen_ctx(group_id: Integer, session_id: Integer) -> CTX {
     CTX::init("keygen", group_id, session_id)
 }
 
-/// The first round is responsible for generating nonces and commitments that will be used to generate the aggregated key if all the participants are not mallicious.
-pub mod keygen_round_1 {
+/// The first round is responsible for generating nonces and commitments that will be used to generate the aggregated key if all the participants are verified.
+pub mod round_1 {
     use super::*;
     use crate::*;
 
+    /// Function that generates a participant's polynomial that will be used to compute his nonces.
+    ///
+    /// ## Parameters
+    ///
+    /// - `state` has all the constansts needed for FROST signature operations.
+    /// - `rnd` `rnd` is the state for generating random 256bit numbers.
+    ///
+    ///
+    /// ## Returns
+    ///
+    /// - `Vec<Integer>` with all the constant values of the polynomial (ex: ax^2 + bx + c -> [c, b, a]).
     pub fn generate_polynomial(state: &FrostState, rnd: &mut RandState) -> Vec<Integer> {
         let mut polynomial: Vec<Integer> = Vec::new();
         for _i in 0..state.threshold {
@@ -158,6 +169,19 @@ pub mod keygen_round_1 {
         polynomial
     }
 
+    /// Function that computes a participant's challenge and encrypted response.
+    ///
+    /// ## Parameters
+    ///
+    /// - `state` has all the constansts needed for FROST signature operations.
+    /// - `rnd` `rnd` is the state for generating random 256bit numbers.
+    /// - `participant` has the participant's information needed for computations.
+    /// - `ctx` identifies the protocol, group and session.
+    ///
+    ///
+    /// ## Returns
+    ///
+    /// - `(Integer, Integer)` that is that are the challenge and response of a certain participant.
     pub fn compute_proof_of_knowlodge(
         state: &FrostState,
         rnd: &mut RandState,
@@ -187,6 +211,16 @@ pub mod keygen_round_1 {
         (wi, ci)
     }
 
+    /// Function that computes a participant's public commitment that will be broadcasted and used to verify him.
+    ///
+    /// ## Parameters
+    ///
+    /// - `state` has all the constansts needed for FROST signature operations.
+    /// - `participant` has the participant's information needed for computations.
+    ///
+    /// ## Returns
+    ///
+    /// - `Vec<Integer>` that is the collection of all the participant's commitments.
     pub fn compute_public_commitments(
         state: &FrostState,
         participant: &Participant,
@@ -198,6 +232,17 @@ pub mod keygen_round_1 {
             .collect()
     }
 
+    /// Function that is used by a participant to verify if other participants are valid or not.
+    ///
+    /// ## Parameters
+    ///
+    /// - `state` has all the constansts needed for FROST signature operations.
+    /// - `participants_broadcasts` has the participant's information that other participants need to verify him.
+    /// - `ctx` identifies the protocol, group and session.
+    ///
+    /// ## Returns
+    ///
+    /// - `bool` that is true if all the participants are correctly verified and false if they are not.
     pub fn verify_proofs(
         state: &FrostState,
         participants_broadcasts: &[ParticipantBroadcast],
@@ -228,12 +273,23 @@ pub mod keygen_round_1 {
     }
 }
 
-/// The second round is responsible for generating partial signatures for every participant and to aggregate them to form the group keys that will be used to sign a transaction.
-pub mod keygen_round_2 {
+/// The second round is responsible for generating partial signatures for every participant and aggregate them to form the group keys that will be used to sign transactions.
+pub mod round_2 {
     use super::{Participant, ParticipantBroadcast, SecretShare};
     use crate::{modular, FrostState};
     use rug::Integer;
 
+    /// Function that calculates the y value for a given polinomial and an x.
+    ///
+    /// ## Parameters
+    ///
+    /// - `x` is the value of the x axis.
+    /// - `pol` is the function that represents the threshold of participants needed to recover the secret.
+    /// - `prime` is the prime number used for the modular arithmetic operations.
+    ///
+    /// ## Returns
+    ///
+    /// - `Integer` that is the resulting y from the x and pol given.
     pub fn calculate_y(x: &Integer, pol: &[Integer], q: &Integer) -> Integer {
         pol.iter().enumerate().fold(Integer::ZERO, |acc, (i, p)| {
             modular::add(
@@ -244,12 +300,54 @@ pub mod keygen_round_2 {
         })
     }
 
-    pub fn create_secret_share(state: &FrostState, participant: &Participant) -> SecretShare {
+    /// Function that creates a participant's secret share to verify shares sent by other participants.
+    ///
+    /// ## Parameters
+    ///
+    /// - `state` has all the constansts needed for FROST signature operations.
+    /// - `participant` has the participant's information needed for computations.
+    ///
+    /// ## Returns
+    ///
+    /// - `SecretShare` that has a participant's secret and his id.
+    pub fn create_own_secret_share(state: &FrostState, participant: &Participant) -> SecretShare {
         let secret = calculate_y(&participant.id, &participant.polynomial, &state.q);
         SecretShare::init(participant.id.clone(), secret)
     }
 
-    pub fn verify_secret_shares(
+    /// Function that creates a participant's secret share for other participants to verify.
+    ///
+    /// ## Parameters
+    ///
+    /// - `state` has all the constansts needed for FROST signature operations.
+    /// - `sender` has the sender's information needed for computations.
+    /// - `reciever_id` is the id of the reciever.
+    ///
+    /// ## Returns
+    ///
+    /// - `SecretShare` that has a sender's secret and the reciever's id.
+    pub fn create_share_for(
+        state: &FrostState,
+        sender: &Participant,
+        reciever_id: &Integer,
+    ) -> SecretShare {
+        let secret = calculate_y(&reciever_id, &sender.polynomial, &state.q);
+        SecretShare::init(reciever_id.clone(), secret)
+    }
+
+    /// Function that verifies a sender using the reciever's share and a sender's broadcast.
+    ///
+    /// ## Parameters
+    ///
+    /// - `state` has all the constansts needed for FROST signature operations.
+    /// - `participant` has the participant's information needed for computations.
+    /// - `own_secret_share` is the reciever's secret share.
+    /// - `participant_broadcast` has the participant's information that other participants need to verify him.
+    ///
+    /// ## Returns
+    ///
+    /// - `bool` that is true if it is able to verify the sender and false if it isn't.
+    pub fn verify_share_validity(
         state: &FrostState,
         participant: &Participant,
         own_secret_share: &SecretShare,
@@ -273,6 +371,18 @@ pub mod keygen_round_2 {
         own == others
     }
 
+    /// Function that verifies a sender using the reciever's share and a sender's broadcast.
+    ///
+    /// ## Parameters
+    ///
+    /// - `state` has all the constansts needed for FROST signature operations.
+    /// - `participant` has the participant's information needed for computations.
+    /// - `own_secret_share` is a participant's secret share
+    /// - `other_secret_shares` are the secret shares sent by other participants.
+    ///
+    /// ## Returns
+    ///
+    /// - `Integer` that is the private key the participant should store to sign transactions.
     pub fn compute_private_key(
         state: &FrostState,
         own_secret_share: &SecretShare,
@@ -289,10 +399,30 @@ pub mod keygen_round_2 {
         )
     }
 
+    /// Function that computes a participant's verification share.
+    ///
+    /// ## Parameters
+    ///
+    /// - `state` has all the constansts needed for FROST signature operations.
+    /// - `private_key` is the secret key saved by the participant to sign transactions.
+    ///
+    /// ## Returns
+    ///
+    /// - `Integer` that is the verification share that is used to verify a participant's integrety.
     pub fn compute_own_verification_share(state: &FrostState, private_key: &Integer) -> Integer {
         modular::pow(&state.generator, &private_key, &state.prime)
     }
 
+    /// Function that computes the group public key used to sign transactions and identify the group.
+    ///
+    /// ## Parameters
+    ///
+    /// - `state` has all the constansts needed for FROST signature operations.
+    /// - `commitments` are all the public commitments from all the participants.
+    ///
+    /// ## Returns
+    ///
+    /// - `Integer` that is the group public key that identifies the group.
     pub fn compute_group_public_key(state: &FrostState, commitments: &[&[Integer]]) -> Integer {
         commitments
             .iter()
@@ -301,6 +431,17 @@ pub mod keygen_round_2 {
             })
     }
 
+    /// Function that computes a participant's verification share.
+    ///
+    /// ## Parameters
+    ///
+    /// - `state` has all the constansts needed for FROST signature operations.
+    /// - `participant` has the participant's information needed for computations.
+    /// - `participant_broadcast` has the participant's information that other participants need to verify him.
+    ///
+    /// ## Returns
+    ///
+    /// - `Integer` that is the verification share to verify a participant's integrety.
     pub fn compute_participant_verification_share(
         state: &FrostState,
         participant: &Participant,
@@ -322,6 +463,16 @@ pub mod keygen_round_2 {
         )
     }
 
+    /// Function that computes other participants' verification share.
+    ///
+    /// ## Parameters
+    ///
+    /// - `state` has all the constansts needed for FROST signature operations.
+    /// - `verifying_shares` has all the verification shares from all participants.
+    ///
+    /// ## Returns
+    ///
+    /// - `Integer` that is the verification share to verify others' integrety.
     pub fn compute_others_verification_share(
         state: &FrostState,
         verifying_shares: &[Integer],
@@ -345,150 +496,103 @@ pub fn test_keygen() {
 
     // ROUND 1
 
-    {
-        let pol_1 = keygen_round_1::generate_polynomial(&state, &mut rnd);
-        let pol_2 = keygen_round_1::generate_polynomial(&state, &mut rnd);
-        let pol_3 = keygen_round_1::generate_polynomial(&state, &mut rnd);
+    let pol_1 = round_1::generate_polynomial(&state, &mut rnd);
+    let pol_2 = round_1::generate_polynomial(&state, &mut rnd);
+    let pol_3 = round_1::generate_polynomial(&state, &mut rnd);
 
-        let participant_1 = Participant::init(Integer::from(1), pol_1);
-        let participant_2 = Participant::init(Integer::from(2), pol_2);
-        let participant_3 = Participant::init(Integer::from(3), pol_3);
+    let participant_1 = Participant::init(Integer::from(1), pol_1);
+    let participant_2 = Participant::init(Integer::from(2), pol_2);
+    let participant_3 = Participant::init(Integer::from(3), pol_3);
 
-        let signature_1 =
-            keygen_round_1::compute_proof_of_knowlodge(&state, &mut rnd, &participant_1, &ctx);
-        let signature_2 =
-            keygen_round_1::compute_proof_of_knowlodge(&state, &mut rnd, &participant_2, &ctx);
-        let signature_3 =
-            keygen_round_1::compute_proof_of_knowlodge(&state, &mut rnd, &participant_3, &ctx);
+    let signature_1 = round_1::compute_proof_of_knowlodge(&state, &mut rnd, &participant_1, &ctx);
+    let signature_2 = round_1::compute_proof_of_knowlodge(&state, &mut rnd, &participant_2, &ctx);
+    let signature_3 = round_1::compute_proof_of_knowlodge(&state, &mut rnd, &participant_3, &ctx);
 
-        let commitments_1 = keygen_round_1::compute_public_commitments(&state, &participant_1);
-        let commitments_2 = keygen_round_1::compute_public_commitments(&state, &participant_2);
-        let commitments_3 = keygen_round_1::compute_public_commitments(&state, &participant_3);
+    let commitments_1 = round_1::compute_public_commitments(&state, &participant_1);
+    let commitments_2 = round_1::compute_public_commitments(&state, &participant_2);
+    let commitments_3 = round_1::compute_public_commitments(&state, &participant_3);
 
-        let participant_broadcast_1 =
-            ParticipantBroadcast::init(participant_1.id.clone(), commitments_1, signature_1);
-        let participant_broadcast_2 =
-            ParticipantBroadcast::init(participant_2.id.clone(), commitments_2, signature_2);
-        let participant_broadcast_3 =
-            ParticipantBroadcast::init(participant_3.id.clone(), commitments_3, signature_3);
+    let participant_broadcast_1 =
+        ParticipantBroadcast::init(participant_1.id.clone(), commitments_1, signature_1);
+    let participant_broadcast_2 =
+        ParticipantBroadcast::init(participant_2.id.clone(), commitments_2, signature_2);
+    let participant_broadcast_3 =
+        ParticipantBroadcast::init(participant_3.id.clone(), commitments_3, signature_3);
 
-        assert!(keygen_round_1::verify_proofs(
-            &state,
-            &[
-                participant_broadcast_2.clone(),
-                participant_broadcast_3.clone(),
-            ],
-            &ctx
-        ));
+    assert!(round_1::verify_proofs(
+        &state,
+        &[
+            participant_broadcast_2.clone(),
+            participant_broadcast_3.clone(),
+        ],
+        &ctx
+    ));
 
-        // ROUND 2
+    // ROUND 2
 
-        let own_share_1 = keygen_round_2::create_secret_share(&state, &participant_1);
-        let own_share_2 = keygen_round_2::create_secret_share(&state, &participant_2);
+    let own_share_1 = round_2::create_own_secret_share(&state, &participant_1);
 
-        let share_from_3_to_1 = keygen_round_2::create_secret_share(
-            &state,
-            &Participant::init(participant_1.id.clone(), participant_3.polynomial.clone()),
-        );
-        let share_from_2_to_1 = keygen_round_2::create_secret_share(
-            &state,
-            &Participant::init(participant_1.id.clone(), participant_2.polynomial.clone()),
-        );
+    let share_from_3_to_1 = round_2::create_share_for(&state, &participant_3, &participant_1.id);
+    let share_from_2_to_1 = round_2::create_share_for(&state, &participant_2, &participant_1.id);
 
-        let share_from_1_to_2 = keygen_round_2::create_secret_share(
-            &state,
-            &Participant::init(participant_2.id.clone(), participant_1.polynomial.clone()),
-        );
-        let share_from_3_to_2 = keygen_round_2::create_secret_share(
-            &state,
-            &Participant::init(participant_2.id.clone(), participant_3.polynomial.clone()),
-        );
+    assert!(round_2::verify_share_validity(
+        &state,
+        &participant_1,
+        &share_from_3_to_1,
+        &participant_broadcast_3,
+    ));
+    assert!(round_2::verify_share_validity(
+        &state,
+        &participant_1,
+        &share_from_2_to_1,
+        &participant_broadcast_2,
+    ));
 
-        assert!(keygen_round_2::verify_secret_shares(
-            &state,
-            &participant_1,
-            &share_from_3_to_1,
-            &participant_broadcast_3,
-        ));
-        assert!(keygen_round_2::verify_secret_shares(
-            &state,
-            &participant_1,
-            &share_from_2_to_1,
-            &participant_broadcast_2,
-        ));
+    let private_key_1 = round_2::compute_private_key(
+        &state,
+        &own_share_1,
+        &[share_from_2_to_1.secret, share_from_3_to_1.secret],
+    );
 
-        assert!(keygen_round_2::verify_secret_shares(
-            &state,
-            &participant_2,
-            &share_from_1_to_2,
-            &participant_broadcast_1,
-        ));
-        assert!(keygen_round_2::verify_secret_shares(
-            &state,
-            &participant_2,
-            &share_from_3_to_2,
-            &participant_broadcast_3,
-        ));
+    println!("Participant 1: This is your private key. save it in a secure place: {private_key_1}");
 
-        let private_key_1 = keygen_round_2::compute_private_key(
-            &state,
-            &own_share_1,
-            &[share_from_2_to_1.secret, share_from_3_to_1.secret],
-        );
-        let private_key_2 = keygen_round_2::compute_private_key(
-            &state,
-            &own_share_2,
-            &[share_from_1_to_2.secret, share_from_3_to_2.secret],
-        );
+    let own_verification_share_1 = round_2::compute_own_verification_share(&state, &private_key_1);
 
-        println!(
-            "Participant 1: This is your private key. save it in a secure place: {private_key_1}"
-        );
-        println!(
-            "Participant 2: This is your private key. save it in a secure place: {private_key_2}"
-        );
+    let public_verification_share_1 = round_2::compute_participant_verification_share(
+        &state,
+        &participant_1,
+        &participant_broadcast_1,
+    );
+    let public_verification_share_1_from_2 = round_2::compute_participant_verification_share(
+        &state,
+        &participant_1,
+        &participant_broadcast_2,
+    );
+    let public_verification_share_1_from_3 = round_2::compute_participant_verification_share(
+        &state,
+        &participant_1,
+        &participant_broadcast_3,
+    );
 
-        let own_verification_share_1 =
-            keygen_round_2::compute_own_verification_share(&state, &private_key_1);
+    let public_verification_share_1 = round_2::compute_others_verification_share(
+        &state,
+        &[
+            public_verification_share_1,
+            public_verification_share_1_from_2,
+            public_verification_share_1_from_3,
+        ],
+    );
 
-        let public_verification_share_1 = keygen_round_2::compute_participant_verification_share(
-            &state,
-            &participant_1,
-            &participant_broadcast_1,
-        );
-        let public_verification_share_1_from_2 =
-            keygen_round_2::compute_participant_verification_share(
-                &state,
-                &participant_1,
-                &participant_broadcast_2,
-            );
-        let public_verification_share_1_from_3 =
-            keygen_round_2::compute_participant_verification_share(
-                &state,
-                &participant_1,
-                &participant_broadcast_3,
-            );
+    assert_eq!(own_verification_share_1, public_verification_share_1);
 
-        let public_verification_share_1 = keygen_round_2::compute_others_verification_share(
-            &state,
-            &[
-                public_verification_share_1,
-                public_verification_share_1_from_2,
-                public_verification_share_1_from_3,
-            ],
-        );
+    let group_public_key_1 = round_2::compute_group_public_key(
+        &state,
+        &[
+            &participant_broadcast_1.commitments.clone(),
+            &participant_broadcast_2.commitments.clone(),
+            &participant_broadcast_3.commitments.clone(),
+        ],
+    );
 
-        assert_eq!(own_verification_share_1, public_verification_share_1);
-
-        let group_public_key_1 = keygen_round_2::compute_group_public_key(
-            &state,
-            &[
-                &participant_broadcast_1.commitments.clone(),
-                &participant_broadcast_2.commitments.clone(),
-                &participant_broadcast_3.commitments.clone(),
-            ],
-        );
-
-        println!("The generated group public key is: {group_public_key_1}.");
-    }
+    println!("The generated group public key is: {group_public_key_1}.");
 }
