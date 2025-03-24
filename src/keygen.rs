@@ -8,12 +8,14 @@
 //!
 //! # Features
 //!
-//! - Generation of a participant's secret share, public commitments, verifying key and the group's public key.
+//! - Generation of a participant's secret share, verifying key and the group's public key.
 //! - Verification of other participants' public commitments and verifying keys.
 //!
 //! # Support
 //!
-//! To learn more about the algorythms used for the key-generation process, bellow is a detailed explanation of each step:
+//! - The keygen process should only occur **when creating the wallet** as it generates a group public key and private shares for each participant.
+//! - What should be saved? The participant should only save their **private key**, the **group public key** and their **verification share**.
+//! - To learn more about the algorythms used for the key-generation process, bellow is a detailed explanation of each step:
 //!
 //! ### Round 1
 //!
@@ -127,10 +129,22 @@ impl SecretShare {
     }
 }
 
+/// Function that initializes the CTX for the keygen operation.
+///
+/// ## Parameters
+///
+/// - `group_id` is the id of the group generating the key.
+/// - `session_id` is the id of the current session.
+///
+///
+/// ## Returns
+///
+/// - `CTX` with with the group, session and the protocol "keygen".
 pub fn keygen_ctx(group_id: Integer, session_id: Integer) -> CTX {
     CTX::init("keygen", group_id, session_id)
 }
 
+/// The first round is responsible for generating nonces and commitments that will be used to generate the aggregated key if all the participants are not mallicious.
 pub mod keygen_round_1 {
     use super::*;
     use crate::*;
@@ -214,6 +228,7 @@ pub mod keygen_round_1 {
     }
 }
 
+/// The second round is responsible for generating partial signatures for every participant and to aggregate them to form the group keys that will be used to sign a transaction.
 pub mod keygen_round_2 {
     use super::{Participant, ParticipantBroadcast, SecretShare};
     use crate::{modular, FrostState};
@@ -321,29 +336,24 @@ pub mod keygen_round_2 {
 
 #[test]
 pub fn test_keygen() {
-    // Initializing state for random number generation.
     let seed: i32 = rand::rng().random();
     let mut rnd = RandState::new();
     rnd.seed(&rug::Integer::from(seed));
 
-    // Initializing the ctx and the state that will be used for the key generation session (common across all participants).
     let ctx = keygen_ctx(Integer::from(1), Integer::from(1));
     let state = crate::FrostState::init(3, 2);
 
     // ROUND 1
 
     {
-        // Creating polynomials for each participant. No one but the server should have access to them.
         let pol_1 = keygen_round_1::generate_polynomial(&state, &mut rnd);
         let pol_2 = keygen_round_1::generate_polynomial(&state, &mut rnd);
         let pol_3 = keygen_round_1::generate_polynomial(&state, &mut rnd);
 
-        // Creating three participants for the example with their respective id and poynomial.
         let participant_1 = Participant::init(Integer::from(1), pol_1);
         let participant_2 = Participant::init(Integer::from(2), pol_2);
         let participant_3 = Participant::init(Integer::from(3), pol_3);
 
-        // Creating signatures for each participant.
         let signature_1 =
             keygen_round_1::compute_proof_of_knowlodge(&state, &mut rnd, &participant_1, &ctx);
         let signature_2 =
@@ -351,12 +361,10 @@ pub fn test_keygen() {
         let signature_3 =
             keygen_round_1::compute_proof_of_knowlodge(&state, &mut rnd, &participant_3, &ctx);
 
-        // Creating public commitments for each participant.
         let commitments_1 = keygen_round_1::compute_public_commitments(&state, &participant_1);
         let commitments_2 = keygen_round_1::compute_public_commitments(&state, &participant_2);
         let commitments_3 = keygen_round_1::compute_public_commitments(&state, &participant_3);
 
-        // Creating a broadcast for each participant that will be sent to all.
         let participant_broadcast_1 =
             ParticipantBroadcast::init(participant_1.id.clone(), commitments_1, signature_1);
         let participant_broadcast_2 =
@@ -364,7 +372,6 @@ pub fn test_keygen() {
         let participant_broadcast_3 =
             ParticipantBroadcast::init(participant_3.id.clone(), commitments_3, signature_3);
 
-        // Verifying the other participants broadcasts.
         assert!(keygen_round_1::verify_proofs(
             &state,
             &[
@@ -376,10 +383,9 @@ pub fn test_keygen() {
 
         // ROUND 2
 
-        // Create participant's private share.
         let own_share_1 = keygen_round_2::create_secret_share(&state, &participant_1);
+        let own_share_2 = keygen_round_2::create_secret_share(&state, &participant_2);
 
-        // Create shares that will be sent to other participants.
         let share_from_3_to_1 = keygen_round_2::create_secret_share(
             &state,
             &Participant::init(participant_1.id.clone(), participant_3.polynomial.clone()),
@@ -389,7 +395,15 @@ pub fn test_keygen() {
             &Participant::init(participant_1.id.clone(), participant_2.polynomial.clone()),
         );
 
-        // Verify the shares recieved from other participants.
+        let share_from_1_to_2 = keygen_round_2::create_secret_share(
+            &state,
+            &Participant::init(participant_2.id.clone(), participant_1.polynomial.clone()),
+        );
+        let share_from_3_to_2 = keygen_round_2::create_secret_share(
+            &state,
+            &Participant::init(participant_2.id.clone(), participant_3.polynomial.clone()),
+        );
+
         assert!(keygen_round_2::verify_secret_shares(
             &state,
             &participant_1,
@@ -403,18 +417,40 @@ pub fn test_keygen() {
             &participant_broadcast_2,
         ));
 
-        // Create the account's private key. It should not be saved.
+        assert!(keygen_round_2::verify_secret_shares(
+            &state,
+            &participant_2,
+            &share_from_1_to_2,
+            &participant_broadcast_1,
+        ));
+        assert!(keygen_round_2::verify_secret_shares(
+            &state,
+            &participant_2,
+            &share_from_3_to_2,
+            &participant_broadcast_3,
+        ));
+
         let private_key_1 = keygen_round_2::compute_private_key(
             &state,
             &own_share_1,
             &[share_from_2_to_1.secret, share_from_3_to_1.secret],
         );
+        let private_key_2 = keygen_round_2::compute_private_key(
+            &state,
+            &own_share_2,
+            &[share_from_1_to_2.secret, share_from_3_to_2.secret],
+        );
 
-        // Create the verification share that will be used to confirm other's verification shares.
+        println!(
+            "Participant 1: This is your private key. save it in a secure place: {private_key_1}"
+        );
+        println!(
+            "Participant 2: This is your private key. save it in a secure place: {private_key_2}"
+        );
+
         let own_verification_share_1 =
             keygen_round_2::compute_own_verification_share(&state, &private_key_1);
 
-        // Compute public verification share from commitments of all other participants.
         let public_verification_share_1 = keygen_round_2::compute_participant_verification_share(
             &state,
             &participant_1,
@@ -433,7 +469,6 @@ pub fn test_keygen() {
                 &participant_broadcast_3,
             );
 
-        // Combine the other verification shares.
         let public_verification_share_1 = keygen_round_2::compute_others_verification_share(
             &state,
             &[
@@ -443,11 +478,9 @@ pub fn test_keygen() {
             ],
         );
 
-        // Verify if the verification shares are valid.
         assert_eq!(own_verification_share_1, public_verification_share_1);
 
-        // Create the group public key that will be used to sign.
-        let group_public_key = keygen_round_2::compute_group_public_key(
+        let group_public_key_1 = keygen_round_2::compute_group_public_key(
             &state,
             &[
                 &participant_broadcast_1.commitments.clone(),
@@ -456,6 +489,6 @@ pub fn test_keygen() {
             ],
         );
 
-        println!("The generated group public key is: {group_public_key}.");
+        println!("The generated group public key is: {group_public_key_1}.");
     }
 }
