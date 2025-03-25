@@ -1,8 +1,8 @@
 [package]
-name = "thresh-sig"
-version = "0.0.5"
+name = "frost-sig"
+version = "0.0.1"
 edition = "2021"
-description = "A threshold signature library."
+description = "A threshold signature library that implements the FROST protocol."
 license = "MIT"
 repository = "https://github.com/diogogomesaraujo/thresh"
 categories = ["cryptography"]

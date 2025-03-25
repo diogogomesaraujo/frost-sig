@@ -112,6 +112,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "frost-sig"
+version = "0.0.1"
+dependencies = [
+ "rand",
+ "rug",
+ "sha256",
+]
+
+[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -305,15 +314,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
-]
-
-[[package]]
-name = "thresh-sig"
-version = "0.0.5"
-dependencies = [
- "rand",
- "rug",
- "sha256",
 ]
 
 [[package]]

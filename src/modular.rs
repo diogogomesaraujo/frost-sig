@@ -1,4 +1,4 @@
-//! Implementation of the modular arythmetic functions used for FROST.
+//! Implementation of the modular arithmetic functions used for FROST.
 //!
 //! # Dependencies
 //!

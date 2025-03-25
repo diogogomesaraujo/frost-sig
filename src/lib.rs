@@ -1,14 +1,14 @@
-//! This crate contains all the functions to implement threshold signature systems.
+//! This crate contains all the functions to implement the FROST protocol.
 //!
-//! # thresh-sig
+//! # frost-sig
 //!
-//! `thresh-sig` is a threshold signature library that implements threshold algorythms for 256bit integers.
+//! `frost-sig` is a threshold signature library that implements the FROST protocol.
 //!
 //! ## Features
 //!
-//! - Shamir Secret Sharing.
-//! - Schnorr Threshold Signatures.
-//! - Modular Arythmetic for `rug` integers.
+//! - Key Generation.
+//! - Preprocessing.
+//! - Signing Transactions.
 //!
 //! ## Dependencies
 //!
@@ -19,22 +19,16 @@
 //! ## Requirements
 //!
 //! - Cargo installed
-//!
 
 use rug::{rand::RandState, Integer};
-use std::str::FromStr;
 
 pub mod keygen;
 pub mod modular;
 pub mod preprocess;
-pub mod shamir;
+pub mod sign;
 
 /// Const value of the Integers' size in bits.
 pub const BITS: u32 = 256;
-
-/// Const value of the Prime used for the operations as str.
-pub const PRIME: &str =
-    "115792089237316195423570985008687907853269984665640564039457584007913129640233";
 
 /// Struct that saves the constants needed for FROST. These values should be used by all participants throughout the signing session and discarted after.
 #[derive(Clone)]
@@ -65,11 +59,13 @@ impl FrostState {
     /// ## Returns
     ///
     /// - `FrostState` initialized with the participants and threshold defined.
-    pub fn init(participants_input: usize, threshold_input: usize) -> Self {
+    pub fn init(rnd: &mut RandState, participants_input: usize, threshold_input: usize) -> Self {
+        let (generated_prime, generated_q) = generate_prime_and_q(rnd);
+        let generated_generator = generate_generator(rnd, &generated_q, &generated_prime);
         Self {
-            prime: Integer::from_str(PRIME).expect("Shouldn't happen."),
-            q: Integer::from((Integer::from_str(PRIME).expect("Shouldn't happen.") - 1) / 2),
-            generator: Integer::from(4),
+            prime: generated_prime,
+            q: generated_q,
+            generator: generated_generator,
             participants: participants_input,
             threshold: threshold_input,
         }
@@ -136,4 +132,56 @@ impl CTX {
 /// - `Integer` that is generated.
 pub fn generate_integer(state: &FrostState, rnd: &mut RandState) -> Integer {
     Integer::from(Integer::random_below(state.q.clone(), rnd))
+}
+
+/// Function that generates a random prime and corresponding q.
+///
+/// ## Parameters
+///
+/// - `rnd` is the state for generating random 256bit numbers.
+///
+///
+/// ## Returns
+///
+/// - `(Integer, Integer)` that is the prime and q pair.
+pub fn generate_prime_and_q(rnd: &mut RandState) -> (Integer, Integer) {
+    loop {
+        let q_candidate = Integer::from(Integer::random_bits(BITS, rnd));
+        let prime_candidate = Integer::from(2 * q_candidate.clone() + 1);
+        match prime_candidate.is_probably_prime(30) {
+            rug::integer::IsPrime::No => continue,
+            _ => {
+                return (prime_candidate, q_candidate);
+            }
+        }
+    }
+}
+
+/// Function that generates a random generator.
+///
+/// ## Parameters
+///
+/// - `rnd` is the state for generating random 256bit numbers.
+/// - `q` is the biggest number a key can be.
+/// - `prime` is the number used for modular arithmetic.
+///
+///
+/// ## Returns
+///
+/// - `Integer` that is the generator.
+pub fn generate_generator(rnd: &mut RandState, q: &Integer, prime: &Integer) -> Integer {
+    loop {
+        let prime_minus = Integer::from(prime.clone() - 1);
+        let h = Integer::from(Integer::random_below(prime_minus.clone(), rnd));
+        match h >= Integer::from(2) {
+            true => {
+                let g = modular::pow(&h, &modular::div(prime_minus, q.clone(), &prime), &prime);
+                match g == Integer::from(1) {
+                    true => continue,
+                    _ => return g,
+                }
+            }
+            _ => continue,
+        }
+    }
 }
