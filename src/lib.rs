@@ -19,6 +19,10 @@
 //! ## Requirements
 //!
 //! - Cargo installed
+//!
+//! ## Support
+//!
+//! See the [resources](https://github.com/chainx-org/chainx-technical-archive/blob/main/LiuBinXiao/Taproot/06_Schnorr%20threshold%20signatures%20FROST.md) here.
 
 use rug::{rand::RandState, Integer};
 
