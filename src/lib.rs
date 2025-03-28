@@ -30,6 +30,7 @@ pub mod keygen;
 pub mod modular;
 pub mod preprocess;
 pub mod sign;
+pub mod tcp;
 
 /// Const value of the Integers' size in bits.
 pub const BITS: u32 = 256;
@@ -63,15 +64,15 @@ impl FrostState {
     /// ## Returns
     ///
     /// - `FrostState` initialized with the participants and threshold defined.
-    pub fn init(rnd: &mut RandState, participants_input: usize, threshold_input: usize) -> Self {
+    pub fn init(rnd: &mut RandState, participants: usize, threshold: usize) -> Self {
         let (generated_prime, generated_q) = generate_prime_and_q(rnd);
         let generated_generator = generate_generator(rnd, &generated_q, &generated_prime);
         Self {
             prime: generated_prime,
             q: generated_q,
             generator: generated_generator,
-            participants: participants_input,
-            threshold: threshold_input,
+            participants,
+            threshold,
         }
     }
 }
@@ -100,11 +101,11 @@ impl CTX {
     /// ## Returns
     ///
     /// - `CTX` initialized with the information of the session, group and protocol.
-    pub fn init(protocol: &str, group_id_input: Integer, session_id_input: Integer) -> Self {
+    pub fn init(protocol: &str, group_id: Integer, session_id: Integer) -> Self {
         Self {
             protocol: protocol.to_string(),
-            group_id: group_id_input,
-            session_id: session_id_input,
+            group_id,
+            session_id,
         }
     }
 

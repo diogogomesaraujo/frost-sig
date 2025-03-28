@@ -55,22 +55,22 @@ impl ParticipantBroadcast {
     ///
     /// ## Parameters
     ///
-    /// - `participant_id_input` is the input for the participant id.
-    /// - `commitments_input` is the input for the public commitments of the participant.
-    /// - `signature_input` is the input for the signature of the participant.
+    /// - `participant_id` is the input for the participant id.
+    /// - `commitments` is the input for the public commitments of the participant.
+    /// - `signature` is the input for the signature of the participant.
     ///
     /// ## Returns
     ///
     /// - `ParticipantBroadcast` initialized with a participant id, public commitments and signature.
     pub fn init(
-        participant_id_input: Integer,
-        commitments_input: Vec<Integer>,
-        signature_input: (Integer, Integer),
+        participant_id: Integer,
+        commitments: Vec<Integer>,
+        signature: (Integer, Integer),
     ) -> Self {
         Self {
-            participant_id: participant_id_input,
-            commitments: commitments_input,
-            signature: signature_input,
+            participant_id,
+            commitments,
+            signature,
         }
     }
 }
@@ -88,18 +88,15 @@ impl Participant {
     ///
     /// ## Parameters
     ///
-    /// - `id_input` is the input for the participant id.
+    /// - `id` is the input for the participant id.
     /// - `polynomial` is a randomly generated vector that is used for important calculations.
     ///
     ///
     /// ## Returns
     ///
     /// - `Participant` with it's id and polynomial.
-    pub fn init(id_input: Integer, polynomial_input: Vec<Integer>) -> Self {
-        Self {
-            id: id_input,
-            polynomial: polynomial_input,
-        }
+    pub fn init(id: Integer, polynomial: Vec<Integer>) -> Self {
+        Self { id, polynomial }
     }
 }
 
@@ -114,17 +111,17 @@ impl SecretShare {
     ///
     /// ## Parameters
     ///
-    /// - `participant_id_input` is the input for the participant id.
-    /// - `secret_input` is the input for the secret calculated by the participant.
+    /// - `participant_id` is the input for the participant id.
+    /// - `secret` is the input for the secret calculated by the participant.
     ///
     ///
     /// ## Returns
     ///
     /// - `SecretShare` with the participant's id and corresponding secret.
-    pub fn init(participant_id_input: Integer, secret_input: Integer) -> Self {
+    pub fn init(participant_id: Integer, secret: Integer) -> Self {
         Self {
-            participant_id: participant_id_input,
-            secret: secret_input,
+            participant_id,
+            secret,
         }
     }
 }

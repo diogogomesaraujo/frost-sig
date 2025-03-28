@@ -1,94 +1,167 @@
 use crate::FrostState;
-use rug::Integer;
-use std::io::{Error, ErrorKind};
-use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
-    net::{unix::SocketAddr, TcpListener},
-    sync::broadcast,
-};
+use futures::SinkExt;
+use std::collections::HashMap;
+use std::env;
+use std::error::Error;
+use std::io;
+use std::net::SocketAddr;
+use std::sync::Arc;
+use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::{mpsc, Mutex};
+use tokio_stream::StreamExt;
+use tokio_util::codec::{Framed, LinesCodec};
 
-pub enum Address {
-    Ip(String),
-    SocketAddress(SocketAddr),
+pub struct ChannelState {
+    pub frost_state: FrostState,
+    pub ip: String,
 }
 
-pub struct Participant {
-    pub id: Integer,
-    pub address: Address,
-    pub broadcasts: Vec<String>,
-}
-
-pub struct Channel {
-    pub state: FrostState,
-    pub listener: TcpListener,
-    pub main_participant: Participant,
-    pub other_participants: Vec<Participant>,
-}
-
-impl Channel {
-    pub async fn init(
-        state_input: FrostState,
-        main_participant_input: Participant,
-    ) -> Result<Self, Error> {
-        match &main_participant_input.address {
-            Address::Ip(address) => Ok(Self {
-                state: state_input,
-                listener: TcpListener::bind(address).await.unwrap(),
-                main_participant: main_participant_input,
-                other_participants: Vec::new(),
-            }),
-            _ => Err(std::io::Error::new(
-                ErrorKind::InvalidInput,
-                "Insert an Ip Address not a Socket Address.",
-            )),
-        }
+impl ChannelState {
+    pub fn new(frost_state: FrostState, ip: String) -> Self {
+        Self { frost_state, ip }
     }
+    pub async fn serve(&self) -> Result<(), Box<dyn Error>> {
+        let state = Arc::new(Mutex::new(Shared::new()));
 
-    pub async fn serve(&self) {
-        let (tx, _rx) = broadcast::channel(10);
+        let addr = env::args().nth(1).unwrap_or_else(|| self.ip.clone());
+
+        let listener = TcpListener::bind(&addr).await.unwrap();
+
+        tracing::info!("server running on {}", addr);
+
+        let mut count: u32 = 0;
 
         loop {
-            let (mut socket, address) = self.listener.accept().await.unwrap();
+            let (stream, addr) = listener.accept().await.unwrap();
 
-            let tx = tx.clone();
-            let mut rx = tx.subscribe();
+            count += 1;
+
+            let state = Arc::clone(&state);
 
             tokio::spawn(async move {
-                let (socket_read, mut socket_write) = socket.split();
-
-                let mut reader = BufReader::new(socket_read);
-                let mut line = String::new();
-
-                loop {
-                    tokio::select! {
-                        result = reader.read_line(&mut line) => {
-                            if result.unwrap() == 0 {
-                                break;
-                            }
-
-                            tx.send((line.clone(), address)).unwrap();
-                            line.clear();
-                        }
-                        result = rx.recv() => {
-                            let (message, message_address) = result.unwrap();
-
-                            if address != message_address {
-                                socket_write.write_all(&message.as_bytes()).await.unwrap();
-                            }
-                        }
-                    }
+                tracing::debug!("accepted connection");
+                if let Err(e) = process(count, state, stream, addr).await {
+                    tracing::info!("an error occurred; error = {:?}", e);
                 }
             });
         }
     }
 }
 
-impl Participant {
-    pub fn init(id_input: Integer, address_input: Address) -> Self {
-        Self {
-            id: id_input,
-            address: address_input,
-            broadcasts: Vec::new(),
+pub type Tx = mpsc::UnboundedSender<String>;
+pub type Rx = mpsc::UnboundedReceiver<String>;
+
+pub struct Shared {
+    participants: HashMap<SocketAddr, Tx>,
+}
+
+impl Shared {
+    pub fn new() -> Self {
+        Shared {
+            participants: HashMap::new(),
         }
     }
+
+    async fn broadcast(&mut self, sender: SocketAddr, message: &str) {
+        for peer in self.participants.iter_mut() {
+            if *peer.0 != sender {
+                let _ = peer.1.send(message.into());
+            }
+        }
+    }
+}
+
+pub struct Participant {
+    id: u32,
+    username: String,
+    lines: Framed<TcpStream, LinesCodec>,
+    rx: Rx,
+}
+
+impl Participant {
+    pub async fn new(
+        id: u32,
+        username: String,
+        state: Arc<Mutex<Shared>>,
+        lines: Framed<TcpStream, LinesCodec>,
+    ) -> io::Result<Participant> {
+        let addr = lines.get_ref().peer_addr()?;
+
+        let (tx, rx) = mpsc::unbounded_channel();
+
+        state.lock().await.participants.insert(addr, tx);
+
+        Ok(Participant {
+            id,
+            username,
+            lines,
+            rx,
+        })
+    }
+}
+
+pub async fn process(
+    id: u32,
+    state: Arc<Mutex<Shared>>,
+    stream: TcpStream,
+    addr: SocketAddr,
+) -> Result<(), Box<dyn Error>> {
+    let mut lines = Framed::new(stream, LinesCodec::new());
+
+    lines.send("Please enter your username:").await?;
+
+    let username = match lines.next().await {
+        Some(Ok(line)) => line,
+        _ => {
+            tracing::error!("Failed to get username from {}. Client disconnected.", addr);
+            return Ok(());
+        }
+    };
+
+    let mut participant = Participant::new(id, username, state.clone(), lines).await?;
+
+    {
+        let mut state = state.lock().await;
+        let msg = format!("{} has joined the chat", participant.username);
+        tracing::info!("{}", msg);
+        state.broadcast(addr, &msg).await;
+    }
+
+    loop {
+        tokio::select! {
+            Some(msg) = participant.rx.recv() => {
+                participant.lines.send(&msg).await?;
+            }
+            result = participant.lines.next() => match result {
+                Some(Ok(msg)) => {
+                    let mut state = state.lock().await;
+                    let msg = format!("{}: {msg}", participant.username);
+
+                    state.broadcast(addr, &msg).await;
+                }
+                Some(Err(e)) => {
+                    tracing::error!(
+                        "an error occurred while processing messages for {}; error = {:?}",
+                        participant.username,
+                        e
+                    );
+                }
+                None => break,
+            },
+        }
+    }
+
+    {
+        let mut state = state.lock().await;
+        state.participants.remove(&addr);
+
+        let msg = format!(
+            "{}:{} has left the chat",
+            participant.id, participant.username
+        );
+        tracing::info!("{}", msg);
+        state.broadcast(addr, &msg).await;
+    }
+
+    Ok(())
 }
