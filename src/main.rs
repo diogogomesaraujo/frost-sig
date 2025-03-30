@@ -12,5 +12,5 @@ async fn main() {
     let frost_state = FrostState::init(&mut rnd, 3, 2);
 
     let channel_state = ChannelState::new(frost_state, "localhost:3000".to_string());
-    channel_state.serve().await.unwrap();
+    channel_state.serve_keygen().await.unwrap();
 }

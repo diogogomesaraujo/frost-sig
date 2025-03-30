@@ -32,7 +32,7 @@
 //! 3. Each Pi calculates their share by computing si = SUM(fp(i), p=1... . n) to compute their long-standing private signature shares and store si securely.
 //! 4. Each Pi computes their public verification share Yi = g^{si} and the group's public key Y = PROD(Aj0, j=1... .n). Any participant can compute the public key by computing Yi = PROD( (Ajk)(i^k mod q), j=1... .n, k=0... .t-1) to calculate the publicly verified share of any other participant.
 //!
-//! See the [resources](https://github.com/chainx-org/chainx-technical-archive/blob/main/LiuBinXiao/Taproot/06_Schnorr%20threshold%20signatures%20FROST.md) here.
+//! See the [resources](https://eprint.iacr.org/2020/852.pdf) here.
 
 use crate::{modular, CTX};
 use rand::Rng;
@@ -72,6 +72,14 @@ impl ParticipantBroadcast {
             commitments,
             signature,
         }
+    }
+
+    // make something more robust later
+    pub fn to_string(&self) -> String {
+        format!(
+            "{:?}\n{:?}\n{:?}\n",
+            self.participant_id, self.commitments, self.signature
+        )
     }
 }
 

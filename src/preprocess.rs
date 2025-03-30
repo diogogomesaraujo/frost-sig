@@ -22,7 +22,7 @@
 //!
 //! **2.** Publish (i, Li) to a predefined location, specified by the implementer.
 //!
-//! See the [resources](https://github.com/chainx-org/chainx-technical-archive/blob/main/LiuBinXiao/Taproot/06_Schnorr%20threshold%20signatures%20FROST.md) here.
+//! See the [resources](https://eprint.iacr.org/2020/852.pdf) here.
 
 use crate::*;
 

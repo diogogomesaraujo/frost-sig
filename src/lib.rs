@@ -22,7 +22,7 @@
 //!
 //! ## Support
 //!
-//! See the [resources](https://github.com/chainx-org/chainx-technical-archive/blob/main/LiuBinXiao/Taproot/06_Schnorr%20threshold%20signatures%20FROST.md) here.
+//! See the [resources](https://eprint.iacr.org/2020/852.pdf) here.
 
 use rug::{rand::RandState, Integer};
 

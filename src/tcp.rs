@@ -1,5 +1,9 @@
-use crate::FrostState;
+use crate::keygen::{round_1, ParticipantBroadcast};
+use crate::{keygen, FrostState, CTX};
 use futures::SinkExt;
+use rand::Rng;
+use rug::rand::RandState;
+use rug::Integer;
 use std::collections::HashMap;
 use std::env;
 use std::error::Error;
@@ -20,15 +24,17 @@ impl ChannelState {
     pub fn new(frost_state: FrostState, ip: String) -> Self {
         Self { frost_state, ip }
     }
-    pub async fn serve(&self) -> Result<(), Box<dyn Error>> {
-        let state = Arc::new(Mutex::new(Shared::new()));
-
+    pub async fn serve_keygen(&self) -> Result<(), Box<dyn Error>> {
+        let tcp_state = Arc::new(Mutex::new(Shared::new()));
+        let frost_state = Arc::new(Mutex::new(self.frost_state.clone()));
+        let ctx = Arc::new(Mutex::new(CTX::init(
+            "keygen",
+            Integer::from(1),
+            Integer::from(1),
+        )));
         let addr = env::args().nth(1).unwrap_or_else(|| self.ip.clone());
-
         let listener = TcpListener::bind(&addr).await.unwrap();
-
         tracing::info!("server running on {}", addr);
-
         let mut count: u32 = 0;
 
         loop {
@@ -36,14 +42,19 @@ impl ChannelState {
 
             count += 1;
 
-            let state = Arc::clone(&state);
+            let tcp_state = Arc::clone(&tcp_state);
+            let frost_state = Arc::clone(&frost_state);
+            let ctx = Arc::clone(&ctx);
 
+            // Begin FROST keygen round 1
             tokio::spawn(async move {
                 tracing::debug!("accepted connection");
-                if let Err(e) = process(count, state, stream, addr).await {
+                if let Err(e) = process(count, tcp_state, stream, addr, frost_state, ctx).await {
                     tracing::info!("an error occurred; error = {:?}", e);
                 }
             });
+
+            // Begin FROST keygen round 2
         }
     }
 }
@@ -63,6 +74,8 @@ impl Shared {
     }
 
     async fn broadcast(&mut self, sender: SocketAddr, message: &str) {
+        println!("Broadcasting message: {}", message);
+
         for peer in self.participants.iter_mut() {
             if *peer.0 != sender {
                 let _ = peer.1.send(message.into());
@@ -72,10 +85,10 @@ impl Shared {
 }
 
 pub struct Participant {
-    id: u32,
-    username: String,
-    lines: Framed<TcpStream, LinesCodec>,
-    rx: Rx,
+    pub id: u32,
+    pub username: String,
+    pub lines: Framed<TcpStream, LinesCodec>,
+    pub rx: Rx,
 }
 
 impl Participant {
@@ -102,9 +115,11 @@ impl Participant {
 
 pub async fn process(
     id: u32,
-    state: Arc<Mutex<Shared>>,
+    tcp_state: Arc<Mutex<Shared>>,
     stream: TcpStream,
     addr: SocketAddr,
+    frost_state: Arc<Mutex<FrostState>>,
+    ctx: Arc<Mutex<CTX>>,
 ) -> Result<(), Box<dyn Error>> {
     let mut lines = Framed::new(stream, LinesCodec::new());
 
@@ -118,15 +133,46 @@ pub async fn process(
         }
     };
 
-    let mut participant = Participant::new(id, username, state.clone(), lines).await?;
+    let participant = Participant::new(id, username, tcp_state.clone(), lines).await?;
+
+    let seed: i32 = rand::rng().random();
+    let mut rnd = RandState::new();
+    rnd.seed(&rug::Integer::from(seed));
 
     {
-        let mut state = state.lock().await;
-        let msg = format!("{} has joined the chat", participant.username);
-        tracing::info!("{}", msg);
-        state.broadcast(addr, &msg).await;
+        let frost_state = frost_state.lock().await;
+        let ctx = ctx.lock().await;
+
+        let pol = round_1::generate_polynomial(&frost_state, &mut rnd);
+        let frost_participant_temp = keygen::Participant::init(Integer::from(id), pol);
+
+        let signature = round_1::compute_proof_of_knowlodge(
+            &frost_state,
+            &mut rnd,
+            &frost_participant_temp,
+            &ctx,
+        );
+        let commitments =
+            round_1::compute_public_commitments(&frost_state, &frost_participant_temp);
+
+        let participant_broadcast =
+            ParticipantBroadcast::init(frost_participant_temp.id.clone(), commitments, signature);
+
+        let mut tcp_state = tcp_state.lock().await;
+
+        tcp_state
+            .broadcast(addr, &participant_broadcast.to_string())
+            .await;
     }
 
+    {
+        let mut tcp_state = tcp_state.lock().await;
+        let msg = format!("{} has joined the chat", participant.username);
+        tracing::info!("{}", msg);
+        tcp_state.broadcast(addr, &msg).await;
+    }
+
+    /*
     loop {
         tokio::select! {
             Some(msg) = participant.rx.recv() => {
@@ -150,17 +196,15 @@ pub async fn process(
             },
         }
     }
+    */
 
     {
-        let mut state = state.lock().await;
-        state.participants.remove(&addr);
+        let mut tcp_state = tcp_state.lock().await;
+        tcp_state.participants.remove(&addr);
 
-        let msg = format!(
-            "{}:{} has left the chat",
-            participant.id, participant.username
-        );
+        let msg = format!("{} has left the chat", participant.username);
         tracing::info!("{}", msg);
-        state.broadcast(addr, &msg).await;
+        tcp_state.broadcast(addr, &msg).await;
     }
 
     Ok(())
