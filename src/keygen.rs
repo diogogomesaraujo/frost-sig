@@ -75,7 +75,15 @@ impl ParticipantBroadcast {
         }
     }
 
-    // make something more robust later
+    /// Function that converts the ParticipantBroadcast to a String in JSON format.
+    ///
+    /// ## Parameters
+    ///
+    /// - `self` that is the ParticipantBroadcast that will be converted.
+    ///
+    /// ## Returns
+    ///
+    /// - `String` in JSON format.
     pub fn to_json_string(&self) -> String {
         let id = self.participant_id.to_string_radix(32);
         let commitments: Vec<String> = self
@@ -87,20 +95,20 @@ impl ParticipantBroadcast {
             let (temp_1, temp_2) = self.signature.clone();
             (temp_1.to_string_radix(32), temp_2.to_string_radix(32))
         };
-
+        let action = "participant_broadcast".to_string();
         #[derive(Serialize, Deserialize)]
         struct ParticipantBroadcastJSON {
+            action: String,
             id: String,
             commitments: Vec<String>,
             signature: (String, String),
         }
-
         let broadcast = ParticipantBroadcastJSON {
+            action,
             id,
             commitments,
             signature,
         };
-
         serde_json::to_string(&broadcast).expect("Serializing the broadcast")
     }
 }

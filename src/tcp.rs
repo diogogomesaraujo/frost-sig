@@ -135,6 +135,13 @@ pub async fn process(
 
     let participant = Participant::new(id, username, tcp_state.clone(), lines).await?;
 
+    {
+        let mut tcp_state = tcp_state.lock().await;
+        let msg = format!("{} has joined the chat", participant.username);
+        tracing::info!("{}", msg);
+        tcp_state.broadcast(addr, &msg).await;
+    }
+
     let seed: i32 = rand::rng().random();
     let mut rnd = RandState::new();
     rnd.seed(&rug::Integer::from(seed));
@@ -163,13 +170,6 @@ pub async fn process(
         tcp_state
             .broadcast(addr, &participant_broadcast.to_json_string())
             .await;
-    }
-
-    {
-        let mut tcp_state = tcp_state.lock().await;
-        let msg = format!("{} has joined the chat", participant.username);
-        tracing::info!("{}", msg);
-        tcp_state.broadcast(addr, &msg).await;
     }
 
     {
