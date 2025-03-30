@@ -161,7 +161,7 @@ pub async fn process(
         let mut tcp_state = tcp_state.lock().await;
 
         tcp_state
-            .broadcast(addr, &participant_broadcast.to_string())
+            .broadcast(addr, &participant_broadcast.to_json_string())
             .await;
     }
 
@@ -171,32 +171,6 @@ pub async fn process(
         tracing::info!("{}", msg);
         tcp_state.broadcast(addr, &msg).await;
     }
-
-    /*
-    loop {
-        tokio::select! {
-            Some(msg) = participant.rx.recv() => {
-                participant.lines.send(&msg).await?;
-            }
-            result = participant.lines.next() => match result {
-                Some(Ok(msg)) => {
-                    let mut state = state.lock().await;
-                    let msg = format!("{}: {msg}", participant.username);
-
-                    state.broadcast(addr, &msg).await;
-                }
-                Some(Err(e)) => {
-                    tracing::error!(
-                        "an error occurred while processing messages for {}; error = {:?}",
-                        participant.username,
-                        e
-                    );
-                }
-                None => break,
-            },
-        }
-    }
-    */
 
     {
         let mut tcp_state = tcp_state.lock().await;

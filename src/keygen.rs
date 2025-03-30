@@ -37,6 +37,7 @@
 use crate::{modular, CTX};
 use rand::Rng;
 use rug::{rand::RandState, Integer};
+use serde::{Deserialize, Serialize};
 use sha256::digest;
 
 /// Struct that is the broadcast sent by a participant to all others.
@@ -75,11 +76,32 @@ impl ParticipantBroadcast {
     }
 
     // make something more robust later
-    pub fn to_string(&self) -> String {
-        format!(
-            "{:?}\n{:?}\n{:?}\n",
-            self.participant_id, self.commitments, self.signature
-        )
+    pub fn to_json_string(&self) -> String {
+        let id = self.participant_id.to_string_radix(32);
+        let commitments: Vec<String> = self
+            .commitments
+            .iter()
+            .map(|i| i.to_string_radix(32))
+            .collect();
+        let signature = {
+            let (temp_1, temp_2) = self.signature.clone();
+            (temp_1.to_string_radix(32), temp_2.to_string_radix(32))
+        };
+
+        #[derive(Serialize, Deserialize)]
+        struct ParticipantBroadcastJSON {
+            id: String,
+            commitments: Vec<String>,
+            signature: (String, String),
+        }
+
+        let broadcast = ParticipantBroadcastJSON {
+            id,
+            commitments,
+            signature,
+        };
+
+        serde_json::to_string(&broadcast).expect("Serializing the broadcast")
     }
 }
 
