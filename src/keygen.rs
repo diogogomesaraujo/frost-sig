@@ -114,6 +114,25 @@ pub struct ParticipantBroadcastJSON {
     pub signature: (String, String),
 }
 
+impl ParticipantBroadcastJSON {
+    pub fn from_json(&self) -> ParticipantBroadcast {
+        let id = Integer::from_str_radix(self.id.as_str(), 32).unwrap();
+        let commitments: Vec<Integer> = self
+            .commitments
+            .iter()
+            .map(|c| Integer::from_str_radix(c, 32).unwrap())
+            .collect();
+        let signature = {
+            let (l, r) = self.signature.clone();
+            (
+                Integer::from_str_radix(l.as_str(), 32).unwrap(),
+                Integer::from_str_radix(r.as_str(), 32).unwrap(),
+            )
+        };
+        ParticipantBroadcast::init(id, commitments, signature)
+    }
+}
+
 /// Struct that represents the participant.
 pub struct Participant {
     /// `id` is the identifier for the participant.

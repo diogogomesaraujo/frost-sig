@@ -227,16 +227,38 @@ pub async fn process(
         }
     }
 
-    participant
-        .lines
-        .send(&format!(
-            "Recieved {} participants broadcasts from {} and {}.",
-            participants_broadcasts.len(),
-            participants_broadcasts[0].id,
-            participants_broadcasts[1].id,
-        ))
-        .await
-        .unwrap();
+    {
+        let frost_state = frost_state.lock().await;
+        let ctx = ctx.lock().await;
+
+        participant
+            .lines
+            .send(&format!(
+                "Recieved {} participants broadcasts from {} and {}.",
+                participants_broadcasts.len(),
+                participants_broadcasts[0].id,
+                participants_broadcasts[1].id,
+            ))
+            .await
+            .unwrap();
+
+        let participants_broadcasts: Vec<ParticipantBroadcast> = participants_broadcasts
+            .iter()
+            .map(|pb| pb.from_json())
+            .collect();
+
+        assert!(round_1::verify_proofs(
+            &frost_state,
+            &participants_broadcasts,
+            &ctx
+        ));
+
+        participant
+            .lines
+            .send("Correctly verified all proofs")
+            .await
+            .unwrap();
+    }
 
     Ok(())
 
