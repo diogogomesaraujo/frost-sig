@@ -34,10 +34,9 @@
 //!
 //! See the [resources](https://eprint.iacr.org/2020/852.pdf) here.
 
-use crate::{modular, CTX};
+use crate::{modular, tcp::ParticipantBroadcastJSON, CTX};
 use rand::Rng;
 use rug::{rand::RandState, Integer};
-use serde::{Deserialize, Serialize};
 use sha256::digest;
 
 /// Struct that is the broadcast sent by a participant to all others.
@@ -103,33 +102,6 @@ impl ParticipantBroadcast {
             signature,
         };
         serde_json::to_string(&broadcast).expect("Serializing the broadcast")
-    }
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct ParticipantBroadcastJSON {
-    pub action: String,
-    pub id: String,
-    pub commitments: Vec<String>,
-    pub signature: (String, String),
-}
-
-impl ParticipantBroadcastJSON {
-    pub fn from_json(&self) -> ParticipantBroadcast {
-        let id = Integer::from_str_radix(self.id.as_str(), 32).unwrap();
-        let commitments: Vec<Integer> = self
-            .commitments
-            .iter()
-            .map(|c| Integer::from_str_radix(c, 32).unwrap())
-            .collect();
-        let signature = {
-            let (l, r) = self.signature.clone();
-            (
-                Integer::from_str_radix(l.as_str(), 32).unwrap(),
-                Integer::from_str_radix(r.as_str(), 32).unwrap(),
-            )
-        };
-        ParticipantBroadcast::init(id, commitments, signature)
     }
 }
 
