@@ -213,14 +213,11 @@ pub async fn process(
                         participants_broadcasts.push(broadcast);
                         participant.lines.send(&msg).await?;
 
-                        participant
-                            .lines
-                            .send(&format!(
-                                "Recieved {} participants broadcasts.",
-                                participants_broadcasts.len()
-                            ))
-                            .await
-                            .unwrap();
+                        let frost_state = frost_state.lock().await;
+
+                        if participants_broadcasts.len() >= frost_state.participants - 1 {
+                            break;
+                        }
                     }
                     Err(_)  => {
                         participant.lines.send(&msg).await?;
@@ -229,6 +226,19 @@ pub async fn process(
             }
         }
     }
+
+    participant
+        .lines
+        .send(&format!(
+            "Recieved {} participants broadcasts from {} and {}.",
+            participants_broadcasts.len(),
+            participants_broadcasts[0].id,
+            participants_broadcasts[1].id,
+        ))
+        .await
+        .unwrap();
+
+    Ok(())
 
     /*
     {
@@ -240,6 +250,4 @@ pub async fn process(
         tcp_state.broadcast(addr, &msg).await;
     }
     */
-
-    // Ok(())
 }

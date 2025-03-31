@@ -108,10 +108,10 @@ impl ParticipantBroadcast {
 
 #[derive(Serialize, Deserialize)]
 pub struct ParticipantBroadcastJSON {
-    action: String,
-    id: String,
-    commitments: Vec<String>,
-    signature: (String, String),
+    pub action: String,
+    pub id: String,
+    pub commitments: Vec<String>,
+    pub signature: (String, String),
 }
 
 /// Struct that represents the participant.
