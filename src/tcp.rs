@@ -1,9 +1,10 @@
-use crate::keygen::{round_1, ParticipantBroadcast};
+use crate::keygen::{round_1, ParticipantBroadcast, ParticipantBroadcastJSON};
 use crate::{keygen, FrostState, CTX};
 use futures::SinkExt;
 use rand::Rng;
 use rug::rand::RandState;
 use rug::Integer;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
 use std::error::Error;
@@ -11,7 +12,7 @@ use std::io;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{mpsc, Barrier, Mutex};
 use tokio_stream::StreamExt;
 use tokio_util::codec::{Framed, LinesCodec};
 
@@ -25,6 +26,9 @@ impl ChannelState {
         Self { frost_state, ip }
     }
     pub async fn serve_keygen(&self) -> Result<(), Box<dyn Error>> {
+        let barrier_wait_for_participants =
+            Arc::new(Barrier::new(self.frost_state.participants.clone()));
+
         let tcp_state = Arc::new(Mutex::new(Shared::new()));
         let frost_state = Arc::new(Mutex::new(self.frost_state.clone()));
         let ctx = Arc::new(Mutex::new(CTX::init(
@@ -35,6 +39,7 @@ impl ChannelState {
         let addr = env::args().nth(1).unwrap_or_else(|| self.ip.clone());
         let listener = TcpListener::bind(&addr).await.unwrap();
         tracing::info!("server running on {}", addr);
+
         let mut count: u32 = 0;
 
         loop {
@@ -42,6 +47,7 @@ impl ChannelState {
 
             count += 1;
 
+            let barrier_wait_for_participants = Arc::clone(&barrier_wait_for_participants);
             let tcp_state = Arc::clone(&tcp_state);
             let frost_state = Arc::clone(&frost_state);
             let ctx = Arc::clone(&ctx);
@@ -49,7 +55,17 @@ impl ChannelState {
             // Begin FROST keygen round 1
             tokio::spawn(async move {
                 tracing::debug!("accepted connection");
-                if let Err(e) = process(count, tcp_state, stream, addr, frost_state, ctx).await {
+                if let Err(e) = process(
+                    count,
+                    tcp_state,
+                    stream,
+                    addr,
+                    frost_state,
+                    ctx,
+                    barrier_wait_for_participants,
+                )
+                .await
+                {
                     tracing::info!("an error occurred; error = {:?}", e);
                 }
             });
@@ -120,6 +136,7 @@ pub async fn process(
     addr: SocketAddr,
     frost_state: Arc<Mutex<FrostState>>,
     ctx: Arc<Mutex<CTX>>,
+    barrier_wait_for_participants: Arc<Barrier>,
 ) -> Result<(), Box<dyn Error>> {
     let mut lines = Framed::new(stream, LinesCodec::new());
 
@@ -133,14 +150,28 @@ pub async fn process(
         }
     };
 
-    let participant = Participant::new(id, username, tcp_state.clone(), lines).await?;
+    let mut participant = Participant::new(id, username, tcp_state.clone(), lines).await?;
 
     {
         let mut tcp_state = tcp_state.lock().await;
-        let msg = format!("{} has joined the chat", participant.username);
-        tracing::info!("{}", msg);
-        tcp_state.broadcast(addr, &msg).await;
+
+        #[derive(Serialize, Deserialize)]
+        struct JoinJSON {
+            action: String,
+            message: String,
+        }
+
+        let msg_json = serde_json::to_string(&JoinJSON {
+            action: "join".to_string(),
+            message: format!("{} as joined the chat", participant.username),
+        })
+        .unwrap();
+
+        tracing::info!("{}", msg_json);
+        tcp_state.broadcast(addr, &msg_json).await;
     }
+
+    barrier_wait_for_participants.wait().await;
 
     let seed: i32 = rand::rng().random();
     let mut rnd = RandState::new();
@@ -172,6 +203,34 @@ pub async fn process(
             .await;
     }
 
+    let mut participants_broadcasts: Vec<ParticipantBroadcastJSON> = Vec::new();
+
+    loop {
+        tokio::select! {
+            Some(msg) = participant.rx.recv() => {
+                match serde_json::from_str::<ParticipantBroadcastJSON>(&msg) {
+                    Ok(broadcast) => {
+                        participants_broadcasts.push(broadcast);
+                        participant.lines.send(&msg).await?;
+
+                        participant
+                            .lines
+                            .send(&format!(
+                                "Recieved {} participants broadcasts.",
+                                participants_broadcasts.len()
+                            ))
+                            .await
+                            .unwrap();
+                    }
+                    Err(_)  => {
+                        participant.lines.send(&msg).await?;
+                    }
+                }
+            }
+        }
+    }
+
+    /*
     {
         let mut tcp_state = tcp_state.lock().await;
         tcp_state.participants.remove(&addr);
@@ -180,6 +239,7 @@ pub async fn process(
         tracing::info!("{}", msg);
         tcp_state.broadcast(addr, &msg).await;
     }
+    */
 
-    Ok(())
+    // Ok(())
 }

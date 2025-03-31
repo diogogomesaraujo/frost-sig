@@ -96,13 +96,6 @@ impl ParticipantBroadcast {
             (temp_1.to_string_radix(32), temp_2.to_string_radix(32))
         };
         let action = "participant_broadcast".to_string();
-        #[derive(Serialize, Deserialize)]
-        struct ParticipantBroadcastJSON {
-            action: String,
-            id: String,
-            commitments: Vec<String>,
-            signature: (String, String),
-        }
         let broadcast = ParticipantBroadcastJSON {
             action,
             id,
@@ -111,6 +104,14 @@ impl ParticipantBroadcast {
         };
         serde_json::to_string(&broadcast).expect("Serializing the broadcast")
     }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ParticipantBroadcastJSON {
+    action: String,
+    id: String,
+    commitments: Vec<String>,
+    signature: (String, String),
 }
 
 /// Struct that represents the participant.
