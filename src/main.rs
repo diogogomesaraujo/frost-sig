@@ -1,6 +1,7 @@
+use frost_sig::keygen::keygen_ctx;
 use frost_sig::{tcp::ChannelState, FrostState};
 use rand::Rng;
-use rug::rand::RandState;
+use rug::{rand::RandState, Integer};
 
 #[tokio::main]
 async fn main() {
@@ -8,9 +9,9 @@ async fn main() {
     let mut rnd = RandState::new();
     rnd.seed(&rug::Integer::from(seed));
 
-    // let ctx = keygen_ctx(Integer::from(1), Integer::from(1));
+    let ctx = keygen_ctx(Integer::from(1), Integer::from(1));
     let frost_state = FrostState::init(&mut rnd, 3, 2);
 
     let channel_state = ChannelState::new(frost_state, "localhost:3000".to_string());
-    channel_state.serve_keygen().await.unwrap();
+    channel_state.serve_keygen(ctx).await.unwrap();
 }
