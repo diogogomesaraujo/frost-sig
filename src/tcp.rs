@@ -93,7 +93,7 @@ impl ChannelState {
 /// Struct that contains every participant's socket address and transmiter.
 pub struct Shared {
     /// The socket address and trasnmit half of the message channel of all participants.
-    participants: HashMap<SocketAddr, Tx>,
+    participants: HashMap<(SocketAddr), Tx>,
 }
 
 impl Shared {
@@ -115,10 +115,16 @@ impl Shared {
     /// - `self` that is the shared state with all the participant's addresses and trasmiters.
     async fn broadcast(&mut self, sender: SocketAddr, message: &str) {
         println!("Broadcasting message: {}", message);
-        for peer in self.participants.iter_mut() {
-            if *peer.0 != sender {
-                let _ = peer.1.send(message.into());
+        for participant in self.participants.iter_mut() {
+            if *participant.0 != sender {
+                let _ = participant.1.send(message.into());
             }
+        }
+    }
+
+    async fn send_to(&mut self, reciever: SocketAddr, message: &str) {
+        if let Some(tx) = self.participants.get(&reciever) {
+            let _ = tx.send(message.to_string());
         }
     }
 }
@@ -275,20 +281,20 @@ pub mod process {
         participants_broadcasts
     }
 
-    pub async fn keygen_round_1_broadcast(
+    pub async fn keygen_round_1_broadcast_and_pol(
         id: u32,
         frost_state: &Arc<Mutex<FrostState>>,
         tcp_state: &Arc<Mutex<Shared>>,
         ctx: &Arc<Mutex<CTX>>,
         addr: SocketAddr,
-    ) {
+    ) -> Vec<Integer> {
         let seed: i32 = rand::rng().random();
         let mut rnd = RandState::new();
         rnd.seed(&rug::Integer::from(seed));
         let frost_state = frost_state.lock().await;
         let ctx = ctx.lock().await;
         let pol = round_1::generate_polynomial(&frost_state, &mut rnd);
-        let frost_participant_temp = keygen::Participant::init(Integer::from(id), pol);
+        let frost_participant_temp = keygen::Participant::init(Integer::from(id), pol.clone());
         let signature = round_1::compute_proof_of_knowlodge(
             &frost_state,
             &mut rnd,
@@ -303,6 +309,8 @@ pub mod process {
         tcp_state
             .broadcast(addr, &participant_broadcast.to_json_string())
             .await;
+
+        pol
     }
 
     pub async fn keygen_round_1_confirm_broadcast(
@@ -358,7 +366,9 @@ pub mod process {
         let mut participant = Participant::new(id, username, tcp_state.clone(), lines).await?;
         joining_participants(&tcp_state, &participant, addr).await;
         barrier_wait_for_participants.wait().await;
-        keygen_round_1_broadcast(id.clone(), &frost_state, &tcp_state, &ctx, addr).await;
+        let pol =
+            keygen_round_1_broadcast_and_pol(id.clone(), &frost_state, &tcp_state, &ctx, addr)
+                .await;
         let participants_broadcasts = get_all_broadcasts(&mut participant, &frost_state).await;
         keygen_round_1_confirm_broadcast(
             &frost_state,
@@ -367,6 +377,28 @@ pub mod process {
             &mut participant,
         )
         .await;
+        let participants_broadcasts: Vec<ParticipantBroadcast> = participants_broadcasts
+            .iter()
+            .map(|pb| pb.from_json())
+            .collect();
+
+        {
+            let frost_state = frost_state.lock().await;
+
+            let p = keygen::Participant::init(Integer::from(participant.id.clone()), pol);
+
+            let own_share = round_2::create_own_secret_share(&frost_state, &p);
+            participants_broadcasts.iter().for_each(|pb| {
+                let share_to = round_2::create_share_for(&frost_state, &p, &pb.participant_id);
+
+                struct SecretShareJSON {
+                    action: String,
+                    reciever_id: String,
+                    secret: String,
+                }
+            });
+        }
+
         Ok(())
         /*
         {
