@@ -9,6 +9,7 @@ use std::env;
 use std::error::Error;
 use std::io;
 use std::net::SocketAddr;
+use std::str::FromStr;
 use std::sync::Arc;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, Barrier, Mutex};
@@ -93,7 +94,8 @@ impl ChannelState {
 /// Struct that contains every participant's socket address and transmiter.
 pub struct Shared {
     /// The socket address and trasnmit half of the message channel of all participants.
-    participants: HashMap<(SocketAddr), Tx>,
+    participants: HashMap<SocketAddr, Tx>,
+    participants_with_id: HashMap<u32, Tx>, // TODO: make this more optimized and not have duplicated data!!!
 }
 
 impl Shared {
@@ -105,6 +107,7 @@ impl Shared {
     pub fn new() -> Self {
         Shared {
             participants: HashMap::new(),
+            participants_with_id: HashMap::new(),
         }
     }
 
@@ -122,8 +125,8 @@ impl Shared {
         }
     }
 
-    async fn send_to(&mut self, reciever: SocketAddr, message: &str) {
-        if let Some(tx) = self.participants.get(&reciever) {
+    async fn send_to(&mut self, reciever: u32, message: &str) {
+        if let Some(tx) = self.participants_with_id.get(&reciever) {
             let _ = tx.send(message.to_string());
         }
     }
@@ -162,7 +165,9 @@ impl Participant {
     ) -> io::Result<Participant> {
         let addr = lines.get_ref().peer_addr()?;
         let (tx, rx) = mpsc::unbounded_channel();
-        state.lock().await.participants.insert(addr, tx);
+        let mut state = state.lock().await;
+        state.participants.insert(addr, tx.clone());
+        state.participants_with_id.insert(id, tx);
         Ok(Participant {
             id,
             username,
@@ -209,6 +214,21 @@ impl ParticipantBroadcastJSON {
             )
         };
         ParticipantBroadcast::init(id, commitments, signature)
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct SecretShareJSON {
+    pub action: String,
+    pub reciever_id: String,
+    pub secret: String,
+}
+
+impl SecretShareJSON {
+    pub fn from_json(&self) -> SecretShare {
+        let id = Integer::from_str(self.reciever_id.as_str()).unwrap();
+        let secret = Integer::from_str_radix(&self.secret, 32).unwrap();
+        SecretShare::init(id, secret)
     }
 }
 
@@ -291,24 +311,31 @@ pub mod process {
         let seed: i32 = rand::rng().random();
         let mut rnd = RandState::new();
         rnd.seed(&rug::Integer::from(seed));
-        let frost_state = frost_state.lock().await;
-        let ctx = ctx.lock().await;
-        let pol = round_1::generate_polynomial(&frost_state, &mut rnd);
-        let frost_participant_temp = keygen::Participant::init(Integer::from(id), pol.clone());
-        let signature = round_1::compute_proof_of_knowlodge(
-            &frost_state,
-            &mut rnd,
-            &frost_participant_temp,
-            &ctx,
-        );
-        let commitments =
-            round_1::compute_public_commitments(&frost_state, &frost_participant_temp);
-        let participant_broadcast =
-            ParticipantBroadcast::init(frost_participant_temp.id.clone(), commitments, signature);
+
+        let (pol, broadcast) = {
+            let frost_state = frost_state.lock().await;
+            let ctx = ctx.lock().await;
+            let pol = round_1::generate_polynomial(&frost_state, &mut rnd);
+            let frost_participant_temp = keygen::Participant::init(Integer::from(id), pol.clone());
+            let signature = round_1::compute_proof_of_knowlodge(
+                &frost_state,
+                &mut rnd,
+                &frost_participant_temp,
+                &ctx,
+            );
+            let commitments =
+                round_1::compute_public_commitments(&frost_state, &frost_participant_temp);
+            let participant_broadcast = ParticipantBroadcast::init(
+                frost_participant_temp.id.clone(),
+                commitments,
+                signature,
+            );
+
+            (pol, participant_broadcast)
+        };
+
         let mut tcp_state = tcp_state.lock().await;
-        tcp_state
-            .broadcast(addr, &participant_broadcast.to_json_string())
-            .await;
+        tcp_state.broadcast(addr, &broadcast.to_json_string()).await;
 
         pol
     }
@@ -379,25 +406,59 @@ pub mod process {
         .await;
         let participants_broadcasts: Vec<ParticipantBroadcast> = participants_broadcasts
             .iter()
-            .map(|pb| pb.from_json())
+            .map(|pb| {
+                let pb = pb.from_json();
+                pb
+            })
             .collect();
 
         {
-            let frost_state = frost_state.lock().await;
+            let (_p, _own_share, shares_to_send) = {
+                let frost_state = frost_state.lock().await;
 
-            let p = keygen::Participant::init(Integer::from(participant.id.clone()), pol);
+                let p = keygen::Participant::init(Integer::from(participant.id.clone()), pol);
 
-            let own_share = round_2::create_own_secret_share(&frost_state, &p);
-            participants_broadcasts.iter().for_each(|pb| {
-                let share_to = round_2::create_share_for(&frost_state, &p, &pb.participant_id);
+                let own_share = round_2::create_own_secret_share(&frost_state, &p);
 
-                struct SecretShareJSON {
-                    action: String,
-                    reciever_id: String,
-                    secret: String,
+                let shares_to_send: Vec<SecretShare> = participants_broadcasts
+                    .iter()
+                    .map(|_pb| round_2::create_share_for(&frost_state, &p, &p.id))
+                    .collect();
+
+                (p, own_share, shares_to_send)
+            };
+
+            for ss in shares_to_send.iter() {
+                let message = ss.to_json_string();
+                tcp_state
+                    .lock()
+                    .await
+                    .send_to(ss.participant_id.to_u32().unwrap(), message.as_str())
+                    .await;
+            }
+
+            let mut secret_shares: Vec<SecretShare> = vec![];
+
+            loop {
+                tokio::select! {
+                    Some(msg) = participant.rx.recv() => {
+                        match serde_json::from_str::<SecretShareJSON>(&msg) {
+                            Ok(secret_share) => {
+                                secret_shares.push(secret_share.from_json());
+                                participant.lines.send(&msg).await.unwrap();
+
+                                if secret_shares.len() >= frost_state.lock().await.participants - 1 {
+                                    break;
+                                }
+                            }
+                            Err(_)  => {
+                                participant.lines.send(&msg).await.unwrap();
+                            }
+                        }
+                    }
                 }
-            });
-        }
+            }
+        };
 
         Ok(())
         /*

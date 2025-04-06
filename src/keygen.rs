@@ -34,7 +34,11 @@
 //!
 //! See the [resources](https://eprint.iacr.org/2020/852.pdf) here.
 
-use crate::{modular, tcp::ParticipantBroadcastJSON, CTX};
+use crate::{
+    modular,
+    tcp::{ParticipantBroadcastJSON, SecretShareJSON},
+    CTX,
+};
 use rand::Rng;
 use rug::{rand::RandState, Integer};
 use sha256::digest;
@@ -153,6 +157,18 @@ impl SecretShare {
             participant_id,
             secret,
         }
+    }
+
+    pub fn to_json_string(&self) -> String {
+        let action = "secret_share".to_string();
+        let reciever_id = self.participant_id.to_string();
+        let secret = self.secret.to_string_radix(32);
+        let secret_share = SecretShareJSON {
+            action,
+            reciever_id,
+            secret,
+        };
+        serde_json::to_string(&secret_share).expect("Serializing the secret share")
     }
 }
 
