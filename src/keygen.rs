@@ -136,7 +136,8 @@ impl Participant {
 
 /// Struct that represents a participant's secret share and the recomputed shares from other participants.
 pub struct SecretShare {
-    pub participant_id: Integer,
+    pub sender_id: Integer,
+    pub reciever_id: Integer,
     pub secret: Integer,
 }
 
@@ -152,20 +153,23 @@ impl SecretShare {
     /// ## Returns
     ///
     /// - `SecretShare` with the participant's id and corresponding secret.
-    pub fn init(participant_id: Integer, secret: Integer) -> Self {
+    pub fn init(reciever_id: Integer, sender_id: Integer, secret: Integer) -> Self {
         Self {
-            participant_id,
+            reciever_id,
+            sender_id,
             secret,
         }
     }
 
     pub fn to_json_string(&self) -> String {
         let action = "secret_share".to_string();
-        let reciever_id = self.participant_id.to_string();
+        let reciever_id = self.reciever_id.to_string();
+        let sender_id = self.sender_id.to_string();
         let secret = self.secret.to_string_radix(32);
         let secret_share = SecretShareJSON {
             action,
             reciever_id,
+            sender_id,
             secret,
         };
         serde_json::to_string(&secret_share).expect("Serializing the secret share")
@@ -355,7 +359,7 @@ pub mod round_2 {
     /// - `SecretShare` that has a participant's secret and his id.
     pub fn create_own_secret_share(state: &FrostState, participant: &Participant) -> SecretShare {
         let secret = calculate_y(&participant.id, &participant.polynomial, &state.q);
-        SecretShare::init(participant.id.clone(), secret)
+        SecretShare::init(participant.id.clone(), participant.id.clone(), secret)
     }
 
     /// Function that creates a participant's secret share for other participants to verify.
@@ -375,7 +379,7 @@ pub mod round_2 {
         reciever_id: &Integer,
     ) -> SecretShare {
         let secret = calculate_y(&reciever_id, &sender.polynomial, &state.q);
-        SecretShare::init(reciever_id.clone(), secret)
+        SecretShare::init(reciever_id.clone(), sender.id.clone(), secret)
     }
 
     /// Function that verifies a sender using the reciever's share and a sender's broadcast.

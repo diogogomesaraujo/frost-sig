@@ -221,18 +221,22 @@ impl ParticipantBroadcastJSON {
 pub struct SecretShareJSON {
     pub action: String,
     pub reciever_id: String,
+    pub sender_id: String,
     pub secret: String,
 }
 
 impl SecretShareJSON {
     pub fn from_json(&self) -> SecretShare {
-        let id = Integer::from_str(self.reciever_id.as_str()).unwrap();
+        let reciever_id = Integer::from_str(self.reciever_id.as_str()).unwrap();
+        let sender_id = Integer::from_str(self.sender_id.as_str()).unwrap();
         let secret = Integer::from_str_radix(&self.secret, 32).unwrap();
-        SecretShare::init(id, secret)
+        SecretShare::init(reciever_id, sender_id, secret)
     }
 }
 
 pub mod process {
+    use std::fmt::format;
+
     use crate::keygen;
 
     use super::*;
@@ -307,7 +311,7 @@ pub mod process {
         tcp_state: &Arc<Mutex<Shared>>,
         ctx: &Arc<Mutex<CTX>>,
         addr: SocketAddr,
-    ) -> Vec<Integer> {
+    ) -> (Vec<Integer>, ParticipantBroadcast) {
         let seed: i32 = rand::rng().random();
         let mut rnd = RandState::new();
         rnd.seed(&rug::Integer::from(seed));
@@ -337,7 +341,7 @@ pub mod process {
         let mut tcp_state = tcp_state.lock().await;
         tcp_state.broadcast(addr, &broadcast.to_json_string()).await;
 
-        pol
+        (pol, broadcast)
     }
 
     pub async fn keygen_round_1_confirm_broadcast(
@@ -393,7 +397,7 @@ pub mod process {
         let mut participant = Participant::new(id, username, tcp_state.clone(), lines).await?;
         joining_participants(&tcp_state, &participant, addr).await;
         barrier_wait_for_participants.wait().await;
-        let pol =
+        let (pol, own_broadcast) =
             keygen_round_1_broadcast_and_pol(id.clone(), &frost_state, &tcp_state, &ctx, addr)
                 .await;
         let participants_broadcasts = get_all_broadcasts(&mut participant, &frost_state).await;
@@ -413,7 +417,7 @@ pub mod process {
             .collect();
 
         {
-            let (_p, _own_share, shares_to_send) = {
+            let (p, own_share, shares_to_send) = {
                 let frost_state = frost_state.lock().await;
 
                 let p = keygen::Participant::init(Integer::from(participant.id.clone()), pol);
@@ -422,7 +426,7 @@ pub mod process {
 
                 let shares_to_send: Vec<SecretShare> = participants_broadcasts
                     .iter()
-                    .map(|_pb| round_2::create_share_for(&frost_state, &p, &p.id))
+                    .map(|pb| round_2::create_share_for(&frost_state, &p, &pb.participant_id))
                     .collect();
 
                 (p, own_share, shares_to_send)
@@ -433,18 +437,31 @@ pub mod process {
                 tcp_state
                     .lock()
                     .await
-                    .send_to(ss.participant_id.to_u32().unwrap(), message.as_str())
+                    .send_to(ss.reciever_id.to_u32().unwrap(), message.as_str())
                     .await;
             }
 
             let mut secret_shares: Vec<SecretShare> = vec![];
+            let mut verification_shares: Vec<Integer> = {
+                let frost_state = frost_state.lock().await;
+                vec![round_2::compute_participant_verification_share(
+                    &frost_state,
+                    &p,
+                    &own_broadcast,
+                )]
+            };
 
             loop {
                 tokio::select! {
                     Some(msg) = participant.rx.recv() => {
                         match serde_json::from_str::<SecretShareJSON>(&msg) {
                             Ok(secret_share) => {
-                                secret_shares.push(secret_share.from_json());
+                                let ss = secret_share.from_json();
+                                if let Some(pb) = participants_broadcasts.iter().find(|pb| pb.participant_id == ss.sender_id) {
+                                    let frost_state = frost_state.lock().await;
+                                    verification_shares.push(round_2::compute_participant_verification_share(&frost_state, &p, pb));
+                                }
+                                secret_shares.push(ss);
                                 participant.lines.send(&msg).await.unwrap();
 
                                 if secret_shares.len() >= frost_state.lock().await.participants - 1 {
@@ -458,6 +475,57 @@ pub mod process {
                     }
                 }
             }
+
+            let private_key = {
+                let frost_state = frost_state.lock().await;
+                round_2::compute_private_key(
+                    &frost_state,
+                    &own_share,
+                    &secret_shares
+                        .iter()
+                        .map(|ss| ss.secret.clone())
+                        .collect::<Vec<Integer>>(),
+                )
+            };
+
+            let own_verification_share = {
+                let frost_state = frost_state.lock().await;
+                round_2::compute_own_verification_share(&frost_state, &private_key)
+            };
+
+            let public_aggregated_verification_share = {
+                let frost_state = frost_state.lock().await;
+                round_2::compute_others_verification_share(&frost_state, &verification_shares)
+            };
+
+            assert_eq!(own_verification_share, public_aggregated_verification_share);
+
+            participant
+                .lines
+                .send(format!("Verified all shares."))
+                .await
+                .unwrap();
+
+            let mut participants_broadcasts = participants_broadcasts;
+            participants_broadcasts.push(own_broadcast);
+
+            let group_public_key = {
+                let frost_state = frost_state.lock().await;
+                let commitments = participants_broadcasts
+                    .iter()
+                    .map(|pb| pb.commitments.as_slice())
+                    .collect::<Vec<&[Integer]>>();
+                round_2::compute_group_public_key(&frost_state, &commitments.as_slice())
+            };
+
+            participant
+                .lines
+                .send(format!(
+                    "The group public key is {}",
+                    group_public_key.to_string_radix(32),
+                ))
+                .await
+                .unwrap();
         };
 
         Ok(())
