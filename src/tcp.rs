@@ -235,7 +235,6 @@ impl SecretShareJSON {
 }
 
 pub mod process {
-    use std::fmt::format;
 
     use crate::keygen;
 
@@ -477,60 +476,68 @@ pub mod process {
             }
 
             let private_key = {
-                let frost_state = frost_state.lock().await;
-                round_2::compute_private_key(
-                    &frost_state,
-                    &own_share,
-                    &secret_shares
+                let private_key = {
+                    let frost_state = frost_state.lock().await;
+                    round_2::compute_private_key(
+                        &frost_state,
+                        &own_share,
+                        &secret_shares
+                            .iter()
+                            .map(|ss| ss.secret.clone())
+                            .collect::<Vec<Integer>>(),
+                    )
+                };
+
+                let msg_json = serde_json::to_string(&MessageJSON::new(format!(
+                    "This is your private key: {}. Store it in a secure place.",
+                    private_key.to_string_radix(32)
+                )))
+                .unwrap();
+                participant.lines.send(msg_json).await.unwrap();
+
+                private_key
+            };
+
+            {
+                let own_verification_share = {
+                    let frost_state = frost_state.lock().await;
+                    round_2::compute_own_verification_share(&frost_state, &private_key)
+                };
+
+                let public_aggregated_verification_share = {
+                    let frost_state = frost_state.lock().await;
+                    round_2::compute_others_verification_share(&frost_state, &verification_shares)
+                };
+
+                assert_eq!(own_verification_share, public_aggregated_verification_share);
+
+                let msg_json = serde_json::to_string(&MessageJSON::new(
+                    "Verified all shares correctly.".to_string(),
+                ))
+                .unwrap();
+                participant.lines.send(msg_json).await.unwrap();
+            }
+
+            {
+                let mut participants_broadcasts = participants_broadcasts;
+                participants_broadcasts.push(own_broadcast);
+
+                let group_public_key = {
+                    let frost_state = frost_state.lock().await;
+                    let commitments = participants_broadcasts
                         .iter()
-                        .map(|ss| ss.secret.clone())
-                        .collect::<Vec<Integer>>(),
-                )
-            };
+                        .map(|pb| pb.commitments.as_slice())
+                        .collect::<Vec<&[Integer]>>();
+                    round_2::compute_group_public_key(&frost_state, &commitments.as_slice())
+                };
 
-            let msg_json = serde_json::to_string(&MessageJSON::new(format!(
-                "This is your private key: {}. Store it in a secure place.",
-                private_key.to_string_radix(32)
-            )))
-            .unwrap();
-            participant.lines.send(msg_json).await.unwrap();
-
-            let own_verification_share = {
-                let frost_state = frost_state.lock().await;
-                round_2::compute_own_verification_share(&frost_state, &private_key)
-            };
-
-            let public_aggregated_verification_share = {
-                let frost_state = frost_state.lock().await;
-                round_2::compute_others_verification_share(&frost_state, &verification_shares)
-            };
-
-            assert_eq!(own_verification_share, public_aggregated_verification_share);
-
-            let msg_json = serde_json::to_string(&MessageJSON::new(
-                "Verified all shares correctly.".to_string(),
-            ))
-            .unwrap();
-            participant.lines.send(msg_json).await.unwrap();
-
-            let mut participants_broadcasts = participants_broadcasts;
-            participants_broadcasts.push(own_broadcast);
-
-            let group_public_key = {
-                let frost_state = frost_state.lock().await;
-                let commitments = participants_broadcasts
-                    .iter()
-                    .map(|pb| pb.commitments.as_slice())
-                    .collect::<Vec<&[Integer]>>();
-                round_2::compute_group_public_key(&frost_state, &commitments.as_slice())
-            };
-
-            let msg_json = serde_json::to_string(&MessageJSON::new(format!(
-                "This is the group public key: {}.",
-                group_public_key.to_string_radix(32)
-            )))
-            .unwrap();
-            participant.lines.send(msg_json).await.unwrap();
+                let msg_json = serde_json::to_string(&MessageJSON::new(format!(
+                    "This is the group public key: {}.",
+                    group_public_key.to_string_radix(32)
+                )))
+                .unwrap();
+                participant.lines.send(msg_json).await.unwrap();
+            }
         };
 
         Ok(())
