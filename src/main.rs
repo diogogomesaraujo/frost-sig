@@ -10,7 +10,7 @@ async fn main() {
     rnd.seed(&rug::Integer::from(seed));
 
     let ctx = keygen_ctx(Integer::from(1), Integer::from(1));
-    let frost_state = FrostState::init(&mut rnd, 3, 2);
+    let frost_state = FrostState::init(&mut rnd, 4, 1);
 
     let channel_state = ChannelState::new(frost_state, "localhost:3000".to_string());
     channel_state.serve_keygen(ctx).await.unwrap();

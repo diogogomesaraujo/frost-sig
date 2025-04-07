@@ -488,6 +488,13 @@ pub mod process {
                 )
             };
 
+            let msg_json = serde_json::to_string(&MessageJSON::new(format!(
+                "This is your private key: {}. Store it in a secure place.",
+                private_key.to_string_radix(32)
+            )))
+            .unwrap();
+            participant.lines.send(msg_json).await.unwrap();
+
             let own_verification_share = {
                 let frost_state = frost_state.lock().await;
                 round_2::compute_own_verification_share(&frost_state, &private_key)
@@ -500,11 +507,11 @@ pub mod process {
 
             assert_eq!(own_verification_share, public_aggregated_verification_share);
 
-            participant
-                .lines
-                .send(format!("Verified all shares."))
-                .await
-                .unwrap();
+            let msg_json = serde_json::to_string(&MessageJSON::new(
+                "Verified all shares correctly.".to_string(),
+            ))
+            .unwrap();
+            participant.lines.send(msg_json).await.unwrap();
 
             let mut participants_broadcasts = participants_broadcasts;
             participants_broadcasts.push(own_broadcast);
@@ -518,14 +525,12 @@ pub mod process {
                 round_2::compute_group_public_key(&frost_state, &commitments.as_slice())
             };
 
-            participant
-                .lines
-                .send(format!(
-                    "The group public key is {}",
-                    group_public_key.to_string_radix(32),
-                ))
-                .await
-                .unwrap();
+            let msg_json = serde_json::to_string(&MessageJSON::new(format!(
+                "This is the group public key: {}.",
+                group_public_key.to_string_radix(32)
+            )))
+            .unwrap();
+            participant.lines.send(msg_json).await.unwrap();
         };
 
         Ok(())
