@@ -1,3 +1,16 @@
+//! Implementation of a TCP Server to execute the FROST protocol.
+//!
+//! # Dependencies
+//!
+//! - `rug` is a arbitrary precision numbers crate and provides infrastructure for the 256bit numbers and calculations.
+//! - `rand` is a random number generation crate and it is used to generate a random seed for the 256bit numbers generation.
+//! - `tokio` is a runtime to write reliable network applications.
+//! - `serde` is a library to parse json.
+//!
+//! # Features
+//!
+//! - Implementation of the a server for the keygen protocol.
+
 use crate::{keygen::*, FrostState, CTX};
 use futures::SinkExt;
 use rand::Rng;
@@ -73,7 +86,7 @@ impl ChannelState {
             let ctx = Arc::clone(&ctx);
             tokio::spawn(async move {
                 println!("Accepted connection.");
-                if let Err(e) = process::participant_keygen(
+                if let Err(e) = process_protocol::participant_keygen(
                     count,
                     tcp_state,
                     stream,
@@ -217,6 +230,7 @@ impl ParticipantBroadcastJSON {
     }
 }
 
+/// Struct that represents the secret shares traded between participants in JSON format.
 #[derive(Serialize, Deserialize)]
 pub struct SecretShareJSON {
     pub action: String,
@@ -226,6 +240,15 @@ pub struct SecretShareJSON {
 }
 
 impl SecretShareJSON {
+    /// Function that converts the SecretShareJSON to a SecretShare.
+    ///
+    /// ## Parameters
+    ///
+    /// - `self` that is the SecretShareJSON that will be converted.
+    ///
+    /// ## Returns
+    ///
+    /// - `SecretShare` that is the converted `self`.
     pub fn from_json(&self) -> SecretShare {
         let reciever_id = Integer::from_str(self.reciever_id.as_str()).unwrap();
         let sender_id = Integer::from_str(self.sender_id.as_str()).unwrap();
@@ -234,23 +257,42 @@ impl SecretShareJSON {
     }
 }
 
-pub mod process {
+pub mod process_protocol {
 
     use crate::keygen;
 
     use super::*;
 
+    /// Struct that represents a simple message sent on the server in JSON format.
     #[derive(Serialize, Deserialize)]
     struct MessageJSON {
         message: String,
     }
 
     impl MessageJSON {
+        /// Function that creates a new MessageJSON.
+        ///
+        /// ## Parameters
+        ///
+        /// - `message` that is the message that will be sent in JSON format.
+        ///
+        /// ## Returns
+        ///
+        /// - `MessageJSON` that is the new message in JSON format.
         pub fn new(message: String) -> MessageJSON {
             MessageJSON { message }
         }
     }
 
+    /// Function that gets the username for easier recognition of users from the terminal.
+    ///
+    /// ## Parameters
+    ///
+    /// - `lines` that is the TCP Stream and its enconder and decoder.
+    ///
+    /// ## Returns
+    ///
+    /// - `Option<String>` that is the username if one is given and it is able to parse it.
     pub async fn get_username_terminal(
         lines: &mut Framed<TcpStream, LinesCodec>,
     ) -> Option<String> {
@@ -261,6 +303,13 @@ pub mod process {
         }
     }
 
+    /// Function that informs a participant if others have joined in real time.
+    ///
+    /// ## Parameters
+    ///
+    /// - `tcp_state` that is the shared information across all participants.
+    /// - `participant` that has the information of the current participant.
+    /// - `addr` that is the socket address of the current participant.
     pub async fn joining_participants(
         tcp_state: &Arc<Mutex<Shared>>,
         participant: &Participant,
@@ -275,6 +324,16 @@ pub mod process {
         tcp_state.broadcast(addr, &msg_json).await;
     }
 
+    /// Function that waits and gets broadcasts from all the participants.
+    ///
+    /// ## Parameters
+    ///
+    /// - `participant` that has the information of the current participant.
+    /// - `frost_state` that has the constants needed for the FROST protocol.
+    ///
+    /// ## Returns
+    ///
+    /// - `Vec<ParticipantBroadcastJSON>` that is all the recieved participants' broadcasts.
     pub async fn get_all_broadcasts(
         participant: &mut Participant,
         frost_state: &Arc<Mutex<FrostState>>,
@@ -304,6 +363,19 @@ pub mod process {
         participants_broadcasts
     }
 
+    /// Function that executes the first part of the first round of the keygen protocol. It consists of generating the private polynomial and the broadcast to be sent to other participants.
+    ///
+    /// ## Parameters
+    ///
+    /// - `id` that is the id of the current participant.
+    /// - `frost_state` that has the constants needed for the FROST protocol.
+    /// - `tcp_state` that is the shared information across all participants.
+    /// - `ctx` that has the information of the protocol being used and the current session and group.
+    /// - `addr` that is the socket address of the current participant.
+    ///
+    /// ## Returns
+    ///
+    /// - `(Vec<Integer>, Participant)` that is the polynomial and the broadcast of the participant.
     pub async fn keygen_round_1_broadcast_and_pol(
         id: u32,
         frost_state: &Arc<Mutex<FrostState>>,
@@ -343,6 +415,14 @@ pub mod process {
         (pol, broadcast)
     }
 
+    /// Function that executes the second part of the first round of the keygen protocol. It consists of confirming the broadcasts of other participants.
+    ///
+    /// ## Parameters
+    ///
+    /// - `frost_state` that has the constants needed for the FROST protocol.
+    /// - `ctx` that has the information of the protocol being used and the current session and group.
+    /// - `participants_broadcasts` that is all the broadcasts sent by other participants.
+    /// - `participant` that has the information of the current participant needed for the FROST protocol.
     pub async fn keygen_round_1_confirm_broadcast(
         frost_state: &Arc<Mutex<FrostState>>,
         ctx: &Arc<Mutex<CTX>>,
@@ -376,6 +456,16 @@ pub mod process {
         participant.lines.send(&msg_json).await.unwrap();
     }
 
+    /// Function that executes the keygen protocol.
+    ///
+    /// ## Parameters
+    ///
+    /// - `id` that is the id of the current participant.
+    /// - `tcp_state` that is the shared information across all participants.
+    /// - `stream` is the current TCP Stream.
+    /// - `frost_state` that has the constants needed for the FROST protocol.
+    /// - `ctx` that has the information of the protocol being used and the current session and group.
+    /// - `barrier_wait_for_participants` that prevents the protocol to occur if all the participants have not joined.
     pub async fn participant_keygen(
         id: u32,
         tcp_state: Arc<Mutex<Shared>>,
