@@ -37,7 +37,7 @@
 use crate::{
     modular,
     tcp::{ParticipantBroadcastJSON, SecretShareJSON},
-    CTX,
+    CTX, RADIX,
 };
 use rand::Rng;
 use rug::{rand::RandState, Integer};
@@ -55,7 +55,7 @@ pub struct ParticipantBroadcast {
 }
 
 impl ParticipantBroadcast {
-    /// Function that initializes the ParticipantBroadcast.
+    /// Function that newializes the ParticipantBroadcast.
     ///
     /// ## Parameters
     ///
@@ -65,8 +65,8 @@ impl ParticipantBroadcast {
     ///
     /// ## Returns
     ///
-    /// - `ParticipantBroadcast` initialized with a participant id, public commitments and signature.
-    pub fn init(
+    /// - `ParticipantBroadcast` newialized with a participant id, public commitments and signature.
+    pub fn new(
         participant_id: Integer,
         commitments: Vec<Integer>,
         signature: (Integer, Integer),
@@ -88,15 +88,15 @@ impl ParticipantBroadcast {
     ///
     /// - `String` in JSON format.
     pub fn to_json_string(&self) -> String {
-        let id = self.participant_id.to_string_radix(32);
+        let id = self.participant_id.to_string_radix(RADIX);
         let commitments: Vec<String> = self
             .commitments
             .iter()
-            .map(|i| i.to_string_radix(32))
+            .map(|i| i.to_string_radix(RADIX))
             .collect();
         let signature = {
             let (temp_1, temp_2) = self.signature.clone();
-            (temp_1.to_string_radix(32), temp_2.to_string_radix(32))
+            (temp_1.to_string_radix(RADIX), temp_2.to_string_radix(RADIX))
         };
         let action = "participant_broadcast".to_string();
         let broadcast = ParticipantBroadcastJSON {
@@ -118,7 +118,7 @@ pub struct Participant {
 }
 
 impl Participant {
-    /// Function that initializes the Participant.
+    /// Function that newializes the Participant.
     ///
     /// ## Parameters
     ///
@@ -129,7 +129,7 @@ impl Participant {
     /// ## Returns
     ///
     /// - `Participant` with it's id and polynomial.
-    pub fn init(id: Integer, polynomial: Vec<Integer>) -> Self {
+    pub fn new(id: Integer, polynomial: Vec<Integer>) -> Self {
         Self { id, polynomial }
     }
 }
@@ -142,7 +142,7 @@ pub struct SecretShare {
 }
 
 impl SecretShare {
-    /// Function that initializes the SecretShare.
+    /// Function that newializes the SecretShare.
     ///
     /// ## Parameters
     ///
@@ -153,7 +153,7 @@ impl SecretShare {
     /// ## Returns
     ///
     /// - `SecretShare` with the participant's id and corresponding secret.
-    pub fn init(reciever_id: Integer, sender_id: Integer, secret: Integer) -> Self {
+    pub fn new(reciever_id: Integer, sender_id: Integer, secret: Integer) -> Self {
         Self {
             reciever_id,
             sender_id,
@@ -165,7 +165,7 @@ impl SecretShare {
         let action = "secret_share".to_string();
         let reciever_id = self.reciever_id.to_string();
         let sender_id = self.sender_id.to_string();
-        let secret = self.secret.to_string_radix(32);
+        let secret = self.secret.to_string_radix(RADIX);
         let secret_share = SecretShareJSON {
             action,
             reciever_id,
@@ -176,7 +176,7 @@ impl SecretShare {
     }
 }
 
-/// Function that initializes the CTX for the keygen operation.
+/// Function that newializes the CTX for the keygen operation.
 ///
 /// ## Parameters
 ///
@@ -188,7 +188,7 @@ impl SecretShare {
 ///
 /// - `CTX` with with the group, session and the protocol "keygen".
 pub fn keygen_ctx(group_id: Integer, session_id: Integer) -> CTX {
-    CTX::init("keygen", group_id, session_id)
+    CTX::new("keygen", group_id, session_id)
 }
 
 /// The first round is responsible for generating nonces and commitments that will be used to generate the aggregated key if all the participants are verified.
@@ -354,12 +354,12 @@ pub mod round_2 {
     /// - `state` has all the constansts needed for FROST signature operations.
     /// - `participant` has the participant's information needed for computations.
     ///
-    /// ## Returns
+    /// ## Returnss
     ///
     /// - `SecretShare` that has a participant's secret and his id.
     pub fn create_own_secret_share(state: &FrostState, participant: &Participant) -> SecretShare {
         let secret = calculate_y(&participant.id, &participant.polynomial, &state.q);
-        SecretShare::init(participant.id.clone(), participant.id.clone(), secret)
+        SecretShare::new(participant.id.clone(), participant.id.clone(), secret)
     }
 
     /// Function that creates a participant's secret share for other participants to verify.
@@ -379,7 +379,7 @@ pub mod round_2 {
         reciever_id: &Integer,
     ) -> SecretShare {
         let secret = calculate_y(&reciever_id, &sender.polynomial, &state.q);
-        SecretShare::init(reciever_id.clone(), sender.id.clone(), secret)
+        SecretShare::new(reciever_id.clone(), sender.id.clone(), secret)
     }
 
     /// Function that verifies a sender using the reciever's share and a sender's broadcast.
@@ -539,7 +539,7 @@ pub fn test_keygen() {
     rnd.seed(&rug::Integer::from(seed));
 
     let ctx = keygen_ctx(Integer::from(1), Integer::from(1));
-    let state = crate::FrostState::init(&mut rnd, 3, 2);
+    let state = crate::FrostState::new(&mut rnd, 3, 2);
 
     // ROUND 1
 
@@ -547,9 +547,9 @@ pub fn test_keygen() {
     let pol_2 = round_1::generate_polynomial(&state, &mut rnd);
     let pol_3 = round_1::generate_polynomial(&state, &mut rnd);
 
-    let participant_1 = Participant::init(Integer::from(1), pol_1);
-    let participant_2 = Participant::init(Integer::from(2), pol_2);
-    let participant_3 = Participant::init(Integer::from(3), pol_3);
+    let participant_1 = Participant::new(Integer::from(1), pol_1);
+    let participant_2 = Participant::new(Integer::from(2), pol_2);
+    let participant_3 = Participant::new(Integer::from(3), pol_3);
 
     let signature_1 = round_1::compute_proof_of_knowlodge(&state, &mut rnd, &participant_1, &ctx);
     let signature_2 = round_1::compute_proof_of_knowlodge(&state, &mut rnd, &participant_2, &ctx);
@@ -560,11 +560,11 @@ pub fn test_keygen() {
     let commitments_3 = round_1::compute_public_commitments(&state, &participant_3);
 
     let participant_broadcast_1 =
-        ParticipantBroadcast::init(participant_1.id.clone(), commitments_1, signature_1);
+        ParticipantBroadcast::new(participant_1.id.clone(), commitments_1, signature_1);
     let participant_broadcast_2 =
-        ParticipantBroadcast::init(participant_2.id.clone(), commitments_2, signature_2);
+        ParticipantBroadcast::new(participant_2.id.clone(), commitments_2, signature_2);
     let participant_broadcast_3 =
-        ParticipantBroadcast::init(participant_3.id.clone(), commitments_3, signature_3);
+        ParticipantBroadcast::new(participant_3.id.clone(), commitments_3, signature_3);
 
     assert!(round_1::verify_proofs(
         &state,

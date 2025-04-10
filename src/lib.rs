@@ -35,6 +35,9 @@ pub mod tcp;
 /// Const value of the Integers' size in bits.
 pub const BITS: u32 = 256;
 
+/// Const value for the serialization of numbers to base32 format.
+pub const RADIX: i32 = 32;
+
 /// Struct that saves the constants needed for FROST. These values should be used by all participants throughout the signing session and discarted after.
 #[derive(Clone)]
 pub struct FrostState {
@@ -51,7 +54,7 @@ pub struct FrostState {
 }
 
 impl FrostState {
-    /// Function that initializes the FrostState.
+    /// Function that newializes the FrostState.
     ///
     /// ## Parameters
     ///
@@ -59,12 +62,12 @@ impl FrostState {
     /// - `t` is the threshold.
     ///
     /// They will determine how many shares are generated and the minimum used for signing operations.
-    /// The rest of the parameters are initialized internally.
+    /// The rest of the parameters are newialized internally.
     ///
     /// ## Returns
     ///
-    /// - `FrostState` initialized with the participants and threshold defined.
-    pub fn init(rnd: &mut RandState, participants: usize, threshold: usize) -> Self {
+    /// - `FrostState` newialized with the participants and threshold defined.
+    pub fn new(rnd: &mut RandState, participants: usize, threshold: usize) -> Self {
         let (generated_prime, generated_q) = generate_prime_and_q(rnd);
         let generated_generator = generate_generator(rnd, &generated_q, &generated_prime);
         Self {
@@ -89,7 +92,7 @@ pub struct CTX {
 }
 
 impl CTX {
-    /// Function that initializes the CTX.
+    /// Function that newializes the CTX.
     ///
     /// ## Parameters
     ///
@@ -100,8 +103,8 @@ impl CTX {
     ///
     /// ## Returns
     ///
-    /// - `CTX` initialized with the information of the session, group and protocol.
-    pub fn init(protocol: &str, group_id: Integer, session_id: Integer) -> Self {
+    /// - `CTX` newialized with the information of the session, group and protocol.
+    pub fn new(protocol: &str, group_id: Integer, session_id: Integer) -> Self {
         Self {
             protocol: protocol.to_string(),
             group_id,

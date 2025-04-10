@@ -11,7 +11,7 @@
 //!
 //! - Implementation of the a server for the keygen protocol.
 
-use crate::{keygen::*, FrostState, CTX};
+use crate::{keygen::*, FrostState, CTX, RADIX};
 use futures::SinkExt;
 use rand::Rng;
 use rug::rand::RandState;
@@ -36,15 +36,15 @@ pub type Tx = mpsc::UnboundedSender<String>;
 pub type Rx = mpsc::UnboundedReceiver<String>;
 
 /// Struct that has the shared constants for everyone inside the Tcp Server.
-pub struct ChannelState {
+pub struct FrostSocketState {
     /// State that has all the constants needed for FROST.
     pub frost_state: FrostState,
     /// IP of the machine running the server.
     pub ip: String,
 }
 
-impl ChannelState {
-    /// Function that creates a new ChannelState.
+impl FrostSocketState {
+    /// Function that creates a new FrostSocketState.
     ///
     /// ## Parameters
     ///
@@ -53,7 +53,7 @@ impl ChannelState {
     ///
     /// ## Returns
     ///
-    /// - `ChannelState` with the constants recieved.
+    /// - `FrostSocketState` with the constants recieved.
     pub fn new(frost_state: FrostState, ip: String) -> Self {
         Self { frost_state, ip }
     }
@@ -62,7 +62,7 @@ impl ChannelState {
     ///
     /// ## Parameters
     ///
-    /// - `self` that is the ChannelState where the server will be served.
+    /// - `self` that is the FrostSocketState where the server will be served.
     ///
     /// ## Returns
     ///
@@ -70,7 +70,7 @@ impl ChannelState {
     pub async fn serve_keygen(&self, ctx: CTX) -> Result<(), Box<dyn Error>> {
         let barrier_wait_for_participants =
             Arc::new(Barrier::new(self.frost_state.participants.clone()));
-        let tcp_state = Arc::new(Mutex::new(Shared::new()));
+        let tcp_state = Arc::new(Mutex::new(SharedMaps::new()));
         let frost_state = Arc::new(Mutex::new(self.frost_state.clone()));
         let ctx = Arc::new(Mutex::new(ctx));
         let addr = env::args().nth(1).unwrap_or_else(|| self.ip.clone());
@@ -104,23 +104,24 @@ impl ChannelState {
     }
 }
 
-/// Struct that contains every participant's socket address and transmiter.
-pub struct Shared {
-    /// The socket address and trasnmit half of the message channel of all participants.
-    participants: HashMap<SocketAddr, Tx>,
-    participants_with_id: HashMap<u32, Tx>, // TODO: make this more optimized and not have duplicated data!!!
+/// Struct that contains every participant's socket address and id mapped to the transmiter.
+pub struct SharedMaps {
+    /// The transmiter mapped to the socket address.
+    by_addr: HashMap<SocketAddr, Tx>,
+    /// The transmiter mapped to the participant's id.
+    by_id: HashMap<u32, Tx>,
 }
 
-impl Shared {
-    /// Function that creates a new Shared.
+impl SharedMaps {
+    /// Function that creates a new SharedMap.
     ///
     /// ## Returns
     ///
-    /// - Empty `HashMap` to later store socket addresses and transmiters.
+    /// - SharedMaps with empty `by_addr` map and `by_id` map.
     pub fn new() -> Self {
-        Shared {
-            participants: HashMap::new(),
-            participants_with_id: HashMap::new(),
+        Self {
+            by_addr: HashMap::new(),
+            by_id: HashMap::new(),
         }
     }
 
@@ -130,8 +131,7 @@ impl Shared {
     ///
     /// - `self` that is the shared state with all the participant's addresses and trasmiters.
     async fn broadcast(&mut self, sender: SocketAddr, message: &str) {
-        println!("Broadcasting message: {}", message);
-        for participant in self.participants.iter_mut() {
+        for participant in self.by_addr.iter_mut() {
             if *participant.0 != sender {
                 let _ = participant.1.send(message.into());
             }
@@ -139,7 +139,7 @@ impl Shared {
     }
 
     async fn send_to(&mut self, reciever: u32, message: &str) {
-        if let Some(tx) = self.participants_with_id.get(&reciever) {
+        if let Some(tx) = self.by_id.get(&reciever) {
             let _ = tx.send(message.to_string());
         }
     }
@@ -169,18 +169,23 @@ impl Participant {
     ///
     /// ## Returns
     ///
-    /// - `Result<Participant>` that is the Participant initialized with all the given information or an error if it is unable to create the participant.
+    /// - `Result<Participant>` that is the Participant newialized with all the given information or an error if it is unable to create the participant.
     pub async fn new(
         id: u32,
         username: String,
-        state: Arc<Mutex<Shared>>,
+        state: Arc<Mutex<SharedMaps>>,
         lines: Framed<TcpStream, LinesCodec>,
     ) -> io::Result<Participant> {
         let addr = lines.get_ref().peer_addr()?;
         let (tx, rx) = mpsc::unbounded_channel();
-        let mut state = state.lock().await;
-        state.participants.insert(addr, tx.clone());
-        state.participants_with_id.insert(id, tx);
+        {
+            let mut state = state.lock().await;
+            state.by_addr.insert(addr, tx.clone());
+        }
+        {
+            let mut state = state.lock().await;
+            state.by_id.insert(id, tx);
+        }
         Ok(Participant {
             id,
             username,
@@ -213,20 +218,20 @@ impl ParticipantBroadcastJSON {
     ///
     /// - `ParticipantBroadcast` that is the converted `self`.
     pub fn from_json(&self) -> ParticipantBroadcast {
-        let id = Integer::from_str_radix(self.id.as_str(), 32).unwrap();
+        let id = Integer::from_str_radix(self.id.as_str(), RADIX).unwrap();
         let commitments: Vec<Integer> = self
             .commitments
             .iter()
-            .map(|c| Integer::from_str_radix(c, 32).unwrap())
+            .map(|c| Integer::from_str_radix(c, RADIX).unwrap())
             .collect();
         let signature = {
             let (l, r) = self.signature.clone();
             (
-                Integer::from_str_radix(l.as_str(), 32).unwrap(),
-                Integer::from_str_radix(r.as_str(), 32).unwrap(),
+                Integer::from_str_radix(l.as_str(), RADIX).unwrap(),
+                Integer::from_str_radix(r.as_str(), RADIX).unwrap(),
             )
         };
-        ParticipantBroadcast::init(id, commitments, signature)
+        ParticipantBroadcast::new(id, commitments, signature)
     }
 }
 
@@ -252,8 +257,8 @@ impl SecretShareJSON {
     pub fn from_json(&self) -> SecretShare {
         let reciever_id = Integer::from_str(self.reciever_id.as_str()).unwrap();
         let sender_id = Integer::from_str(self.sender_id.as_str()).unwrap();
-        let secret = Integer::from_str_radix(&self.secret, 32).unwrap();
-        SecretShare::init(reciever_id, sender_id, secret)
+        let secret = Integer::from_str_radix(&self.secret, RADIX).unwrap();
+        SecretShare::new(reciever_id, sender_id, secret)
     }
 }
 
@@ -311,7 +316,7 @@ pub mod process_protocol {
     /// - `participant` that has the information of the current participant.
     /// - `addr` that is the socket address of the current participant.
     pub async fn joining_participants(
-        tcp_state: &Arc<Mutex<Shared>>,
+        tcp_state: &Arc<Mutex<SharedMaps>>,
         participant: &Participant,
         addr: SocketAddr,
     ) {
@@ -379,7 +384,7 @@ pub mod process_protocol {
     pub async fn keygen_round_1_broadcast_and_pol(
         id: u32,
         frost_state: &Arc<Mutex<FrostState>>,
-        tcp_state: &Arc<Mutex<Shared>>,
+        tcp_state: &Arc<Mutex<SharedMaps>>,
         ctx: &Arc<Mutex<CTX>>,
         addr: SocketAddr,
     ) -> (Vec<Integer>, ParticipantBroadcast) {
@@ -391,7 +396,7 @@ pub mod process_protocol {
             let frost_state = frost_state.lock().await;
             let ctx = ctx.lock().await;
             let pol = round_1::generate_polynomial(&frost_state, &mut rnd);
-            let frost_participant_temp = keygen::Participant::init(Integer::from(id), pol.clone());
+            let frost_participant_temp = keygen::Participant::new(Integer::from(id), pol.clone());
             let signature = round_1::compute_proof_of_knowlodge(
                 &frost_state,
                 &mut rnd,
@@ -400,7 +405,7 @@ pub mod process_protocol {
             );
             let commitments =
                 round_1::compute_public_commitments(&frost_state, &frost_participant_temp);
-            let participant_broadcast = ParticipantBroadcast::init(
+            let participant_broadcast = ParticipantBroadcast::new(
                 frost_participant_temp.id.clone(),
                 commitments,
                 signature,
@@ -468,7 +473,7 @@ pub mod process_protocol {
     /// - `barrier_wait_for_participants` that prevents the protocol to occur if all the participants have not joined.
     pub async fn participant_keygen(
         id: u32,
-        tcp_state: Arc<Mutex<Shared>>,
+        tcp_state: Arc<Mutex<SharedMaps>>,
         stream: TcpStream,
         addr: SocketAddr,
         frost_state: Arc<Mutex<FrostState>>,
@@ -509,7 +514,7 @@ pub mod process_protocol {
             let (p, own_share, shares_to_send) = {
                 let frost_state = frost_state.lock().await;
 
-                let p = keygen::Participant::init(Integer::from(participant.id.clone()), pol);
+                let p = keygen::Participant::new(Integer::from(participant.id.clone()), pol);
 
                 let own_share = round_2::create_own_secret_share(&frost_state, &p);
 
@@ -580,7 +585,7 @@ pub mod process_protocol {
 
                 let msg_json = serde_json::to_string(&MessageJSON::new(format!(
                     "This is your private key: {}. Store it in a secure place.",
-                    private_key.to_string_radix(32)
+                    private_key.to_string_radix(RADIX)
                 )))
                 .unwrap();
                 participant.lines.send(msg_json).await.unwrap();
@@ -623,7 +628,7 @@ pub mod process_protocol {
 
                 let msg_json = serde_json::to_string(&MessageJSON::new(format!(
                     "This is the group public key: {}.",
-                    group_public_key.to_string_radix(32)
+                    group_public_key.to_string_radix(RADIX)
                 )))
                 .unwrap();
                 participant.lines.send(msg_json).await.unwrap();
