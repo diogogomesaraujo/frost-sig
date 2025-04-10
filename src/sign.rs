@@ -1,3 +1,4 @@
+use rand::Rng;
 use rug::Integer;
 use sha256::digest;
 
@@ -7,14 +8,16 @@ pub struct PublicCommitment {
     pub participant_id: Integer,
     pub di: Integer,
     pub ei: Integer,
+    pub public_share: Integer,
 }
 
 impl PublicCommitment {
-    pub fn new(participant_id: Integer, di: Integer, ei: Integer) -> Self {
+    pub fn new(participant_id: Integer, di: Integer, ei: Integer, public_share: Integer) -> Self {
         Self {
             participant_id,
             di,
             ei,
+            public_share,
         }
     }
 
@@ -53,7 +56,7 @@ pub fn compute_group_commitment_and_challenge(
         .fold(Integer::from(1), |acc, pc| {
             let binding_value = compute_binding_value(&state, &pc, &message);
             modular::mul(
-                acc.clone(),
+                modular::mul(acc.clone(), pc.di.clone(), &state.q),
                 modular::pow(&pc.ei, &binding_value, &state.q),
                 &state.q,
             )
@@ -116,4 +119,47 @@ pub fn compute_own_response(
     )
 }
 
-pub fn verify_and_aggregate_signature() {}
+pub fn verify_participants(
+    state: &FrostState,
+    participants_commitments: &[PublicCommitment],
+    message: &str,
+    own_response: &Integer,
+    challenge: &Integer,
+    number_of_participants: u32,
+) -> bool {
+    let gz = modular::pow(&state.generator, &own_response, &state.q);
+    participants_commitments.iter().fold(true, |acc, pc| {
+        let binding_value = compute_binding_value(&state, &pc, &message);
+        let ri = modular::mul(
+            pc.di.clone(),
+            modular::pow(&pc.ei, &binding_value, &state.q),
+            &state.q,
+        );
+        let to_validate = modular::mul(
+            ri,
+            modular::pow(
+                &pc.public_share,
+                &modular::mul(
+                    challenge.clone(),
+                    lagrange_coefficient(&state, &pc.participant_id, number_of_participants),
+                    &state.q,
+                ),
+                &state.q,
+            ),
+            &state.q,
+        );
+        assert_eq!(to_validate, gz, "Failed to validate the participants.");
+        acc && (to_validate == gz)
+    })
+}
+
+pub fn compute_aggregate_response(
+    state: &FrostState,
+    participants_responses: &[Integer],
+) -> Integer {
+    participants_responses
+        .iter()
+        .fold(Integer::from(0), |acc, pr| {
+            modular::add(acc, pr.clone(), &state.q)
+        })
+}

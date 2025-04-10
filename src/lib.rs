@@ -31,6 +31,7 @@ pub mod modular;
 pub mod preprocess;
 pub mod sign;
 pub mod tcp;
+pub mod test;
 
 /// Const value of the Integers' size in bits.
 pub const BITS: u32 = 256;
