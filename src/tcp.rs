@@ -69,7 +69,7 @@ impl FrostSocketState {
     /// - Nothing or an error.
     pub async fn serve_keygen(&self, ctx: CTX) -> Result<(), Box<dyn Error>> {
         let barrier_wait_for_participants =
-            Arc::new(Barrier::new(self.frost_state.participants.clone()));
+            Arc::new(Barrier::new(self.frost_state.participants.clone() as usize));
         let tcp_state = Arc::new(Mutex::new(SharedMaps::new()));
         let frost_state = Arc::new(Mutex::new(self.frost_state.clone()));
         let ctx = Arc::new(Mutex::new(ctx));
@@ -354,7 +354,7 @@ pub mod process_protocol {
 
                             let frost_state = frost_state.lock().await;
 
-                            if participants_broadcasts.len() >= frost_state.participants - 1 {
+                            if participants_broadcasts.len() as u32 >= frost_state.participants - 1 {
                                 break;
                             }
                         }
@@ -558,7 +558,7 @@ pub mod process_protocol {
                                 secret_shares.push(ss);
                                 participant.lines.send(&msg).await.unwrap();
 
-                                if secret_shares.len() >= frost_state.lock().await.participants - 1 {
+                                if secret_shares.len() as u32 >= frost_state.lock().await.participants - 1 {
                                     break;
                                 }
                             }

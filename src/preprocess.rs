@@ -42,7 +42,7 @@ pub fn generate_nonces_and_commitments(
 ) -> ((Integer, Integer), (Integer, Integer)) {
     let own_dij = generate_integer(&state, rnd);
     let own_eij = generate_integer(&state, rnd);
-    let dij = modular::pow(&state.generator, &own_dij, &state.q);
-    let eij = modular::pow(&state.generator, &own_eij, &state.q);
+    let dij = modular::pow(&state.generator, &own_dij, &state.prime);
+    let eij = modular::pow(&state.generator, &own_eij, &state.prime);
     ((own_dij, own_eij), (dij, eij))
 }

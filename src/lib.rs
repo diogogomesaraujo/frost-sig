@@ -49,9 +49,9 @@ pub struct FrostState {
     /// `generator` is a constant value used for generating secret shares.
     pub generator: Integer,
     /// `participants` is the chosen number of participants that hold a secret share and can participate in signing operations.
-    pub participants: usize,
+    pub participants: u32,
     /// `threshold` is the minimum ammount of participants needed to sign a message.
-    pub threshold: usize,
+    pub threshold: u32,
 }
 
 impl FrostState {
@@ -68,7 +68,7 @@ impl FrostState {
     /// ## Returns
     ///
     /// - `FrostState` newialized with the participants and threshold defined.
-    pub fn new(rnd: &mut RandState, participants: usize, threshold: usize) -> Self {
+    pub fn new(rnd: &mut RandState, participants: u32, threshold: u32) -> Self {
         let (generated_prime, generated_q) = generate_prime_and_q(rnd);
         let generated_generator = generate_generator(rnd, &generated_q, &generated_prime);
         Self {

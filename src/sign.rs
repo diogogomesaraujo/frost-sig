@@ -4,6 +4,7 @@ use sha256::digest;
 
 use crate::{modular, FrostState};
 
+#[derive(Clone)]
 pub struct PublicCommitment {
     pub participant_id: Integer,
     pub di: Integer,
@@ -56,9 +57,9 @@ pub fn compute_group_commitment_and_challenge(
         .fold(Integer::from(1), |acc, pc| {
             let binding_value = compute_binding_value(&state, &pc, &message);
             modular::mul(
-                modular::mul(acc.clone(), pc.di.clone(), &state.q),
-                modular::pow(&pc.ei, &binding_value, &state.q),
-                &state.q,
+                modular::mul(acc.clone(), pc.di.clone(), &state.prime),
+                modular::pow(&pc.ei, &binding_value, &state.prime),
+                &state.prime,
             )
         });
     let challenge = Integer::from_str_radix(
@@ -77,19 +78,23 @@ pub fn compute_group_commitment_and_challenge(
 pub fn lagrange_coefficient(
     state: &FrostState,
     participant_id: &Integer,
-    number_of_participants: u32,
+    signers_ids: &[Integer],
 ) -> Integer {
-    (0..(number_of_participants)).fold(Integer::from(1), |acc, j| {
-        let j = Integer::from(j);
-        modular::mul(
-            acc.clone(),
-            modular::div(
-                j.clone(),
-                modular::sub(j, participant_id.clone(), &state.q),
+    signers_ids.iter().fold(Integer::from(1), |acc, j| {
+        if j == participant_id {
+            acc
+        } else {
+            let j = Integer::from(j);
+            modular::mul(
+                acc.clone(),
+                modular::div(
+                    j.clone(),
+                    modular::sub(j, participant_id.clone(), &state.q),
+                    &state.q,
+                ),
                 &state.q,
-            ),
-            &state.q,
-        )
+            )
+        }
     })
 }
 
@@ -97,13 +102,13 @@ pub fn compute_own_response(
     state: &FrostState,
     participant_commitment: &PublicCommitment,
     private_key: &Integer,
-    nonces: &(Integer, Integer),
+    private_nonces: &(Integer, Integer),
     lagrange_coefficient: &Integer,
     challenge: &Integer,
     message: &str,
 ) -> Integer {
     let binding_value = compute_binding_value(&state, &participant_commitment, &message);
-    let (di, ei) = nonces;
+    let (di, ei) = private_nonces;
     modular::add(
         di.clone(),
         modular::add(
@@ -119,38 +124,38 @@ pub fn compute_own_response(
     )
 }
 
-pub fn verify_participants(
+pub fn verify_participant(
     state: &FrostState,
-    participants_commitments: &[PublicCommitment],
+    participant_commitment: &PublicCommitment,
     message: &str,
-    own_response: &Integer,
+    response: &Integer,
     challenge: &Integer,
-    number_of_participants: u32,
+    signers_ids: &[Integer],
 ) -> bool {
-    let gz = modular::pow(&state.generator, &own_response, &state.q);
-    participants_commitments.iter().fold(true, |acc, pc| {
-        let binding_value = compute_binding_value(&state, &pc, &message);
-        let ri = modular::mul(
-            pc.di.clone(),
-            modular::pow(&pc.ei, &binding_value, &state.q),
+    let gz: Integer = modular::pow(&state.generator, &response, &state.prime);
+    let binding_value = compute_binding_value(&state, &participant_commitment, &message);
+    let ri = modular::mul(
+        participant_commitment.di.clone(),
+        modular::pow(&participant_commitment.ei, &binding_value, &state.prime),
+        &state.prime,
+    );
+    let to_validate = {
+        let exponent = modular::mul(
+            challenge.clone(),
+            lagrange_coefficient(&state, &participant_commitment.participant_id, &signers_ids),
             &state.q,
         );
-        let to_validate = modular::mul(
+        modular::mul(
             ri,
             modular::pow(
-                &pc.public_share,
-                &modular::mul(
-                    challenge.clone(),
-                    lagrange_coefficient(&state, &pc.participant_id, number_of_participants),
-                    &state.q,
-                ),
-                &state.q,
+                &participant_commitment.public_share,
+                &exponent,
+                &state.prime,
             ),
-            &state.q,
-        );
-        assert_eq!(to_validate, gz, "Failed to validate the participants.");
-        acc && (to_validate == gz)
-    })
+            &state.prime,
+        )
+    };
+    gz == to_validate
 }
 
 pub fn compute_aggregate_response(
