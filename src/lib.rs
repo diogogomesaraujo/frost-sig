@@ -27,10 +27,15 @@
 use rug::{rand::RandState, Integer};
 
 pub mod keygen;
-pub mod modular;
+
 pub mod preprocess;
 pub mod sign;
+
+pub mod modular;
+
 pub mod tcp;
+
+#[cfg(test)]
 pub mod test;
 
 /// Const value of the Integers' size in bits.
@@ -56,18 +61,6 @@ pub struct FrostState {
 
 impl FrostState {
     /// Function that newializes the FrostState.
-    ///
-    /// ## Parameters
-    ///
-    /// - `p` is the number of participants.
-    /// - `t` is the threshold.
-    ///
-    /// They will determine how many shares are generated and the minimum used for signing operations.
-    /// The rest of the parameters are newialized internally.
-    ///
-    /// ## Returns
-    ///
-    /// - `FrostState` newialized with the participants and threshold defined.
     pub fn new(rnd: &mut RandState, participants: u32, threshold: u32) -> Self {
         let (generated_prime, generated_q) = generate_prime_and_q(rnd);
         let generated_generator = generate_generator(rnd, &generated_q, &generated_prime);
@@ -93,18 +86,7 @@ pub struct CTX {
 }
 
 impl CTX {
-    /// Function that newializes the CTX.
-    ///
-    /// ## Parameters
-    ///
-    /// - `protocol` is the step of FROST currently being used.
-    /// - `group_id` is the id of the group.
-    /// - `session_id` is the id of the current session (each transaction should have it's own section).
-    ///
-    ///
-    /// ## Returns
-    ///
-    /// - `CTX` newialized with the information of the session, group and protocol.
+    /// Function that creates the CTX.
     pub fn new(protocol: &str, group_id: Integer, session_id: Integer) -> Self {
         Self {
             protocol: protocol.to_string(),
@@ -113,46 +95,18 @@ impl CTX {
         }
     }
 
-    /// Function that serializes the CTX.
-    ///
-    /// ## Parameters
-    ///
-    /// - `ctx` is the CTX being serialized.
-    ///
-    ///
-    /// ## Returns
-    ///
-    /// - `String` that is the ctx with the parameters separated by "::".
+    /// Function that converts the `CTX` to `String`. It uses this format *protocol::group_id::session_id*.
     pub fn to_string(ctx: &CTX) -> String {
         format!("{}::{}::{}", ctx.protocol, ctx.group_id, ctx.session_id)
     }
 }
 
 /// Function that generates a random 256bit integer.
-///
-/// ## Parameters
-///
-/// - `state` has the constants needed for FROST.
-/// - `rnd` is the state for generating random 256bit numbers.
-///
-///
-/// ## Returns
-///
-/// - `Integer` that is generated.
 pub fn generate_integer(state: &FrostState, rnd: &mut RandState) -> Integer {
     Integer::from(Integer::random_below(state.q.clone(), rnd))
 }
 
-/// Function that generates a random prime and corresponding q.
-///
-/// ## Parameters
-///
-/// - `rnd` is the state for generating random 256bit numbers.
-///
-///
-/// ## Returns
-///
-/// - `(Integer, Integer)` that is the prime and q pair.
+/// Function that generates a random `prime` and corresponding `q`.
 pub fn generate_prime_and_q(rnd: &mut RandState) -> (Integer, Integer) {
     loop {
         let q_candidate = Integer::from(Integer::random_bits(BITS, rnd));
@@ -166,18 +120,7 @@ pub fn generate_prime_and_q(rnd: &mut RandState) -> (Integer, Integer) {
     }
 }
 
-/// Function that generates a random generator.
-///
-/// ## Parameters
-///
-/// - `rnd` is the state for generating random 256bit numbers.
-/// - `q` is the biggest number a key can be.
-/// - `prime` is the number used for modular arithmetic.
-///
-///
-/// ## Returns
-///
-/// - `Integer` that is the generator.
+/// Function that generates a random `generator`.
 pub fn generate_generator(rnd: &mut RandState, q: &Integer, prime: &Integer) -> Integer {
     loop {
         let prime_minus = Integer::from(prime.clone() - 1);

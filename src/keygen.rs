@@ -1,4 +1,4 @@
-//! Implementation of FROST's key-gen step.
+//! Implementation of FROST's keygen used for wallet creation.
 //!
 //! # Dependencies
 //!
@@ -46,26 +46,16 @@ use sha256::digest;
 /// Struct that is the broadcast sent by a participant to all others.
 #[derive(Clone, Debug)]
 pub struct ParticipantBroadcast {
-    /// `participant_id` is the id of the participant sending the broadcast.
+    /// Parameter that is the id of the participant sending the broadcast.
     pub participant_id: Integer,
-    /// `commitments` are the public commitments sent by the participant.
+    /// Parameter that is a vector with public commitments sent by the participant.
     pub commitments: Vec<Integer>,
-    /// `signature` is used to verify if a participant is not mallicious.
+    /// Parameter that is a signature used to verify if a participant is not mallicious.
     pub signature: (Integer, Integer),
 }
 
 impl ParticipantBroadcast {
-    /// Function that newializes the ParticipantBroadcast.
-    ///
-    /// ## Parameters
-    ///
-    /// - `participant_id` is the input for the participant id.
-    /// - `commitments` is the input for the public commitments of the participant.
-    /// - `signature` is the input for the signature of the participant.
-    ///
-    /// ## Returns
-    ///
-    /// - `ParticipantBroadcast` newialized with a participant id, public commitments and signature.
+    /// Function that creates a `ParticipantBroadcast`.
     pub fn new(
         participant_id: Integer,
         commitments: Vec<Integer>,
@@ -78,15 +68,7 @@ impl ParticipantBroadcast {
         }
     }
 
-    /// Function that converts the ParticipantBroadcast to a String in JSON format.
-    ///
-    /// ## Parameters
-    ///
-    /// - `self` that is the ParticipantBroadcast that will be converted.
-    ///
-    /// ## Returns
-    ///
-    /// - `String` in JSON format.
+    /// Function that converts the `ParticipantBroadcast` to a String in JSON format.
     pub fn to_json_string(&self) -> String {
         let id = self.participant_id.to_string_radix(RADIX);
         let commitments: Vec<String> = self
@@ -111,24 +93,14 @@ impl ParticipantBroadcast {
 
 /// Struct that represents the participant.
 pub struct Participant {
-    /// `id` is the identifier for the participant.
+    /// Parameter that is the identifier for the participant.
     pub id: Integer,
-    /// `polynomial` is used for calculations but shouldn't be accessible not even by the participant.
+    /// Parameter that is the participant's secret polynomial even to himself. It should only be used for calculations.
     pub polynomial: Vec<Integer>,
 }
 
 impl Participant {
-    /// Function that newializes the Participant.
-    ///
-    /// ## Parameters
-    ///
-    /// - `id` is the input for the participant id.
-    /// - `polynomial` is a randomly generated vector that is used for important calculations.
-    ///
-    ///
-    /// ## Returns
-    ///
-    /// - `Participant` with it's id and polynomial.
+    /// Function that creates a `Participant`.
     pub fn new(id: Integer, polynomial: Vec<Integer>) -> Self {
         Self { id, polynomial }
     }
@@ -136,23 +108,16 @@ impl Participant {
 
 /// Struct that represents a participant's secret share and the recomputed shares from other participants.
 pub struct SecretShare {
+    /// Paramenter that is the sender's id.
     pub sender_id: Integer,
+    /// Paramenter that is the reciever's id.
     pub reciever_id: Integer,
+    /// Paramenter that is the secret sent from a certain sender to a certain reciever.
     pub secret: Integer,
 }
 
 impl SecretShare {
-    /// Function that newializes the SecretShare.
-    ///
-    /// ## Parameters
-    ///
-    /// - `participant_id` is the input for the participant id.
-    /// - `secret` is the input for the secret calculated by the participant.
-    ///
-    ///
-    /// ## Returns
-    ///
-    /// - `SecretShare` with the participant's id and corresponding secret.
+    /// Function that creates a `SecretShare`.
     pub fn new(reciever_id: Integer, sender_id: Integer, secret: Integer) -> Self {
         Self {
             reciever_id,
@@ -161,6 +126,7 @@ impl SecretShare {
         }
     }
 
+    /// Function that converts a `SecretShare` to a `String` in JSON format.
     pub fn to_json_string(&self) -> String {
         let action = "secret_share".to_string();
         let reciever_id = self.reciever_id.to_string();
@@ -176,17 +142,7 @@ impl SecretShare {
     }
 }
 
-/// Function that newializes the CTX for the keygen operation.
-///
-/// ## Parameters
-///
-/// - `group_id` is the id of the group generating the key.
-/// - `session_id` is the id of the current session.
-///
-///
-/// ## Returns
-///
-/// - `CTX` with with the group, session and the protocol "keygen".
+/// Function that creates the CTX for the keygen operation.
 pub fn keygen_ctx(group_id: Integer, session_id: Integer) -> CTX {
     CTX::new("keygen", group_id, session_id)
 }
@@ -196,17 +152,7 @@ pub mod round_1 {
     use super::*;
     use crate::*;
 
-    /// Function that generates a participant's polynomial that will be used to compute his nonces.
-    ///
-    /// ## Parameters
-    ///
-    /// - `state` has all the constansts needed for FROST signature operations.
-    /// - `rnd` `rnd` is the state for generating random 256bit numbers.
-    ///
-    ///
-    /// ## Returns
-    ///
-    /// - `Vec<Integer>` with all the constant values of the polynomial (ex: ax^2 + bx + c -> [c, b, a]).
+    /// Function that generates a participant's polynomial that will be used to compute his nonces (`ex: ax^2 + bx + c -> [c, b, a]`).
     pub fn generate_polynomial(state: &FrostState, rnd: &mut RandState) -> Vec<Integer> {
         let mut polynomial: Vec<Integer> = Vec::new();
         for _i in 0..state.threshold {
@@ -217,18 +163,6 @@ pub mod round_1 {
     }
 
     /// Function that computes a participant's challenge and encrypted response.
-    ///
-    /// ## Parameters
-    ///
-    /// - `state` has all the constansts needed for FROST signature operations.
-    /// - `rnd` `rnd` is the state for generating random 256bit numbers.
-    /// - `participant` has the participant's information needed for computations.
-    /// - `ctx` identifies the protocol, group and session.
-    ///
-    ///
-    /// ## Returns
-    ///
-    /// - `(Integer, Integer)` that is that are the challenge and response of a certain participant.
     pub fn compute_proof_of_knowlodge(
         state: &FrostState,
         rnd: &mut RandState,
@@ -259,15 +193,6 @@ pub mod round_1 {
     }
 
     /// Function that computes a participant's public commitment that will be broadcasted and used to verify him.
-    ///
-    /// ## Parameters
-    ///
-    /// - `state` has all the constansts needed for FROST signature operations.
-    /// - `participant` has the participant's information needed for computations.
-    ///
-    /// ## Returns
-    ///
-    /// - `Vec<Integer>` that is the collection of all the participant's commitments.
     pub fn compute_public_commitments(
         state: &FrostState,
         participant: &Participant,
@@ -280,16 +205,6 @@ pub mod round_1 {
     }
 
     /// Function that is used by a participant to verify if other participants are valid or not.
-    ///
-    /// ## Parameters
-    ///
-    /// - `state` has all the constansts needed for FROST signature operations.
-    /// - `participants_broadcasts` has the participant's information that other participants need to verify him.
-    /// - `ctx` identifies the protocol, group and session.
-    ///
-    /// ## Returns
-    ///
-    /// - `bool` that is true if all the participants are correctly verified and false if they are not.
     pub fn verify_proofs(
         state: &FrostState,
         participants_broadcasts: &[ParticipantBroadcast],
@@ -327,16 +242,6 @@ pub mod round_2 {
     use rug::Integer;
 
     /// Function that calculates the y value for a given polinomial and an x.
-    ///
-    /// ## Parameters
-    ///
-    /// - `x` is the value of the x axis.
-    /// - `pol` is the function that represents the threshold of participants needed to recover the secret.
-    /// - `prime` is the prime number used for the modular arithmetic operations.
-    ///
-    /// ## Returns
-    ///
-    /// - `Integer` that is the resulting y from the x and pol given.
     pub fn calculate_y(x: &Integer, pol: &[Integer], q: &Integer) -> Integer {
         pol.iter().enumerate().fold(Integer::ZERO, |acc, (i, p)| {
             modular::add(
@@ -348,31 +253,12 @@ pub mod round_2 {
     }
 
     /// Function that creates a participant's secret share to verify shares sent by other participants.
-    ///
-    /// ## Parameters
-    ///
-    /// - `state` has all the constansts needed for FROST signature operations.
-    /// - `participant` has the participant's information needed for computations.
-    ///
-    /// ## Returnss
-    ///
-    /// - `SecretShare` that has a participant's secret and his id.
     pub fn create_own_secret_share(state: &FrostState, participant: &Participant) -> SecretShare {
         let secret = calculate_y(&participant.id, &participant.polynomial, &state.q);
         SecretShare::new(participant.id.clone(), participant.id.clone(), secret)
     }
 
     /// Function that creates a participant's secret share for other participants to verify.
-    ///
-    /// ## Parameters
-    ///
-    /// - `state` has all the constansts needed for FROST signature operations.
-    /// - `sender` has the sender's information needed for computations.
-    /// - `reciever_id` is the id of the reciever.
-    ///
-    /// ## Returns
-    ///
-    /// - `SecretShare` that has a sender's secret and the reciever's id.
     pub fn create_share_for(
         state: &FrostState,
         sender: &Participant,
@@ -383,17 +269,6 @@ pub mod round_2 {
     }
 
     /// Function that verifies a sender using the reciever's share and a sender's broadcast.
-    ///
-    /// ## Parameters
-    ///
-    /// - `state` has all the constansts needed for FROST signature operations.
-    /// - `participant` has the participant's information needed for computations.
-    /// - `own_secret_share` is the reciever's secret share.
-    /// - `participant_broadcast` has the participant's information that other participants need to verify him.
-    ///
-    /// ## Returns
-    ///
-    /// - `bool` that is true if it is able to verify the sender and false if it isn't.
     pub fn verify_share_validity(
         state: &FrostState,
         participant: &Participant,
@@ -419,17 +294,6 @@ pub mod round_2 {
     }
 
     /// Function that verifies a sender using the reciever's share and a sender's broadcast.
-    ///
-    /// ## Parameters
-    ///
-    /// - `state` has all the constansts needed for FROST signature operations.
-    /// - `participant` has the participant's information needed for computations.
-    /// - `own_secret_share` is a participant's secret share
-    /// - `other_secret_shares` are the secret shares sent by other participants.
-    ///
-    /// ## Returns
-    ///
-    /// - `Integer` that is the private key the participant should store to sign transactions.
     pub fn compute_private_key(
         state: &FrostState,
         own_secret_share: &SecretShare,
@@ -447,29 +311,11 @@ pub mod round_2 {
     }
 
     /// Function that computes a participant's verification share.
-    ///
-    /// ## Parameters
-    ///
-    /// - `state` has all the constansts needed for FROST signature operations.
-    /// - `private_key` is the secret key saved by the participant to sign transactions.
-    ///
-    /// ## Returns
-    ///
-    /// - `Integer` that is the verification share that is used to verify a participant's integrety.
     pub fn compute_own_verification_share(state: &FrostState, private_key: &Integer) -> Integer {
         modular::pow(&state.generator, &private_key, &state.prime)
     }
 
     /// Function that computes the group public key used to sign transactions and identify the group.
-    ///
-    /// ## Parameters
-    ///
-    /// - `state` has all the constansts needed for FROST signature operations.
-    /// - `commitments` are all the public commitments from all the participants.
-    ///
-    /// ## Returns
-    ///
-    /// - `Integer` that is the group public key that identifies the group.
     pub fn compute_group_public_key(state: &FrostState, commitments: &[&[Integer]]) -> Integer {
         commitments
             .iter()
@@ -479,16 +325,6 @@ pub mod round_2 {
     }
 
     /// Function that computes a participant's verification share.
-    ///
-    /// ## Parameters
-    ///
-    /// - `state` has all the constansts needed for FROST signature operations.
-    /// - `participant` has the participant's information needed for computations.
-    /// - `participant_broadcast` has the participant's information that other participants need to verify him.
-    ///
-    /// ## Returns
-    ///
-    /// - `Integer` that is the verification share to verify a participant's integrety.
     pub fn compute_participant_verification_share(
         state: &FrostState,
         participant: &Participant,
@@ -511,15 +347,6 @@ pub mod round_2 {
     }
 
     /// Function that computes other participants' verification share.
-    ///
-    /// ## Parameters
-    ///
-    /// - `state` has all the constansts needed for FROST signature operations.
-    /// - `verifying_shares` has all the verification shares from all participants.
-    ///
-    /// ## Returns
-    ///
-    /// - `Integer` that is the verification share to verify others' integrety.
     pub fn compute_others_verification_share(
         state: &FrostState,
         verifying_shares: &[Integer],

@@ -27,15 +27,6 @@
 use crate::*;
 
 /// Function that generates a set of one-time-use nonces and commitments.
-///
-/// ## Parameters
-///
-/// - `state` has all the constansts needed for FROST signature operations.
-/// - `rnd` `rnd` is the state for generating random 256bit numbers.
-///
-/// ## Returns
-///
-/// - `((Integer, Integer), (Integer, Integer))` that is a set of nonces and their respective commitments.
 pub fn generate_nonces_and_commitments(
     state: &FrostState,
     rnd: &mut RandState,
