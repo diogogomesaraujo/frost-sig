@@ -1,5 +1,6 @@
 use crate::*;
 use keygen::*;
+use message::Message;
 use preprocess::*;
 use rand::Rng;
 use rug::{rand::RandState, Integer};
@@ -32,12 +33,21 @@ pub fn test_keygen() {
     let commitments_2 = round_1::compute_public_commitments(&state, &participant_2);
     let commitments_3 = round_1::compute_public_commitments(&state, &participant_3);
 
-    let participant_broadcast_1 =
-        ParticipantBroadcast::new(participant_1.id.clone(), commitments_1, signature_1);
-    let participant_broadcast_2 =
-        ParticipantBroadcast::new(participant_2.id.clone(), commitments_2, signature_2);
-    let participant_broadcast_3 =
-        ParticipantBroadcast::new(participant_3.id.clone(), commitments_3, signature_3);
+    let participant_broadcast_1 = Message::Broadcast {
+        participant_id: participant_1.id.clone(),
+        commitments: commitments_1,
+        signature: signature_1,
+    };
+    let participant_broadcast_2 = Message::Broadcast {
+        participant_id: participant_2.id.clone(),
+        commitments: commitments_2,
+        signature: signature_2,
+    };
+    let participant_broadcast_3 = Message::Broadcast {
+        participant_id: participant_3.id.clone(),
+        commitments: commitments_3,
+        signature: signature_3,
+    };
 
     assert!(round_1::verify_proofs(
         &state,
@@ -88,14 +98,16 @@ pub fn test_keygen() {
     let private_key_1 = round_2::compute_private_key(
         &state,
         &own_share_1,
-        &[share_from_2_to_1.secret, share_from_3_to_1.secret],
-    );
+        &[share_from_2_to_1, share_from_3_to_1],
+    )
+    .unwrap();
 
     let private_key_2 = round_2::compute_private_key(
         &state,
         &own_share_2,
-        &[share_from_3_to_2.secret, share_from_1_to_2.secret],
-    );
+        &[share_from_3_to_2, share_from_1_to_2],
+    )
+    .unwrap();
 
     println!("This is your private key. save it in a secure place: {private_key_1}.");
 
@@ -106,17 +118,20 @@ pub fn test_keygen() {
         &state,
         &participant_1,
         &participant_broadcast_1,
-    );
+    )
+    .unwrap();
     let public_verification_share_1_from_2 = round_2::compute_participant_verification_share(
         &state,
         &participant_1,
         &participant_broadcast_2,
-    );
+    )
+    .unwrap();
     let public_verification_share_1_from_3 = round_2::compute_participant_verification_share(
         &state,
         &participant_1,
         &participant_broadcast_3,
-    );
+    )
+    .unwrap();
 
     let public_verification_share_1 = round_2::compute_others_verification_share(
         &state,
@@ -132,9 +147,9 @@ pub fn test_keygen() {
     let group_public_key_1 = round_2::compute_group_public_key(
         &state,
         &[
-            &participant_broadcast_1.commitments.clone(),
-            &participant_broadcast_2.commitments.clone(),
-            &participant_broadcast_3.commitments.clone(),
+            &participant_broadcast_1.clone(),
+            &participant_broadcast_2.clone(),
+            &participant_broadcast_3.clone(),
         ],
     );
 

@@ -27,13 +27,14 @@
 use rug::{rand::RandState, Integer};
 
 pub mod keygen;
-
 pub mod preprocess;
 pub mod sign;
 
 pub mod modular;
 
-pub mod tcp;
+pub mod message;
+
+pub mod server;
 
 #[cfg(test)]
 pub mod test;
