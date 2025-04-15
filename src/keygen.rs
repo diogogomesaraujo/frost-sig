@@ -34,7 +34,7 @@
 //!
 //! See the [resources](https://eprint.iacr.org/2020/852.pdf) here.
 
-use crate::{modular, CTX, RADIX};
+use crate::{modular, CTX};
 use rand::Rng;
 use rug::{rand::RandState, Integer};
 use sha256::digest;
@@ -211,14 +211,14 @@ pub mod round_2 {
         match (own_secret_share, participant_broadcast) {
             (
                 Message::SecretShare {
-                    sender_id,
-                    reciever_id,
+                    sender_id: _,
+                    reciever_id: _,
                     secret,
                 },
                 Message::Broadcast {
-                    participant_id,
+                    participant_id: _,
                     commitments,
-                    signature,
+                    signature: _,
                 },
             ) => {
                 let own = modular::pow(&state.generator, &secret, &state.prime);
@@ -251,16 +251,16 @@ pub mod round_2 {
     ) -> Result<Integer, Error> {
         match own_secret_share {
             Message::SecretShare {
-                sender_id,
-                reciever_id,
+                sender_id: _,
+                reciever_id: _,
                 secret,
             } => Ok(modular::add(
                 others_secret_shares
                     .iter()
                     .fold(Integer::from(0), |acc, pc| match pc {
                         Message::SecretShare {
-                            sender_id,
-                            reciever_id,
+                            sender_id: _,
+                            reciever_id: _,
                             secret,
                         } => modular::add(acc, secret.clone(), &state.q),
                         _ => {
@@ -291,9 +291,9 @@ pub mod round_2 {
             .iter()
             .fold(Integer::from(1), |acc, pb| match pb {
                 Message::Broadcast {
-                    participant_id,
+                    participant_id: _,
                     commitments,
-                    signature,
+                    signature: _,
                 } => modular::mul(commitments[0].clone(), acc, &state.prime),
                 _ => {
                     panic!("Sent a message with the wrong format!");
@@ -309,9 +309,9 @@ pub mod round_2 {
     ) -> Result<Integer, Error> {
         match participant_broadcast {
             Message::Broadcast {
-                participant_id,
+                participant_id: _,
                 commitments,
-                signature,
+                signature: _,
             } => Ok(commitments
                 .iter()
                 .enumerate()

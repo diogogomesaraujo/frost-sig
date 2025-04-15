@@ -1,5 +1,4 @@
 use rug::Integer;
-use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug)]
 pub enum Message {
@@ -13,5 +12,12 @@ pub enum Message {
         sender_id: Integer,
         reciever_id: Integer,
         secret: Integer,
+    },
+
+    PublicCommitment {
+        participant_id: Integer,
+        di: Integer,
+        ei: Integer,
+        public_share: Integer,
     },
 }

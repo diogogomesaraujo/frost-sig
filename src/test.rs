@@ -165,19 +165,19 @@ pub fn test_keygen() {
     let participant_commitment_1 = generate_nonces_and_commitments(&state, &mut rnd);
     let participant_commitment_2 = generate_nonces_and_commitments(&state, &mut rnd);
 
-    let public_commitment_1 = PublicCommitment::new(
-        participant_1.id.clone(),
-        participant_commitment_1.1 .0.clone(),
-        participant_commitment_1.1 .1.clone(),
-        public_share_1,
-    );
+    let public_commitment_1 = Message::PublicCommitment {
+        participant_id: participant_1.id.clone(),
+        di: participant_commitment_1.1 .0.clone(),
+        ei: participant_commitment_1.1 .1.clone(),
+        public_share: public_share_1,
+    };
 
-    let public_commitment_2 = PublicCommitment::new(
-        participant_2.id.clone(),
-        participant_commitment_2.1 .0.clone(),
-        participant_commitment_2.1 .1.clone(),
-        public_share_2,
-    );
+    let public_commitment_2 = Message::PublicCommitment {
+        participant_id: participant_2.id.clone(),
+        di: participant_commitment_2.1 .0.clone(),
+        ei: participant_commitment_2.1 .1.clone(),
+        public_share: public_share_2,
+    };
 
     let ids = [participant_1.id.clone(), participant_2.id.clone()];
 

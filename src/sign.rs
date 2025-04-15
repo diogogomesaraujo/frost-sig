@@ -64,80 +64,69 @@
 //!
 //! See the [resources](https://eprint.iacr.org/2020/852.pdf) here.
 
-use crate::{modular, FrostState};
+use crate::{message::Message, modular, FrostState};
 use rand::Rng;
 use rug::Integer;
 use sha256::digest;
-
-/// Struct that represents the public commitment sent from a participant to others.
-#[derive(Clone)]
-pub struct PublicCommitment {
-    /// `participant_id` is the id of the participant sending the public commitment.
-    pub participant_id: Integer,
-    /// `di` is part of the public commitment being sent.
-    pub di: Integer,
-    /// `ei` is part of the public commitment being sent.
-    pub ei: Integer,
-    /// `public_share` is the public key share that identifies a participant.
-    pub public_share: Integer,
-}
-
-impl PublicCommitment {
-    /// Function that creates a new `PublicCommitment`. It is initialized with the parameters given.
-    pub fn new(participant_id: Integer, di: Integer, ei: Integer, public_share: Integer) -> Self {
-        Self {
-            participant_id,
-            di,
-            ei,
-            public_share,
-        }
-    }
-
-    /// Function that converts a `PublicCommitment` to a string. It uses this format: *id::di::ei*.
-    pub fn to_string(&self) -> String {
-        format!("{}::{}::{}", self.participant_id, self.di, self.ei)
-    }
-}
 
 /// Function that computes the binding values for a participant.
 /// It recieves the message that will be signed and creates a hashed value that will be used to verify the participants commitment.
 /// It follows this format: *id::::message::::commitment*.
 pub fn compute_binding_value(
     state: &FrostState,
-    participant_commitment: &PublicCommitment,
+    participant_commitment: &Message,
     message: &str,
 ) -> Integer {
-    Integer::from_str_radix(
-        digest(format!(
-            "{}::::{}::::{}",
-            participant_commitment.participant_id,
-            message,
-            participant_commitment.to_string()
-        ))
-        .as_str(),
-        16,
-    )
-    .unwrap()
-    .modulo(&state.q)
+    match participant_commitment {
+        Message::PublicCommitment {
+            participant_id,
+            di,
+            ei,
+            public_share,
+        } => Integer::from_str_radix(
+            digest(format!(
+                "{}::::{}::::{}::{}::{}",
+                participant_id, message, di, ei, public_share
+            ))
+            .as_str(),
+            16,
+        )
+        .unwrap()
+        .modulo(&state.q),
+        _ => {
+            panic!("Message not valid!")
+        }
+    }
 }
 
 /// Function that computes the aggregate group commitment and a challenge that will be verified by other participants.
 pub fn compute_group_commitment_and_challenge(
     state: &FrostState,
-    participants_commitments: &[PublicCommitment],
+    participants_commitments: &[Message],
     message: &str,
     group_public_key: Integer,
 ) -> (Integer, Integer) {
-    let group_commitment = participants_commitments
-        .iter()
-        .fold(Integer::from(1), |acc, pc| {
-            let binding_value = compute_binding_value(&state, &pc, &message);
-            modular::mul(
-                modular::mul(acc.clone(), pc.di.clone(), &state.prime),
-                modular::pow(&pc.ei, &binding_value, &state.prime),
-                &state.prime,
-            )
-        });
+    let group_commitment =
+        participants_commitments
+            .iter()
+            .fold(Integer::from(1), |acc, pc| match pc {
+                Message::PublicCommitment {
+                    participant_id: _,
+                    di,
+                    ei,
+                    public_share: _,
+                } => {
+                    let binding_value = compute_binding_value(&state, &pc, &message);
+                    modular::mul(
+                        modular::mul(acc.clone(), di.clone(), &state.prime),
+                        modular::pow(&ei, &binding_value, &state.prime),
+                        &state.prime,
+                    )
+                }
+                _ => {
+                    panic!("Message was not of the desired type.")
+                }
+            });
     let challenge = Integer::from_str_radix(
         digest(format!(
             "{}::::{}::::{}",
@@ -179,7 +168,7 @@ pub fn lagrange_coefficient(
 /// It is computed from the users private nonces and secret keys.
 pub fn compute_own_response(
     state: &FrostState,
-    participant_commitment: &PublicCommitment,
+    participant_commitment: &Message,
     private_key: &Integer,
     private_nonces: &(Integer, Integer),
     lagrange_coefficient: &Integer,
@@ -206,41 +195,47 @@ pub fn compute_own_response(
 /// Function that verifies if a participant is malicious or not by analysing the commitments other's sent.
 pub fn verify_participant(
     state: &FrostState,
-    participant_commitment: &PublicCommitment,
+    participant_commitment: &Message,
     message: &str,
     response: &Integer,
     challenge: &Integer,
     signers_ids: &[Integer],
 ) -> bool {
-    let gz: Integer = modular::pow(&state.generator, &response, &state.prime);
-    let binding_value = compute_binding_value(&state, &participant_commitment, &message);
-    let ri = modular::mul(
-        participant_commitment.di.clone(),
-        modular::pow(&participant_commitment.ei, &binding_value, &state.prime),
-        &state.prime,
-    );
-    let to_validate = {
-        let exponent = modular::mul(
-            challenge.clone(),
-            lagrange_coefficient(&state, &participant_commitment.participant_id, &signers_ids),
-            &state.q,
-        );
-        modular::mul(
-            ri,
-            modular::pow(
-                &participant_commitment.public_share,
-                &exponent,
+    match participant_commitment {
+        Message::PublicCommitment {
+            participant_id,
+            di,
+            ei,
+            public_share,
+        } => {
+            let gz: Integer = modular::pow(&state.generator, &response, &state.prime);
+            let binding_value = compute_binding_value(&state, &participant_commitment, &message);
+            let ri = modular::mul(
+                di.clone(),
+                modular::pow(&ei, &binding_value, &state.prime),
                 &state.prime,
-            ),
-            &state.prime,
-        )
-    };
-    assert_eq!(
-        gz, to_validate,
-        "Failed to validate participant {}.",
-        participant_commitment.participant_id
-    );
-    gz == to_validate
+            );
+            let to_validate = {
+                let exponent = modular::mul(
+                    challenge.clone(),
+                    lagrange_coefficient(&state, &participant_id, &signers_ids),
+                    &state.q,
+                );
+                modular::mul(
+                    ri,
+                    modular::pow(&public_share, &exponent, &state.prime),
+                    &state.prime,
+                )
+            };
+            assert_eq!(
+                gz, to_validate,
+                "Failed to validate participant {}.",
+                participant_id
+            );
+            gz == to_validate
+        }
+        _ => false,
+    }
 }
 
 /// Function that computes the aggregate response created from all responses.
