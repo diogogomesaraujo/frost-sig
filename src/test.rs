@@ -12,7 +12,7 @@ pub fn test_keygen() {
     let mut rnd = RandState::new();
     rnd.seed(&rug::Integer::from(seed));
 
-    let ctx = keygen_ctx(Integer::from(1), Integer::from(1));
+    // let ctx = keygen_ctx(Integer::from(1), Integer::from(1));
     let state = crate::FrostState::new(&mut rnd, 3, 2);
 
     // KEYGEN ROUND 1
@@ -25,9 +25,9 @@ pub fn test_keygen() {
     let participant_2 = Participant::new(Integer::from(2), pol_2);
     let participant_3 = Participant::new(Integer::from(3), pol_3);
 
-    let signature_1 = round_1::compute_proof_of_knowlodge(&state, &mut rnd, &participant_1, &ctx);
-    let signature_2 = round_1::compute_proof_of_knowlodge(&state, &mut rnd, &participant_2, &ctx);
-    let signature_3 = round_1::compute_proof_of_knowlodge(&state, &mut rnd, &participant_3, &ctx);
+    let signature_1 = round_1::compute_proof_of_knowlodge(&state, &mut rnd, &participant_1);
+    let signature_2 = round_1::compute_proof_of_knowlodge(&state, &mut rnd, &participant_2);
+    let signature_3 = round_1::compute_proof_of_knowlodge(&state, &mut rnd, &participant_3);
 
     let commitments_1 = round_1::compute_public_commitments(&state, &participant_1);
     let commitments_2 = round_1::compute_public_commitments(&state, &participant_2);
@@ -55,7 +55,6 @@ pub fn test_keygen() {
             participant_broadcast_2.clone(),
             participant_broadcast_3.clone(),
         ],
-        &ctx
     ));
 
     // KEYGEN ROUND 2

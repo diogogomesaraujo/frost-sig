@@ -34,10 +34,9 @@
 //!
 //! See the [resources](https://eprint.iacr.org/2020/852.pdf) here.
 
-use crate::{modular, CTX};
+use crate::modular;
 use rand::Rng;
 use rug::{rand::RandState, Integer};
-use sha256::digest;
 
 /// Struct that represents the participant.
 pub struct Participant {
@@ -52,11 +51,6 @@ impl Participant {
     pub fn new(id: Integer, polynomial: Vec<Integer>) -> Self {
         Self { id, polynomial }
     }
-}
-
-/// Function that creates the CTX for the keygen operation.
-pub fn keygen_ctx(group_id: Integer, session_id: Integer) -> CTX {
-    CTX::new("keygen", group_id, session_id)
 }
 
 /// The first round is responsible for generating nonces and commitments that will be used to generate the aggregated key if all the participants are verified.
@@ -81,23 +75,17 @@ pub mod round_1 {
         state: &FrostState,
         rnd: &mut RandState,
         participant: &Participant,
-        ctx: &CTX,
     ) -> (Integer, Integer) {
         let k = generate_integer(&state, rnd);
         let r = modular::pow(&state.generator, &k, &state.prime);
-        let ci = Integer::from_str_radix(
-            digest(format!(
-                "{}::::{}::::{}::::{}",
-                &participant.id,
-                CTX::to_string(&ctx),
+        let ci = hash(
+            &[
+                participant.id.clone(),
                 modular::pow(&state.generator, &participant.polynomial[0], &state.prime),
-                r
-            ))
-            .as_str(),
-            16,
-        )
-        .unwrap()
-        .modulo(&state.q);
+                r,
+            ],
+            &state.q,
+        );
         let wi = modular::add(
             k,
             modular::mul(participant.polynomial[0].clone(), ci.clone(), &state.q),
@@ -119,11 +107,7 @@ pub mod round_1 {
     }
 
     /// Function that is used by a participant to verify if other participants are valid or not.
-    pub fn verify_proofs(
-        state: &FrostState,
-        participants_broadcasts: &[Message],
-        ctx: &CTX,
-    ) -> bool {
+    pub fn verify_proofs(state: &FrostState, participants_broadcasts: &[Message]) -> bool {
         participants_broadcasts
             .iter()
             .fold(true, |acc, pb| match pb {
@@ -138,19 +122,10 @@ pub mod round_1 {
                         modular::pow(&commitments[0], &Integer::from(-&cp), &state.prime),
                         &state.prime,
                     );
-                    let reconstructed_cp = Integer::from_str_radix(
-                        digest(format!(
-                            "{}::::{}::::{}::::{}",
-                            &participant_id,
-                            CTX::to_string(&ctx),
-                            &commitments[0],
-                            rp,
-                        ))
-                        .as_str(),
-                        16,
-                    )
-                    .unwrap()
-                    .modulo(&state.q);
+                    let reconstructed_cp = hash(
+                        &[participant_id.clone(), commitments[0].clone(), rp],
+                        &state.q,
+                    );
                     acc && (reconstructed_cp == cp)
                 }
                 _ => false,
@@ -264,7 +239,7 @@ pub mod round_2 {
                             secret,
                         } => modular::add(acc, secret.clone(), &state.q),
                         _ => {
-                            panic!("That is not a valid message!") // make this better error handling
+                            panic!("Message was not of the desired type.")
                         }
                     }),
                 secret.clone(),
@@ -296,7 +271,7 @@ pub mod round_2 {
                     signature: _,
                 } => modular::mul(commitments[0].clone(), acc, &state.prime),
                 _ => {
-                    panic!("Sent a message with the wrong format!");
+                    panic!("Message was not of the desired type.")
                 }
             })
     }

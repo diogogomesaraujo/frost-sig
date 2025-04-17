@@ -102,7 +102,6 @@ impl Participant {
 }
 
 mod keygen {
-    use futures::SinkExt;
     use message::Message;
     use tokio::net::TcpStream;
     use tokio_util::codec::{Framed, LinesCodec};
@@ -130,12 +129,6 @@ mod keygen {
             session,
         ))); // session defaulted to 1 for now.
 
-        let ctx = Arc::new(Mutex::new(CTX::new(
-            "keygen",
-            Integer::from(1),
-            Integer::from(session),
-        )));
-
         println!("FrostServer::Keygen running on: {address}");
 
         let mut count: u32 = 0;
@@ -159,8 +152,8 @@ mod keygen {
         stream: TcpStream,
         addr: SocketAddr,
     ) -> Result<(), Box<dyn Error>> {
-        let mut lines = Framed::new(stream, LinesCodec::new());
-        let (tx, rx) = mpsc::unbounded_channel::<Message>();
+        // let mut lines = Framed::new(stream, LinesCodec::new());
+        let (tx, _rx) = mpsc::unbounded_channel::<Message>();
 
         {
             let mut server = server.lock().await;
@@ -168,7 +161,7 @@ mod keygen {
             server.by_addr.insert(addr, tx.clone());
         }
 
-        let mut participant = Participant::new(id, rx, tx, addr);
+        // let mut participant = Participant::new(id, rx, tx, addr);
 
         Ok(())
 

@@ -25,6 +25,7 @@
 //! See the [resources](https://eprint.iacr.org/2020/852.pdf) here.
 
 use rug::{rand::RandState, Integer};
+use sha256::digest;
 
 pub mod keygen;
 pub mod preprocess;
@@ -75,33 +76,6 @@ impl FrostState {
     }
 }
 
-/// Struct that identifies the group, session and protocol being used.
-#[derive(Clone, Debug)]
-pub struct CTX {
-    /// `protocol` is the name of the current protocol being used.
-    pub protocol: String,
-    /// `group_id` is the id of the group making the transaction
-    pub group_id: Integer,
-    /// `session_id` is the id of the current session.
-    pub session_id: Integer,
-}
-
-impl CTX {
-    /// Function that creates the CTX.
-    pub fn new(protocol: &str, group_id: Integer, session_id: Integer) -> Self {
-        Self {
-            protocol: protocol.to_string(),
-            group_id,
-            session_id,
-        }
-    }
-
-    /// Function that converts the `CTX` to `String`. It uses this format *protocol::group_id::session_id*.
-    pub fn to_string(ctx: &CTX) -> String {
-        format!("{}::{}::{}", ctx.protocol, ctx.group_id, ctx.session_id)
-    }
-}
-
 /// Function that generates a random 256bit integer.
 pub fn generate_integer(state: &FrostState, rnd: &mut RandState) -> Integer {
     Integer::from(Integer::random_below(state.q.clone(), rnd))
@@ -137,4 +111,12 @@ pub fn generate_generator(rnd: &mut RandState, q: &Integer, prime: &Integer) -> 
             _ => continue,
         }
     }
+}
+
+/// Function that hashes a vector of `Integers` using **sha256**.
+pub fn hash(integers: &[Integer], q: &Integer) -> Integer {
+    let h = integers
+        .iter()
+        .fold(Integer::from(0), |acc, i| modular::add(acc, i.clone(), &q));
+    Integer::from_str_radix(digest(h.to_string_radix(RADIX)).as_str(), 16).unwrap()
 }

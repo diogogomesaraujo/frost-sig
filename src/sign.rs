@@ -64,9 +64,9 @@
 //!
 //! See the [resources](https://eprint.iacr.org/2020/852.pdf) here.
 
-use crate::{message::Message, modular, FrostState};
+use crate::{hash, message::Message, modular, FrostState};
 use rand::Rng;
-use rug::Integer;
+use rug::{integer::Order, Integer};
 use sha256::digest;
 
 /// Function that computes the binding values for a participant.
@@ -94,7 +94,7 @@ pub fn compute_binding_value(
         .unwrap()
         .modulo(&state.q),
         _ => {
-            panic!("Message not valid!")
+            panic!("Message was not of the desired type.")
         }
     }
 }
@@ -127,16 +127,11 @@ pub fn compute_group_commitment_and_challenge(
                     panic!("Message was not of the desired type.")
                 }
             });
-    let challenge = Integer::from_str_radix(
-        digest(format!(
-            "{}::::{}::::{}",
-            group_commitment, group_public_key, message
-        ))
-        .as_str(),
-        16,
-    )
-    .unwrap()
-    .modulo(&state.q);
+    let message = Integer::from_digits(message.as_bytes(), Order::MsfBe);
+    let challenge = hash(
+        &[group_commitment.clone(), group_public_key, message],
+        &state.q,
+    );
     (group_commitment, challenge)
 }
 
@@ -262,7 +257,7 @@ pub fn compute_aggregate_response(
                 value,
             } => modular::add(acc, value.clone(), &state.q),
             _ => {
-                panic!("Wrong message type!");
+                panic!("Message was not of the desired type.")
             }
         })
 }
