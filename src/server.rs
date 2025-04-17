@@ -37,17 +37,48 @@ impl FrostServer {
         }
     }
 
-    pub async fn broadcast(&mut self, sender: SocketAddr, message: Message) {
+    async fn broadcast(&mut self, sender: &SocketAddr, message: Message) {
         for participant in self.by_addr.iter_mut() {
-            if *participant.0 != sender {
+            if &*participant.0 != sender {
                 let _ = participant.1.send(message.clone());
             }
         }
     }
 
-    pub async fn send_to(&mut self, reciever: u32, message: Message) {
+    async fn send_to(&mut self, reciever: u32, message: Message) {
         if let Some(tx) = self.by_id.get(&reciever) {
             let _ = tx.send(message);
+        }
+    }
+
+    pub async fn send_msg(&mut self, participant: &Participant, msg: Message) {
+        match &msg {
+            Message::Broadcast {
+                signature: _,
+                commitments: _,
+                participant_id: _,
+            } => {
+                self.broadcast(&participant.addr, msg).await;
+            }
+            Message::SecretShare {
+                sender_id: _,
+                reciever_id,
+                secret: _,
+            } => {
+                self.send_to(reciever_id.to_u32().unwrap(), msg).await; // Should not fail.
+            }
+            Message::PublicCommitment {
+                participant_id: _,
+                di: _,
+                ei: _,
+                public_share: _,
+            }
+            | Message::Response {
+                sender_id: _,
+                value: _,
+            } => {
+                self.send_to(0, msg).await; // defaulted to 0 because SA should be the first one to enter. FIX LATER!
+            }
         }
     }
 }
@@ -56,19 +87,22 @@ pub struct Participant {
     pub id: u32,
     pub reciever: Rx,
     pub sender: Tx,
+    pub addr: SocketAddr,
 }
 
 impl Participant {
-    pub fn new(id: u32, reciever: Rx, sender: Tx) -> Self {
+    pub fn new(id: u32, reciever: Rx, sender: Tx, addr: SocketAddr) -> Self {
         Self {
             id,
             reciever,
             sender,
+            addr,
         }
     }
 }
 
 mod keygen {
+    use futures::SinkExt;
     use message::Message;
     use tokio::net::TcpStream;
     use tokio_util::codec::{Framed, LinesCodec};
@@ -114,7 +148,7 @@ mod keygen {
 
             tokio::spawn(async move {
                 println!("Accepted connection.");
-                handle(count, server, stream, addr);
+                handle(count, server, stream, addr).await.unwrap();
             });
         }
     }
@@ -134,8 +168,18 @@ mod keygen {
             server.by_addr.insert(addr, tx.clone());
         }
 
-        let participant = Participant::new(id, rx, tx);
+        let mut participant = Participant::new(id, rx, tx, addr);
 
         Ok(())
+
+        /*
+        loop {
+            tokio::select! {
+                Some(msg) = participant.reciever.recv() => {
+                    lines.send(&msg);
+                }
+            }
+        }
+        */
     }
 }

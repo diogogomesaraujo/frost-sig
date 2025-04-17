@@ -168,28 +168,33 @@ pub fn lagrange_coefficient(
 /// It is computed from the users private nonces and secret keys.
 pub fn compute_own_response(
     state: &FrostState,
+    participant_id: Integer,
     participant_commitment: &Message,
     private_key: &Integer,
     private_nonces: &(Integer, Integer),
     lagrange_coefficient: &Integer,
     challenge: &Integer,
     message: &str,
-) -> Integer {
+) -> Message {
     let binding_value = compute_binding_value(&state, &participant_commitment, &message);
     let (di, ei) = private_nonces;
-    modular::add(
-        di.clone(),
-        modular::add(
-            modular::mul(ei.clone(), binding_value, &state.q),
-            modular::mul(
-                modular::mul(lagrange_coefficient.clone(), private_key.clone(), &state.q),
-                challenge.clone(),
+
+    Message::Response {
+        sender_id: participant_id,
+        value: modular::add(
+            di.clone(),
+            modular::add(
+                modular::mul(ei.clone(), binding_value, &state.q),
+                modular::mul(
+                    modular::mul(lagrange_coefficient.clone(), private_key.clone(), &state.q),
+                    challenge.clone(),
+                    &state.q,
+                ),
                 &state.q,
             ),
             &state.q,
         ),
-        &state.q,
-    )
+    }
 }
 
 /// Function that verifies if a participant is malicious or not by analysing the commitments other's sent.
@@ -197,18 +202,24 @@ pub fn verify_participant(
     state: &FrostState,
     participant_commitment: &Message,
     message: &str,
-    response: &Integer,
+    response: &Message,
     challenge: &Integer,
     signers_ids: &[Integer],
 ) -> bool {
-    match participant_commitment {
-        Message::PublicCommitment {
-            participant_id,
-            di,
-            ei,
-            public_share,
-        } => {
-            let gz: Integer = modular::pow(&state.generator, &response, &state.prime);
+    match (participant_commitment, response) {
+        (
+            Message::PublicCommitment {
+                participant_id,
+                di,
+                ei,
+                public_share,
+            },
+            Message::Response {
+                sender_id: _,
+                value,
+            },
+        ) => {
+            let gz: Integer = modular::pow(&state.generator, &value, &state.prime);
             let binding_value = compute_binding_value(&state, &participant_commitment, &message);
             let ri = modular::mul(
                 di.clone(),
@@ -241,11 +252,17 @@ pub fn verify_participant(
 /// Function that computes the aggregate response created from all responses.
 pub fn compute_aggregate_response(
     state: &FrostState,
-    participants_responses: &[Integer],
+    participants_responses: &[Message],
 ) -> Integer {
     participants_responses
         .iter()
-        .fold(Integer::from(0), |acc, pr| {
-            modular::add(acc, pr.clone(), &state.q)
+        .fold(Integer::from(0), |acc, pr| match pr {
+            Message::Response {
+                sender_id: _,
+                value,
+            } => modular::add(acc, value.clone(), &state.q),
+            _ => {
+                panic!("Wrong message type!");
+            }
         })
 }

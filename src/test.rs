@@ -193,6 +193,7 @@ pub fn test_keygen() {
 
     let response_1 = compute_own_response(
         &state,
+        participant_1.id.clone(),
         &public_commitment_1,
         &private_key_1,
         &participant_commitment_1.0,
@@ -202,6 +203,7 @@ pub fn test_keygen() {
     );
     let response_2 = compute_own_response(
         &state,
+        participant_1.id.clone(),
         &public_commitment_2,
         &private_key_2,
         &participant_commitment_2.0,
