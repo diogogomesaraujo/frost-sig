@@ -83,16 +83,16 @@ pub fn compute_binding_value(
             di,
             ei,
             public_share,
-        } => Integer::from_str_radix(
-            digest(format!(
-                "{}::::{}::::{}::{}::{}",
-                participant_id, message, di, ei, public_share
-            ))
-            .as_str(),
-            16,
-        )
-        .unwrap()
-        .modulo(&state.q),
+        } => hash(
+            &[
+                participant_id.clone(),
+                Integer::from_digits(message.as_bytes(), Order::MsfBe),
+                di.clone(),
+                ei.clone(),
+                public_share.clone(),
+            ],
+            &state.q,
+        ),
         _ => {
             panic!("Message was not of the desired type.")
         }

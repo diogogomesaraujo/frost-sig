@@ -108,7 +108,10 @@ pub fn test_keygen() {
     )
     .unwrap();
 
-    println!("This is your private key. save it in a secure place: {private_key_1}.");
+    println!(
+        "This is your private key. save it in a secure place: {}.",
+        private_key_1.to_string_radix(32)
+    );
 
     let own_verification_share_1 = round_2::compute_own_verification_share(&state, &private_key_1);
     let own_verification_share_2 = round_2::compute_own_verification_share(&state, &private_key_2);
@@ -152,7 +155,10 @@ pub fn test_keygen() {
         ],
     );
 
-    println!("The generated group public key is:                   {group_public_key_1}.");
+    println!(
+        "The generated group public key is:                   {}.",
+        group_public_key_1.to_string_radix(32)
+    );
 
     // SIGN
 
@@ -225,6 +231,8 @@ pub fn test_keygen() {
     let aggregate_response = compute_aggregate_response(&state, &[response_1, response_2]);
     println!(
         "The group {} computed this response {} with this message \"{}\".",
-        group_public_key_1, aggregate_response, message
+        group_public_key_1.to_string_radix(32),
+        aggregate_response.to_string_radix(32),
+        message
     );
 }

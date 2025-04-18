@@ -24,6 +24,7 @@
 //!
 //! See the [resources](https://eprint.iacr.org/2020/852.pdf) here.
 
+use message::Message;
 use rug::{rand::RandState, Integer};
 use sha256::digest;
 
@@ -74,6 +75,16 @@ impl FrostState {
             threshold,
         }
     }
+
+    pub fn to_message(self) -> Message {
+        Message::FrostState {
+            prime: self.prime,
+            q: self.q,
+            generator: self.generator,
+            participants: self.participants,
+            threshold: self.threshold,
+        }
+    }
 }
 
 /// Function that generates a random 256bit integer.
@@ -118,5 +129,7 @@ pub fn hash(integers: &[Integer], q: &Integer) -> Integer {
     let h = integers
         .iter()
         .fold(Integer::from(0), |acc, i| modular::add(acc, i.clone(), &q));
-    Integer::from_str_radix(digest(h.to_string_radix(RADIX)).as_str(), 16).unwrap()
+    Integer::from_str_radix(digest(h.to_string_radix(RADIX)).as_str(), 16)
+        .unwrap()
+        .modulo(&q)
 }
