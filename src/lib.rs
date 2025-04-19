@@ -48,7 +48,7 @@ pub const BITS: u32 = 256;
 pub const RADIX: i32 = 32;
 
 /// Struct that saves the constants needed for FROST. These values should be used by all participants throughout the signing session and discarted after.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FrostState {
     /// `prime` is a prime number bigger than any possible key or share generated and is used for modular arithmetic.
     pub prime: Integer,
@@ -73,16 +73,6 @@ impl FrostState {
             generator: generated_generator,
             participants,
             threshold,
-        }
-    }
-
-    pub fn to_message(self) -> Message {
-        Message::FrostState {
-            prime: self.prime,
-            q: self.q,
-            generator: self.generator,
-            participants: self.participants,
-            threshold: self.threshold,
         }
     }
 }

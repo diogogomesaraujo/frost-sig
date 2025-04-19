@@ -16,6 +16,7 @@ pub type Tx = mpsc::UnboundedSender<Message>;
 pub type Rx = mpsc::UnboundedReceiver<Message>;
 
 /// Struct that represents the server that will handle FROST operations in real-time for multiple participant's clients.
+#[derive(Clone)]
 pub struct FrostServer {
     /// The state that holds all the constants needed for the FROST computations.
     state: FrostState,
@@ -32,6 +33,14 @@ impl FrostServer {
             state: FrostState::new(rnd, participants, threshold),
             by_addr: HashMap::new(),
             by_id: HashMap::new(),
+        }
+    }
+
+    pub fn to_message(self) -> Message {
+        Message::ServerState {
+            state: self.state,
+            by_addr: self.by_addr,
+            by_id: self.by_id,
         }
     }
 
@@ -59,12 +68,10 @@ impl FrostServer {
                 commitments: _,
                 participant_id: _,
             }
-            | Message::FrostState {
-                prime: _,
-                q: _,
-                generator: _,
-                participants: _,
-                threshold: _,
+            | Message::ServerState {
+                state: _,
+                by_id: _,
+                by_addr: _,
             } => {
                 self.broadcast(&participant.addr, msg).await;
             }
@@ -111,11 +118,22 @@ impl Participant {
     }
 }
 
+/// Module that handles the server side logging.
+pub mod logging {
+    pub const YELLOW: &str = "\x1b[33m";
+    pub const BLUE: &str = "\x1b[34m";
+    pub const RESET: &str = "\x1b[0m";
+
+    pub fn print(message: &str) {
+        println!("{}Frost Server:{} {}", BLUE, RESET, message);
+    }
+}
+
 /// Module that handles server operations in relation to the FROST keygen process.
 pub mod keygen {
     use futures::SinkExt;
     use message::Message;
-    use tokio::net::TcpStream;
+    use tokio::{net::TcpStream, sync::Barrier};
     use tokio_util::codec::{Framed, LinesCodec};
 
     use super::*;
@@ -140,26 +158,38 @@ pub mod keygen {
             threshold,
         )));
 
-        let state = Arc::new(Mutex::new(FrostState::new(
-            &mut rnd,
-            participants,
-            threshold,
-        )));
-
-        println!("FrostServer: keygen running on -> {address}");
+        logging::print("Keygen initialized.");
+        logging::print(
+            format!(
+                "Running on {}{}{}",
+                logging::YELLOW,
+                address,
+                logging::RESET
+            )
+            .as_str(),
+        );
 
         let mut count: u32 = 0;
+        let barrier = Arc::new(Barrier::new((participants + 1) as usize));
 
         while count < participants {
             let (stream, addr) = listener.accept().await.unwrap();
             count += 1;
 
             let server = server.clone();
-            let state = state.clone();
+            let barrier = barrier.clone();
 
             tokio::spawn(async move {
                 println!("Accepted connection.");
-                handle(count, server, state, stream, addr).await.unwrap();
+                handle(count, barrier, server, stream, addr).await.unwrap();
+            });
+        }
+
+        {
+            barrier.wait().await; // Block until all have joined.
+            let server = server.lock().await;
+            server.by_addr.values().into_iter().for_each(|tx| {
+                tx.send(server.clone().to_message()).unwrap();
             });
         }
 
@@ -169,8 +199,8 @@ pub mod keygen {
     /// Function that handles all participants who join the server.
     pub async fn handle(
         id: u32,
+        barrier: Arc<Barrier>,
         server: Arc<Mutex<FrostServer>>,
-        state: Arc<Mutex<FrostState>>,
         stream: TcpStream,
         addr: SocketAddr,
     ) -> Result<(), Box<dyn Error>> {
@@ -185,10 +215,7 @@ pub mod keygen {
 
         let mut participant = Participant::new(id, rx, tx, addr);
 
-        {
-            let state = state.lock().await;
-            participant.sender.send(state.clone().to_message()).unwrap();
-        }
+        barrier.wait().await; // Wait for all participants to join.
 
         // TEMPORARY
         loop {

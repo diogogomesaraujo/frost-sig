@@ -1,7 +1,9 @@
+use std::{collections::HashMap, net::SocketAddr};
+
 use rug::Integer;
 use serde::{Deserialize, Serialize};
 
-use crate::RADIX;
+use crate::{server::Tx, FrostState, RADIX};
 
 /// Enum that represents all the messages that will be sent during the FROST protocol operations.
 #[derive(Clone, Debug)]
@@ -13,6 +15,7 @@ pub enum Message {
         commitments: Vec<Integer>,
         signature: (Integer, Integer),
     },
+
     /// Message that is sent during the keygen round 2 phase.
     /// It represents the secret sent from every participant to all others and it is used to calculate a participant's private key.
     SecretShare {
@@ -20,6 +23,7 @@ pub enum Message {
         reciever_id: Integer,
         secret: Integer,
     },
+
     /// Message that is sent during the signature phase.
     /// It is used by the main participant (SA) for others to verify the commitments chosen by the SA.
     PublicCommitment {
@@ -28,15 +32,17 @@ pub enum Message {
         ei: Integer,
         public_share: Integer,
     },
+
     /// Message that is sent during the signature phase.
     /// It is used to compute the aggregate response and is sent by every participant to the SA.
     Response { sender_id: Integer, value: Integer },
-    FrostState {
-        prime: Integer,
-        q: Integer,
-        generator: Integer,
-        participants: u32,
-        threshold: u32,
+
+    /// Message that is sent at the beginning of a FROST operation.
+    /// It is used to do all the calculations needed for all the FROST operations.
+    ServerState {
+        state: FrostState,
+        by_addr: HashMap<SocketAddr, Tx>,
+        by_id: HashMap<u32, Tx>,
     },
 }
 
@@ -103,27 +109,11 @@ impl Message {
                 let message = MessageJSON::Response { sender_id, value };
                 serde_json::to_string(&message).unwrap()
             }
-            Message::FrostState {
-                prime,
-                q,
-                generator,
-                participants,
-                threshold,
-            } => {
-                let prime = prime.to_string_radix(RADIX);
-                let q = q.to_string_radix(RADIX);
-                let generator = generator.to_string_radix(RADIX);
-                let participants = participants.clone();
-                let threshold = threshold.clone();
-                let message = MessageJSON::FrostState {
-                    prime,
-                    q,
-                    generator,
-                    participants,
-                    threshold,
-                };
-                serde_json::to_string(&message).unwrap()
-            }
+            Message::ServerState {
+                state: _,
+                by_addr: _,
+                by_id: _,
+            } => "Recieved a server state!".to_string(), // change!!!
         }
     }
 }
@@ -149,13 +139,6 @@ pub enum MessageJSON {
     Response {
         sender_id: String,
         value: String,
-    },
-    FrostState {
-        prime: String,
-        q: String,
-        generator: String,
-        participants: u32,
-        threshold: u32,
     },
 }
 
@@ -220,26 +203,6 @@ impl MessageJSON {
                 let sender_id = Integer::from_str_radix(sender_id, RADIX).unwrap();
                 let value = Integer::from_str_radix(value, RADIX).unwrap();
                 Message::Response { sender_id, value }
-            }
-            Self::FrostState {
-                prime,
-                q,
-                generator,
-                participants,
-                threshold,
-            } => {
-                let prime = Integer::from_str_radix(prime, RADIX).unwrap();
-                let q = Integer::from_str_radix(q, RADIX).unwrap();
-                let generator = Integer::from_str_radix(generator, RADIX).unwrap();
-                let participants = participants.clone();
-                let threshold = threshold.clone();
-                Message::FrostState {
-                    prime,
-                    q,
-                    generator,
-                    participants,
-                    threshold,
-                }
             }
         }
     }
