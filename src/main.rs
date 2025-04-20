@@ -18,7 +18,7 @@ async fn main() {
                 .unwrap();
         }
         ("client", "keygen") => {
-            client::keygen::run("localhost", 3333).await.unwrap();
+            client::keygen_client::run("localhost", 3333).await.unwrap();
         }
         _ => {
             eprintln!("Invalid arguments.");
