@@ -36,15 +36,7 @@ impl FrostServer {
         }
     }
 
-    pub fn to_message(self) -> Message {
-        Message::ServerState {
-            state: self.state,
-            by_addr: self.by_addr,
-            by_id: self.by_id,
-        }
-    }
-
-    /// Function that sends a message to all clients connected to the socket.
+    /// Function that sends a message to all participants but the one sending the message.
     pub async fn broadcast(&mut self, sender: &SocketAddr, message: Message) {
         for participant in self.by_addr.iter_mut() {
             if &*participant.0 != sender {
@@ -68,10 +60,12 @@ impl FrostServer {
                 commitments: _,
                 participant_id: _,
             }
-            | Message::ServerState {
-                state: _,
-                by_id: _,
-                by_addr: _,
+            | Message::FrostState {
+                prime: _,
+                q: _,
+                generator: _,
+                participants: _,
+                threshold: _,
             } => {
                 self.broadcast(&participant.addr, msg).await;
             }
@@ -180,7 +174,7 @@ pub mod keygen {
             let barrier = barrier.clone();
 
             tokio::spawn(async move {
-                println!("Accepted connection.");
+                logging::print("Accepted connection.");
                 handle(count, barrier, server, stream, addr).await.unwrap();
             });
         }
@@ -189,11 +183,11 @@ pub mod keygen {
             barrier.wait().await; // Block until all have joined.
             let server = server.lock().await;
             server.by_addr.values().into_iter().for_each(|tx| {
-                tx.send(server.clone().to_message()).unwrap();
+                tx.send(server.state.clone().to_message()).unwrap();
             });
         }
 
-        Ok(())
+        loop {}
     }
 
     /// Function that handles all participants who join the server.
@@ -217,7 +211,6 @@ pub mod keygen {
 
         barrier.wait().await; // Wait for all participants to join.
 
-        // TEMPORARY
         loop {
             tokio::select! {
                 Some(msg) = participant.reciever.recv() => {

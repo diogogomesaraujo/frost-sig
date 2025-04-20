@@ -1,9 +1,7 @@
-use std::{collections::HashMap, net::SocketAddr};
-
 use rug::Integer;
 use serde::{Deserialize, Serialize};
 
-use crate::{server::Tx, FrostState, RADIX};
+use crate::RADIX;
 
 /// Enum that represents all the messages that will be sent during the FROST protocol operations.
 #[derive(Clone, Debug)]
@@ -39,10 +37,12 @@ pub enum Message {
 
     /// Message that is sent at the beginning of a FROST operation.
     /// It is used to do all the calculations needed for all the FROST operations.
-    ServerState {
-        state: FrostState,
-        by_addr: HashMap<SocketAddr, Tx>,
-        by_id: HashMap<u32, Tx>,
+    FrostState {
+        prime: Integer,
+        q: Integer,
+        generator: Integer,
+        participants: u32,
+        threshold: u32,
     },
 }
 
@@ -109,11 +109,34 @@ impl Message {
                 let message = MessageJSON::Response { sender_id, value };
                 serde_json::to_string(&message).unwrap()
             }
-            Message::ServerState {
-                state: _,
-                by_addr: _,
-                by_id: _,
-            } => "Recieved a server state!".to_string(), // change!!!
+            Message::FrostState {
+                prime,
+                q,
+                generator,
+                participants,
+                threshold,
+            } => {
+                let prime = prime.to_string_radix(RADIX);
+                let q = q.to_string_radix(RADIX);
+                let generator = generator.to_string_radix(RADIX);
+                let participants = participants.clone();
+                let threshold = threshold.clone();
+                let message = MessageJSON::FrostState {
+                    prime,
+                    q,
+                    generator,
+                    participants,
+                    threshold,
+                };
+                serde_json::to_string(&message).unwrap()
+            }
+        }
+    }
+
+    pub fn from_json_string(message: &str) -> Option<Message> {
+        match serde_json::from_str::<MessageJSON>(&message) {
+            Ok(message_json) => Some(message_json.from_json()),
+            Err(_) => None,
         }
     }
 }
@@ -139,6 +162,13 @@ pub enum MessageJSON {
     Response {
         sender_id: String,
         value: String,
+    },
+    FrostState {
+        prime: String,
+        q: String,
+        generator: String,
+        participants: u32,
+        threshold: u32,
     },
 }
 
@@ -203,6 +233,26 @@ impl MessageJSON {
                 let sender_id = Integer::from_str_radix(sender_id, RADIX).unwrap();
                 let value = Integer::from_str_radix(value, RADIX).unwrap();
                 Message::Response { sender_id, value }
+            }
+            Self::FrostState {
+                prime,
+                q,
+                generator,
+                participants,
+                threshold,
+            } => {
+                let prime = Integer::from_str_radix(prime, RADIX).unwrap();
+                let q = Integer::from_str_radix(q, RADIX).unwrap();
+                let generator = Integer::from_str_radix(generator, RADIX).unwrap();
+                let participants = participants.clone();
+                let threshold = threshold.clone();
+                Message::FrostState {
+                    prime,
+                    q,
+                    generator,
+                    participants,
+                    threshold,
+                }
             }
         }
     }

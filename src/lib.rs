@@ -26,6 +26,7 @@
 
 use message::Message;
 use rug::{rand::RandState, Integer};
+use serde::{Deserialize, Serialize};
 use sha256::digest;
 
 pub mod keygen;
@@ -36,6 +37,7 @@ pub mod modular;
 
 pub mod message;
 
+pub mod client;
 pub mod server;
 
 #[cfg(test)]
@@ -73,6 +75,16 @@ impl FrostState {
             generator: generated_generator,
             participants,
             threshold,
+        }
+    }
+
+    pub fn to_message(self) -> Message {
+        Message::FrostState {
+            prime: self.prime,
+            q: self.q,
+            generator: self.generator,
+            participants: self.participants,
+            threshold: self.threshold,
         }
     }
 }
