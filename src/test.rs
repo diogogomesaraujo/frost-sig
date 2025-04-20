@@ -149,9 +149,9 @@ pub fn test_keygen() {
     let group_public_key_1 = round_2::compute_group_public_key(
         &state,
         &[
-            &participant_broadcast_1.clone(),
-            &participant_broadcast_2.clone(),
-            &participant_broadcast_3.clone(),
+            participant_broadcast_1.clone(),
+            participant_broadcast_2.clone(),
+            participant_broadcast_3.clone(),
         ],
     );
 

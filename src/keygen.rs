@@ -180,10 +180,10 @@ pub mod round_2 {
     pub fn verify_share_validity(
         state: &FrostState,
         participant: &Participant,
-        own_secret_share: &Message,
+        secret_share: &Message,
         participant_broadcast: &Message,
     ) -> bool {
-        match (own_secret_share, participant_broadcast) {
+        match (secret_share, participant_broadcast) {
             (
                 Message::SecretShare {
                     sender_id: _,
@@ -260,7 +260,7 @@ pub mod round_2 {
     /// Function that computes the group public key used to sign transactions and identify the group.
     pub fn compute_group_public_key(
         state: &FrostState,
-        participants_broadcasts: &[&Message],
+        participants_broadcasts: &[Message],
     ) -> Integer {
         participants_broadcasts
             .iter()

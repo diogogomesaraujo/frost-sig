@@ -51,6 +51,44 @@ impl FrostServer {
             let _ = tx.send(message);
         }
     }
+
+    /// Function that handles the messages sent according to type to avoid mistakes.
+    pub async fn send_message(
+        &mut self,
+        participant: &Participant,
+        msg: Message,
+    ) -> Result<(), Box<dyn Error>> {
+        match &msg {
+            Message::Broadcast {
+                signature: _,
+                commitments: _,
+                participant_id: _,
+            } => {
+                self.broadcast(&participant.addr, msg).await;
+            }
+            Message::SecretShare {
+                sender_id: _,
+                reciever_id,
+                secret: _,
+            } => {
+                self.send_to(reciever_id.to_u32().unwrap(), msg).await; // Should not fail.
+            }
+            Message::PublicCommitment {
+                participant_id: _,
+                di: _,
+                ei: _,
+                public_share: _,
+            }
+            | Message::Response {
+                sender_id: _,
+                value: _,
+            } => {
+                self.send_to(0, msg).await; // defaulted to 0 because SA should be the first one to enter. FIX LATER!
+            }
+            _ => return Err("Tried to send an invalid message".into()),
+        }
+        Ok(())
+    }
 }
 
 /// Struct that represents the participants from the server's view.
@@ -86,7 +124,7 @@ pub mod logging {
 
 /// Module that handles server operations in relation to the FROST keygen process.
 pub mod keygen {
-    use futures::SinkExt;
+    use futures::{SinkExt, StreamExt};
     use message::Message;
     use tokio::{net::TcpStream, sync::Barrier};
     use tokio_util::codec::{Framed, LinesCodec};
@@ -140,6 +178,7 @@ pub mod keygen {
             });
         }
 
+        // Send the frost state.
         {
             barrier.wait().await; // Block until all have joined.
             let server = server.lock().await;
@@ -159,7 +198,9 @@ pub mod keygen {
         stream: TcpStream,
         addr: SocketAddr,
     ) -> Result<(), Box<dyn Error>> {
-        let mut lines = Framed::new(stream, LinesCodec::new());
+        let lines = Framed::new(stream, LinesCodec::new());
+        let (mut writer, mut reader) = lines.split();
+
         let (tx, rx) = mpsc::unbounded_channel::<Message>();
 
         {
@@ -180,7 +221,14 @@ pub mod keygen {
         loop {
             tokio::select! {
                 Some(msg) = participant.reciever.recv() => {
-                    lines.send(&msg.to_json_string()).await.unwrap();
+                    let msg_json = msg.to_json_string();
+                    writer.send(msg_json).await.unwrap();
+                }
+                Some(Ok(msg_json)) = reader.next() => {
+                    match Message::from_json_string(msg_json.as_str()) {
+                        Some(msg) => server.lock().await.send_message(&participant, msg).await.unwrap(),
+                        None => return Err("Tried to send invalid message.".into()),
+                    }
                 }
             }
         }
