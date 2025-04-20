@@ -33,7 +33,10 @@ pub enum Message {
 
     /// Message that is sent during the signature phase.
     /// It is used to compute the aggregate response and is sent by every participant to the SA.
-    Response { sender_id: Integer, value: Integer },
+    Response {
+        sender_id: Integer,
+        value: Integer,
+    },
 
     /// Message that is sent at the beginning of a FROST operation.
     /// It is used to do all the calculations needed for all the FROST operations.
@@ -44,6 +47,8 @@ pub enum Message {
         participants: u32,
         threshold: u32,
     },
+
+    Id(u32),
 }
 
 impl Message {
@@ -130,6 +135,7 @@ impl Message {
                 };
                 serde_json::to_string(&message).unwrap()
             }
+            Message::Id(id) => serde_json::to_string(&MessageJSON::Id(id.clone())).unwrap(),
         }
     }
 
@@ -170,6 +176,7 @@ pub enum MessageJSON {
         participants: u32,
         threshold: u32,
     },
+    Id(u32),
 }
 
 impl MessageJSON {
@@ -254,6 +261,7 @@ impl MessageJSON {
                     threshold,
                 }
             }
+            Self::Id(id) => Message::Id(id.clone()),
         }
     }
 }

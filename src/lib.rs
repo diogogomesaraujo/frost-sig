@@ -26,7 +26,6 @@
 
 use message::Message;
 use rug::{rand::RandState, Integer};
-use serde::{Deserialize, Serialize};
 use sha256::digest;
 
 pub mod keygen;

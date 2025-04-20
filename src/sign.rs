@@ -67,7 +67,6 @@
 use crate::{hash, message::Message, modular, FrostState};
 use rand::Rng;
 use rug::{integer::Order, Integer};
-use sha256::digest;
 
 /// Function that computes the binding values for a participant.
 /// It recieves the message that will be signed and creates a hashed value that will be used to verify the participants commitment.
