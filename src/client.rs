@@ -201,8 +201,8 @@ pub mod keygen_client {
                 format!(
                     "This is your {}private key{}: {}.",
                     logging::YELLOW,
+                    logging::RESET,
                     private_key.to_string_radix(RADIX),
-                    logging::RESET
                 )
                 .as_str(),
             );
@@ -212,10 +212,10 @@ pub mod keygen_client {
 
             logging::print(
                 format!(
-                    "This is your public {}key share{}: {}",
+                    "This is your {}public key share{}: {}",
                     logging::YELLOW,
+                    logging::RESET,
                     own_public_key_share.to_string_radix(RADIX),
-                    logging::RESET
                 )
                 .as_str(),
             );
@@ -255,8 +255,8 @@ pub mod keygen_client {
                 format!(
                     "This is the group {}public key{}: {}.",
                     logging::YELLOW,
+                    logging::RESET,
                     aggregated_public_key.to_string_radix(RADIX),
-                    logging::RESET
                 )
                 .as_str(),
             );
