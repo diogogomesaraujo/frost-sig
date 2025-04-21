@@ -37,20 +37,18 @@ pub mod logging {
 }
 
 pub mod keygen_client {
+    use super::{logging, recieve_message, FrostClient};
+    use crate::{
+        keygen::{self, round_1, round_2},
+        message::Message,
+        FrostState, RADIX,
+    };
     use futures::SinkExt;
     use rand::Rng;
     use rug::{rand::RandState, Integer};
     use std::error::Error;
     use tokio::net::TcpStream;
     use tokio_util::codec::{Framed, LinesCodec};
-
-    use crate::{
-        keygen::{self, round_1, round_2},
-        message::Message,
-        FrostState, RADIX,
-    };
-
-    use super::{logging, recieve_message, FrostClient};
 
     pub async fn run(ip: &str, port: u32) -> Result<(), Box<dyn Error>> {
         // connect
@@ -199,7 +197,7 @@ pub mod keygen_client {
 
             logging::print(
                 format!(
-                    "This is your {}private key{}: {}.",
+                    "This is your {}private key share{}: {}.",
                     logging::YELLOW,
                     logging::RESET,
                     private_key.to_string_radix(RADIX),
@@ -253,7 +251,7 @@ pub mod keygen_client {
 
             logging::print(
                 format!(
-                    "This is the group {}public key{}: {}.",
+                    "This is the {}group public key{}: {}.",
                     logging::YELLOW,
                     logging::RESET,
                     aggregated_public_key.to_string_radix(RADIX),
@@ -267,3 +265,5 @@ pub mod keygen_client {
         Ok(())
     }
 }
+
+pub mod sign_client {}

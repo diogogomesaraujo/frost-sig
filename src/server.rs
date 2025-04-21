@@ -1,11 +1,13 @@
 use std::{collections::HashMap, error::Error, net::SocketAddr, sync::Arc};
 
+use futures::{SinkExt, StreamExt};
 use message::Message;
 use rand::Rng;
 use tokio::{
-    net::TcpListener,
-    sync::{mpsc, Mutex},
+    net::{TcpListener, TcpStream},
+    sync::{mpsc, Barrier, Mutex},
 };
+use tokio_util::codec::{Framed, LinesCodec};
 
 use crate::*;
 
@@ -122,14 +124,54 @@ pub mod logging {
     }
 }
 
-/// Module that handles server operations in relation to the FROST keygen process.
-pub mod keygen {
-    use futures::{SinkExt, StreamExt};
-    use message::Message;
-    use tokio::{net::TcpStream, sync::Barrier};
-    use tokio_util::codec::{Framed, LinesCodec};
+/// Function that handles all participants who join the server.
+pub async fn handle(
+    id: u32,
+    barrier: Arc<Barrier>,
+    server: Arc<Mutex<FrostServer>>,
+    stream: TcpStream,
+    addr: SocketAddr,
+) -> Result<(), Box<dyn Error>> {
+    let lines = Framed::new(stream, LinesCodec::new());
+    let (mut writer, mut reader) = lines.split();
 
+    let (tx, rx) = mpsc::unbounded_channel::<Message>();
+
+    {
+        let mut server = server.lock().await;
+        server.by_id.insert(id, tx.clone());
+        server.by_addr.insert(addr, tx.clone());
+    }
+
+    let mut participant = Participant::new(id, rx, tx, addr);
+
+    participant
+        .sender
+        .send(Message::Id(participant.id.clone()))
+        .unwrap();
+
+    barrier.wait().await; // Wait for all participants to join.
+
+    loop {
+        tokio::select! {
+            Some(msg) = participant.reciever.recv() => {
+                let msg_json = msg.to_json_string();
+                writer.send(msg_json).await.unwrap();
+            }
+            Some(Ok(msg_json)) = reader.next() => {
+                match Message::from_json_string(msg_json.as_str()) {
+                    Some(msg) => server.lock().await.send_message(&participant, msg).await.unwrap(),
+                    None => return Err("Tried to send invalid message.".into()),
+                }
+            }
+        }
+    }
+}
+
+/// Module that handles server operations in relation to the FROST keygen process.
+pub mod keygen_server {
     use super::*;
+    use tokio::sync::Barrier;
 
     /// Function that runs the keygen process server.
     pub async fn run(
@@ -189,48 +231,67 @@ pub mod keygen {
 
         loop {}
     }
+}
 
-    /// Function that handles all participants who join the server.
-    pub async fn handle(
-        id: u32,
-        barrier: Arc<Barrier>,
-        server: Arc<Mutex<FrostServer>>,
-        stream: TcpStream,
-        addr: SocketAddr,
+pub mod sign_server {
+    use super::*;
+    use tokio::sync::Barrier;
+
+    pub async fn run(
+        ip: &str,
+        port: u32,
+        participants: u32,
+        threshold: u32,
     ) -> Result<(), Box<dyn Error>> {
-        let lines = Framed::new(stream, LinesCodec::new());
-        let (mut writer, mut reader) = lines.split();
+        let address = format!("{}:{}", ip, port);
+        let listener = TcpListener::bind(&address).await.unwrap();
 
-        let (tx, rx) = mpsc::unbounded_channel::<Message>();
+        let seed: i32 = rand::rng().random();
+        let mut rnd = RandState::new();
+        rnd.seed(&rug::Integer::from(seed));
 
+        let server = Arc::new(Mutex::new(FrostServer::new(
+            &mut rnd,
+            participants,
+            threshold,
+        )));
+
+        logging::print("Sign initialized.");
+        logging::print(
+            format!(
+                "Running on {}{}{}",
+                logging::YELLOW,
+                address,
+                logging::RESET
+            )
+            .as_str(),
+        );
+
+        let mut count: u32 = 0;
+        let barrier = Arc::new(Barrier::new((threshold + 1) as usize));
+
+        while count < threshold {
+            let (stream, addr) = listener.accept().await.unwrap();
+            count += 1;
+
+            let server = server.clone();
+            let barrier = barrier.clone();
+
+            tokio::spawn(async move {
+                logging::print("Accepted connection.");
+                handle(count, barrier, server, stream, addr).await.unwrap();
+            });
+        }
+
+        // Send the frost state.
         {
-            let mut server = server.lock().await;
-            server.by_id.insert(id, tx.clone());
-            server.by_addr.insert(addr, tx.clone());
+            barrier.wait().await; // Block until all have joined.
+            let server = server.lock().await;
+            server.by_addr.values().into_iter().for_each(|tx| {
+                tx.send(server.state.clone().to_message()).unwrap();
+            });
         }
 
-        let mut participant = Participant::new(id, rx, tx, addr);
-
-        participant
-            .sender
-            .send(Message::Id(participant.id.clone()))
-            .unwrap();
-
-        barrier.wait().await; // Wait for all participants to join.
-
-        loop {
-            tokio::select! {
-                Some(msg) = participant.reciever.recv() => {
-                    let msg_json = msg.to_json_string();
-                    writer.send(msg_json).await.unwrap();
-                }
-                Some(Ok(msg_json)) = reader.next() => {
-                    match Message::from_json_string(msg_json.as_str()) {
-                        Some(msg) => server.lock().await.send_message(&participant, msg).await.unwrap(),
-                        None => return Err("Tried to send invalid message.".into()),
-                    }
-                }
-            }
-        }
+        Ok(())
     }
 }
