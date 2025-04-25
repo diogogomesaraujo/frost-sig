@@ -1,11 +1,17 @@
+use std::error::Error;
+
 use frost_sig::*;
 use rand::Rng;
 use rug::rand::RandState;
 
 #[tokio::main]
-async fn main() {
-    let mode = std::env::args().nth(1).expect("no pattern given");
-    let operation = std::env::args().nth(2).expect("no pattern given");
+async fn main() -> Result<(), Box<dyn Error>> {
+    let mode = std::env::args()
+        .nth(1)
+        .expect("Failed to give enough arguments.");
+    let operation = std::env::args()
+        .nth(2)
+        .expect("Failed to give enough arguments.");
 
     match (mode.as_str(), operation.as_str()) {
         ("server", "keygen") => {
@@ -13,15 +19,33 @@ async fn main() {
             let mut rnd = RandState::new();
             rnd.seed(&rug::Integer::from(seed));
 
-            server::keygen_server::run("localhost", 3333, 3, 2)
+            server::keygen_server::run("localhost", 3333, 3, 2).await?;
+        }
+        ("client", "keygen") => {
+            let path = std::env::args()
+                .nth(3)
+                .expect("Failed to give enough arguments.");
+            client::keygen_client::run("localhost", 3333, &path).await?;
+        }
+        ("server", "sign") => {
+            let seed: i32 = rand::rng().random();
+            let mut rnd = RandState::new();
+            rnd.seed(&rug::Integer::from(seed));
+
+            server::sign_server::run("localhost", 3333, 3, 2)
                 .await
                 .unwrap();
         }
-        ("client", "keygen") => {
-            client::keygen_client::run("localhost", 3333).await.unwrap();
+        ("client", "sign") => {
+            let path = std::env::args()
+                .nth(3)
+                .expect("Failed to give enough arguments.");
+            client::sign_client::run("localhost", 3333, &path).await?;
         }
         _ => {
             eprintln!("Invalid arguments.");
         }
     }
+
+    Ok(())
 }

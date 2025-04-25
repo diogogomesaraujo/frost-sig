@@ -1,0 +1,13 @@
+{
+  "state": {
+    "prime": "3fis3013bj79dg7rgt07v3jlk6a6rvf0teiahep78qerhus02qej",
+    "q": "1npe1g0hlpjkmo3toeg3vhpqq353dvngen958ncjkd7dove01d79",
+    "generator": "12hdp7tkhq0vtkg3lql1jhal4du3of7ij7745q3rurmubfqdaivt",
+    "participants": 3,
+    "threshold": 2
+  },
+  "public_aggregated_key": "3a33fvn4c5oj7qu9q4s71kijodk022inl4i4bdpvl03e10mf0u0r",
+  "own_public_share": "ahmhliqf8g31n2b6u2cbfcloin6qmcfijl4hj7anqstdmcb26cu",
+  "own_private_share": "qr10glnip9ob7r6nhs2prjh4fi8phcm4t3bhibap0hmhrr2ui69",
+  "message": "Send Bob 10 bucks."
+}

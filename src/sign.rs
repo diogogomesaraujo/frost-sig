@@ -135,27 +135,26 @@ pub fn compute_group_commitment_and_challenge(
 }
 
 /// Function that calculates the lagrange_coefficient of a participant.
-pub fn lagrange_coefficient(
-    state: &FrostState,
-    participant_id: &Integer,
-    signers_ids: &[Integer],
-) -> Integer {
-    signers_ids.iter().fold(Integer::from(1), |acc, j| {
-        if j == participant_id {
-            acc
-        } else {
+pub fn lagrange_coefficient(state: &FrostState, participant_id: &Integer) -> Integer {
+    (1..=state.threshold)
+        .into_iter()
+        .fold(Integer::from(1), |acc, j| {
             let j = Integer::from(j);
-            modular::mul(
-                acc.clone(),
-                modular::div(
-                    j.clone(),
-                    modular::sub(j, participant_id.clone(), &state.q),
+            if &j == participant_id {
+                acc
+            } else {
+                let j = Integer::from(j);
+                modular::mul(
+                    acc.clone(),
+                    modular::div(
+                        j.clone(),
+                        modular::sub(j, participant_id.clone(), &state.q),
+                        &state.q,
+                    ),
                     &state.q,
-                ),
-                &state.q,
-            )
-        }
-    })
+                )
+            }
+        })
 }
 
 /// Function that calculates a participant's response that will be sent to the SA (main participant).
@@ -198,7 +197,6 @@ pub fn verify_participant(
     message: &str,
     response: &Message,
     challenge: &Integer,
-    signers_ids: &[Integer],
 ) -> bool {
     match (participant_commitment, response) {
         (
@@ -223,7 +221,7 @@ pub fn verify_participant(
             let to_validate = {
                 let exponent = modular::mul(
                     challenge.clone(),
-                    lagrange_coefficient(&state, &participant_id, &signers_ids),
+                    lagrange_coefficient(&state, &participant_id),
                     &state.q,
                 );
                 modular::mul(
@@ -239,7 +237,7 @@ pub fn verify_participant(
             );
             gz == to_validate
         }
-        _ => false,
+        _ => panic!("Failed to give the correct parameters."),
     }
 }
 

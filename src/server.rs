@@ -1,15 +1,13 @@
-use std::{collections::HashMap, error::Error, net::SocketAddr, sync::Arc};
-
+use crate::*;
 use futures::{SinkExt, StreamExt};
 use message::Message;
 use rand::Rng;
+use std::{collections::HashMap, error::Error, net::SocketAddr, sync::Arc};
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::{mpsc, Barrier, Mutex},
 };
 use tokio_util::codec::{Framed, LinesCodec};
-
-use crate::*;
 
 /// Shorthandle for the transmit half of the message channel.
 pub type Tx = mpsc::UnboundedSender<Message>;
@@ -65,6 +63,12 @@ impl FrostServer {
                 signature: _,
                 commitments: _,
                 participant_id: _,
+            }
+            | Message::PublicCommitment {
+                participant_id: _,
+                di: _,
+                ei: _,
+                public_share: _,
             } => {
                 self.broadcast(&participant.addr, msg).await;
             }
@@ -75,17 +79,11 @@ impl FrostServer {
             } => {
                 self.send_to(reciever_id.to_u32().unwrap(), msg).await; // Should not fail.
             }
-            Message::PublicCommitment {
-                participant_id: _,
-                di: _,
-                ei: _,
-                public_share: _,
-            }
-            | Message::Response {
+            Message::Response {
                 sender_id: _,
                 value: _,
             } => {
-                self.send_to(0, msg).await; // defaulted to 0 because SA should be the first one to enter. FIX LATER!
+                self.send_to(1, msg).await; // defaulted to 1 because SA should be the first one to enter. FIX LATER!
             }
             _ => return Err("Tried to send an invalid message".into()),
         }
@@ -268,7 +266,7 @@ pub mod sign_server {
         );
 
         let mut count: u32 = 0;
-        let barrier = Arc::new(Barrier::new((threshold + 1) as usize));
+        let barrier = Arc::new(Barrier::new(threshold as usize));
 
         while count < threshold {
             let (stream, addr) = listener.accept().await.unwrap();
@@ -283,15 +281,6 @@ pub mod sign_server {
             });
         }
 
-        // Send the frost state.
-        {
-            barrier.wait().await; // Block until all have joined.
-            let server = server.lock().await;
-            server.by_addr.values().into_iter().for_each(|tx| {
-                tx.send(server.state.clone().to_message()).unwrap();
-            });
-        }
-
-        Ok(())
+        loop {}
     }
 }

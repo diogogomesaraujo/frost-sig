@@ -26,6 +26,7 @@
 
 use message::Message;
 use rug::{rand::RandState, Integer};
+use serde::{Deserialize, Serialize};
 use sha256::digest;
 
 pub mod keygen;
@@ -82,6 +83,44 @@ impl FrostState {
             prime: self.prime,
             q: self.q,
             generator: self.generator,
+            participants: self.participants,
+            threshold: self.threshold,
+        }
+    }
+
+    pub fn to_json_string(&self) -> String {
+        let prime = self.prime.to_string_radix(RADIX);
+        let q = self.q.to_string_radix(RADIX);
+        let generator = self.generator.to_string_radix(RADIX);
+        let message = FrostStateJSON {
+            prime,
+            q,
+            generator,
+            participants: self.participants,
+            threshold: self.threshold,
+        };
+        serde_json::to_string(&message).unwrap()
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct FrostStateJSON {
+    pub prime: String,
+    pub q: String,
+    pub generator: String,
+    pub participants: u32,
+    pub threshold: u32,
+}
+
+impl FrostStateJSON {
+    pub fn from_json(&self) -> FrostState {
+        let prime = Integer::from_str_radix(&self.prime, RADIX).unwrap();
+        let q = Integer::from_str_radix(&self.q, RADIX).unwrap();
+        let generator = Integer::from_str_radix(&self.generator, RADIX).unwrap();
+        FrostState {
+            prime,
+            q,
+            generator,
             participants: self.participants,
             threshold: self.threshold,
         }

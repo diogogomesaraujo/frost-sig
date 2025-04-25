@@ -184,17 +184,15 @@ pub fn test_keygen() {
         public_share: public_share_2,
     };
 
-    let ids = [participant_1.id.clone(), participant_2.id.clone()];
-
     let (_group_commitment, challenge) = compute_group_commitment_and_challenge(
         &state,
-        &[public_commitment_1.clone(), public_commitment_2.clone()],
+        &[public_commitment_2.clone(), public_commitment_1.clone()],
         message,
         group_public_key_1.clone(),
     );
 
-    let lagrange_coefficient_1 = lagrange_coefficient(&state, &participant_1.id, &ids);
-    let lagrange_coefficient_2 = lagrange_coefficient(&state, &participant_2.id, &ids);
+    let lagrange_coefficient_1 = lagrange_coefficient(&state, &participant_1.id);
+    let lagrange_coefficient_2 = lagrange_coefficient(&state, &participant_2.id);
 
     let response_1 = compute_own_response(
         &state,
@@ -208,7 +206,7 @@ pub fn test_keygen() {
     );
     let response_2 = compute_own_response(
         &state,
-        participant_1.id.clone(),
+        participant_2.id.clone(),
         &public_commitment_2,
         &private_key_2,
         &participant_commitment_2.0,
@@ -223,10 +221,18 @@ pub fn test_keygen() {
         message,
         &response_1,
         &challenge,
-        &ids,
+    );
+
+    let verify_2 = verify_participant(
+        &state,
+        &public_commitment_2,
+        message,
+        &response_2,
+        &challenge,
     );
 
     assert!(verify_1);
+    assert!(verify_2);
 
     let aggregate_response = compute_aggregate_response(&state, &[response_1, response_2]);
     println!(
