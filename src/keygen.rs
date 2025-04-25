@@ -135,7 +135,7 @@ pub mod round_1 {
 
 /// The second round is responsible for generating partial signatures for every participant and aggregate them to form the group keys that will be used to sign transactions.
 pub mod round_2 {
-    use std::io::Error;
+    use std::error::Error;
 
     use super::Participant;
     use crate::{message::Message, modular, FrostState};
@@ -223,32 +223,30 @@ pub mod round_2 {
         state: &FrostState,
         own_secret_share: &Message,
         others_secret_shares: &[Message],
-    ) -> Result<Integer, Error> {
+    ) -> Result<Integer, Box<dyn Error>> {
         match own_secret_share {
             Message::SecretShare {
                 sender_id: _,
                 reciever_id: _,
                 secret,
             } => Ok(modular::add(
-                others_secret_shares
-                    .iter()
-                    .fold(Integer::from(0), |acc, pc| match pc {
-                        Message::SecretShare {
-                            sender_id: _,
-                            reciever_id: _,
-                            secret,
-                        } => modular::add(acc, secret.clone(), &state.q),
-                        _ => {
-                            panic!("Message was not of the desired type.")
+                others_secret_shares.iter().try_fold(
+                    Integer::from(0),
+                    |acc, pc| -> Result<_, Box<dyn std::error::Error>> {
+                        match pc {
+                            Message::SecretShare {
+                                sender_id: _,
+                                reciever_id: _,
+                                secret,
+                            } => Ok(modular::add(acc, secret.clone(), &state.q)),
+                            _ => Err("Message was not of the desired type.".into()),
                         }
-                    }),
+                    },
+                )?,
                 secret.clone(),
                 &state.q,
             )),
-            _ => Err(Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Message is not a secret share",
-            )),
+            _ => Err("Own message is not a secret share".into()),
         }
     }
 
@@ -261,18 +259,16 @@ pub mod round_2 {
     pub fn compute_group_public_key(
         state: &FrostState,
         participants_broadcasts: &[Message],
-    ) -> Integer {
+    ) -> Result<Integer, Box<dyn Error>> {
         participants_broadcasts
             .iter()
-            .fold(Integer::from(1), |acc, pb| match pb {
+            .try_fold(Integer::from(1), |acc, pb| match pb {
                 Message::Broadcast {
                     participant_id: _,
                     commitments,
                     signature: _,
-                } => modular::mul(commitments[0].clone(), acc, &state.prime),
-                _ => {
-                    panic!("Message was not of the desired type.")
-                }
+                } => Ok(modular::mul(commitments[0].clone(), acc, &state.prime)),
+                _ => Err("Message was not of the desired type.".into()),
             })
     }
 
@@ -281,7 +277,7 @@ pub mod round_2 {
         state: &FrostState,
         participant: &Participant,
         participant_broadcast: &Message,
-    ) -> Result<Integer, Error> {
+    ) -> Result<Integer, Box<dyn Error>> {
         match participant_broadcast {
             Message::Broadcast {
                 participant_id: _,
@@ -301,10 +297,7 @@ pub mod round_2 {
                         &state.prime,
                     )
                 })),
-            _ => Err(Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Message is not a participant broadcast",
-            )),
+            _ => Err("Message is not a participant broadcast".into()),
         }
     }
 

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::RADIX;
 
 /// Enum that represents all the messages that will be sent during the FROST protocol operations.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Message {
     /// Message utilized during the keygen round 1 phase.
     /// It represents the commitments and signature used to validate a user and create the aggregate public key.

@@ -1,3 +1,5 @@
+use std::error::Error;
+
 use crate::*;
 use keygen::*;
 use message::Message;
@@ -7,7 +9,7 @@ use rug::{rand::RandState, Integer};
 use sign::*;
 
 #[test]
-pub fn test_keygen() {
+pub fn test_keygen() -> Result<(), Box<dyn Error>> {
     let seed: i32 = rand::rng().random();
     let mut rnd = RandState::new();
     rnd.seed(&rug::Integer::from(seed));
@@ -153,7 +155,7 @@ pub fn test_keygen() {
             participant_broadcast_2.clone(),
             participant_broadcast_3.clone(),
         ],
-    );
+    )?;
 
     println!(
         "The generated group public key is:                   {}.",
@@ -189,7 +191,7 @@ pub fn test_keygen() {
         &[public_commitment_2.clone(), public_commitment_1.clone()],
         message,
         group_public_key_1.clone(),
-    );
+    )?;
 
     let lagrange_coefficient_1 = lagrange_coefficient(&state, &participant_1.id);
     let lagrange_coefficient_2 = lagrange_coefficient(&state, &participant_2.id);
@@ -203,7 +205,7 @@ pub fn test_keygen() {
         &lagrange_coefficient_1,
         &challenge,
         &message,
-    );
+    )?;
     let response_2 = compute_own_response(
         &state,
         participant_2.id.clone(),
@@ -213,7 +215,7 @@ pub fn test_keygen() {
         &lagrange_coefficient_2,
         &challenge,
         &message,
-    );
+    )?;
 
     let verify_1 = verify_participant(
         &state,
@@ -221,7 +223,7 @@ pub fn test_keygen() {
         message,
         &response_1,
         &challenge,
-    );
+    )?;
 
     let verify_2 = verify_participant(
         &state,
@@ -229,16 +231,18 @@ pub fn test_keygen() {
         message,
         &response_2,
         &challenge,
-    );
+    )?;
 
     assert!(verify_1);
     assert!(verify_2);
 
-    let aggregate_response = compute_aggregate_response(&state, &[response_1, response_2]);
+    let aggregate_response = compute_aggregate_response(&state, &[response_1, response_2])?;
     println!(
         "The group {} computed this response {} with this message \"{}\".",
         group_public_key_1.to_string_radix(32),
         aggregate_response.to_string_radix(32),
         message
     );
+
+    Ok(())
 }

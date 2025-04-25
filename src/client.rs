@@ -319,7 +319,7 @@ pub mod keygen_client {
             }
 
             let aggregated_public_key =
-                round_2::compute_group_public_key(&client.state, &broadcasts);
+                round_2::compute_group_public_key(&client.state, &broadcasts)?;
 
             logging::print(
                 format!(
@@ -362,7 +362,7 @@ pub mod sign_client {
     use futures::SinkExt;
     use rand::Rng;
     use rug::{rand::RandState, Integer};
-    use std::error::Error;
+    use std::{collections::HashSet, error::Error};
     use tokio_util::codec::{Framed, LinesCodec};
 
     pub async fn run(ip: &str, port: u32, path: &str) -> Result<(), Box<dyn Error>> {
@@ -406,28 +406,33 @@ pub mod sign_client {
             participant_id: own_id.clone(),
             di: nonces_and_commitments.1 .0.clone(),
             ei: nonces_and_commitments.1 .1.clone(),
-            public_share: sign_input.own_public_share,
+            public_share: sign_input.own_public_share.clone(),
         };
 
         lines.send(own_public_commitment.to_json_string()).await?;
 
         // recieving others commitments
         let public_commitments = {
-            let mut others_public_commitments = vec![own_public_commitment.clone()];
+            let mut seen = HashSet::new();
+            seen.insert(sign_input.own_public_share);
+            let mut public_commitments = vec![own_public_commitment.clone()];
             for _i in 1..(client.state.threshold) {
                 let message = recieve_message(&mut lines).await?;
-                match message {
+                match &message {
                     Message::PublicCommitment {
                         participant_id: _,
                         di: _,
                         ei: _,
-                        public_share: _,
-                    } => others_public_commitments.push(message),
+                        public_share,
+                    } => match seen.insert(public_share.clone()) {
+                        true => public_commitments.push(message.clone()),
+                        false => return Err("Multiple instances of the same participant tried to sign the operation.".into())
+                    },
                     _ => return Err("Couldn't parse the message.".into()),
                 }
             }
 
-            others_public_commitments
+            public_commitments
         };
 
         let (_group_commitment, challenge) = compute_group_commitment_and_challenge(
@@ -435,7 +440,7 @@ pub mod sign_client {
             &public_commitments,
             &sign_input.message,
             sign_input.public_aggregated_key.clone(),
-        );
+        )?;
 
         let lagrange_coefficient = lagrange_coefficient(&client.state, &own_id);
 
@@ -448,18 +453,7 @@ pub mod sign_client {
             &lagrange_coefficient,
             &challenge,
             &sign_input.message,
-        );
-
-        assert!(
-            verify_participant(
-                &client.state,
-                &own_public_commitment,
-                &sign_input.message,
-                &own_response,
-                &challenge
-            ),
-            "merda"
-        );
+        )?;
 
         match client.own_id {
             // if the participant is the SA.
@@ -479,38 +473,43 @@ pub mod sign_client {
                     responses
                 };
 
-                responses.iter().for_each(|r| match r {
-                    Message::Response {
-                        sender_id,
-                        value: _,
-                    } => {
-                        let participant_commitment = public_commitments
-                            .iter()
-                            .find(|pc| match pc {
-                                Message::PublicCommitment {
-                                    participant_id,
-                                    di: _,
-                                    ei: _,
-                                    public_share: _,
-                                } => participant_id == sender_id,
-                                _ => false,
-                            })
-                            .expect("Couldn't get participant's id.");
+                responses
+                    .iter()
+                    .try_for_each(|r| -> Result<(), Box<dyn Error>> {
+                        match r {
+                            Message::Response {
+                                sender_id,
+                                value: _,
+                            } => {
+                                let participant_commitment = public_commitments
+                                    .iter()
+                                    .find(|pc| match pc {
+                                        Message::PublicCommitment {
+                                            participant_id,
+                                            di: _,
+                                            ei: _,
+                                            public_share: _,
+                                        } => participant_id == sender_id,
+                                        _ => false,
+                                    })
+                                    .expect("Couldn't get participant's id.");
 
-                        let verify = verify_participant(
-                            &client.state,
-                            &participant_commitment,
-                            &sign_input.message,
-                            &r,
-                            &challenge,
-                        );
+                                let verify = verify_participant(
+                                    &client.state,
+                                    &participant_commitment,
+                                    &sign_input.message,
+                                    &r,
+                                    &challenge,
+                                )?;
 
-                        assert!(verify);
-                    }
-                    _ => panic!("Couldn't parse message."),
-                });
+                                assert!(verify);
+                                Ok(())
+                            }
+                            _ => return Err("Couldn't parse message.".into()),
+                        }
+                    })?;
 
-                let aggregate_response = compute_aggregate_response(&client.state, &responses);
+                let aggregate_response = compute_aggregate_response(&client.state, &responses)?;
 
                 logging::print(&format!(
                     "The group {} computed this response {} with this message \"{}\".",

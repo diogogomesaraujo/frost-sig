@@ -64,6 +64,8 @@
 //!
 //! See the [resources](https://eprint.iacr.org/2020/852.pdf) here.
 
+use std::error::Error;
+
 use crate::{hash, message::Message, modular, FrostState};
 use rand::Rng;
 use rug::{integer::Order, Integer};
@@ -75,14 +77,14 @@ pub fn compute_binding_value(
     state: &FrostState,
     participant_commitment: &Message,
     message: &str,
-) -> Integer {
+) -> Result<Integer, Box<dyn Error>> {
     match participant_commitment {
         Message::PublicCommitment {
             participant_id,
             di,
             ei,
             public_share,
-        } => hash(
+        } => Ok(hash(
             &[
                 participant_id.clone(),
                 Integer::from_digits(message.as_bytes(), Order::MsfBe),
@@ -91,10 +93,8 @@ pub fn compute_binding_value(
                 public_share.clone(),
             ],
             &state.q,
-        ),
-        _ => {
-            panic!("Message was not of the desired type.")
-        }
+        )),
+        _ => Err("Message was not of the desired type.".into()),
     }
 }
 
@@ -104,34 +104,34 @@ pub fn compute_group_commitment_and_challenge(
     participants_commitments: &[Message],
     message: &str,
     group_public_key: Integer,
-) -> (Integer, Integer) {
-    let group_commitment =
-        participants_commitments
-            .iter()
-            .fold(Integer::from(1), |acc, pc| match pc {
+) -> Result<(Integer, Integer), Box<dyn Error>> {
+    let group_commitment = participants_commitments.iter().try_fold(
+        Integer::from(1),
+        |acc, pc| -> Result<Integer, Box<dyn Error>> {
+            match pc {
                 Message::PublicCommitment {
                     participant_id: _,
                     di,
                     ei,
                     public_share: _,
-                } => {
-                    let binding_value = compute_binding_value(&state, &pc, &message);
+                } => Ok({
+                    let binding_value = compute_binding_value(&state, &pc, &message)?;
                     modular::mul(
                         modular::mul(acc.clone(), di.clone(), &state.prime),
                         modular::pow(&ei, &binding_value, &state.prime),
                         &state.prime,
                     )
-                }
-                _ => {
-                    panic!("Message was not of the desired type.")
-                }
-            });
+                }),
+                _ => Err("Message was not of the desired type.".into()),
+            }
+        },
+    )?;
     let message = Integer::from_digits(message.as_bytes(), Order::MsfBe);
     let challenge = hash(
         &[group_commitment.clone(), group_public_key, message],
         &state.q,
     );
-    (group_commitment, challenge)
+    Ok((group_commitment, challenge))
 }
 
 /// Function that calculates the lagrange_coefficient of a participant.
@@ -168,11 +168,11 @@ pub fn compute_own_response(
     lagrange_coefficient: &Integer,
     challenge: &Integer,
     message: &str,
-) -> Message {
-    let binding_value = compute_binding_value(&state, &participant_commitment, &message);
+) -> Result<Message, Box<dyn Error>> {
+    let binding_value = compute_binding_value(&state, &participant_commitment, &message)?;
     let (di, ei) = private_nonces;
 
-    Message::Response {
+    Ok(Message::Response {
         sender_id: participant_id,
         value: modular::add(
             di.clone(),
@@ -187,7 +187,7 @@ pub fn compute_own_response(
             ),
             &state.q,
         ),
-    }
+    })
 }
 
 /// Function that verifies if a participant is malicious or not by analysing the commitments other's sent.
@@ -197,7 +197,7 @@ pub fn verify_participant(
     message: &str,
     response: &Message,
     challenge: &Integer,
-) -> bool {
+) -> Result<bool, Box<dyn Error>> {
     match (participant_commitment, response) {
         (
             Message::PublicCommitment {
@@ -212,7 +212,7 @@ pub fn verify_participant(
             },
         ) => {
             let gz: Integer = modular::pow(&state.generator, &value, &state.prime);
-            let binding_value = compute_binding_value(&state, &participant_commitment, &message);
+            let binding_value = compute_binding_value(&state, &participant_commitment, &message)?;
             let ri = modular::mul(
                 di.clone(),
                 modular::pow(&ei, &binding_value, &state.prime),
@@ -235,9 +235,9 @@ pub fn verify_participant(
                 "Failed to validate participant {}.",
                 participant_id
             );
-            gz == to_validate
+            Ok(gz == to_validate)
         }
-        _ => panic!("Failed to give the correct parameters."),
+        _ => Err("Failed to give the correct parameters.".into()),
     }
 }
 
@@ -245,16 +245,14 @@ pub fn verify_participant(
 pub fn compute_aggregate_response(
     state: &FrostState,
     participants_responses: &[Message],
-) -> Integer {
+) -> Result<Integer, Box<dyn Error>> {
     participants_responses
         .iter()
-        .fold(Integer::from(0), |acc, pr| match pr {
+        .try_fold(Integer::from(0), |acc, pr| match pr {
             Message::Response {
                 sender_id: _,
                 value,
-            } => modular::add(acc, value.clone(), &state.q),
-            _ => {
-                panic!("Message was not of the desired type.")
-            }
+            } => Ok(modular::add(acc, value.clone(), &state.q)),
+            _ => Err("Message was not of the desired type.".into()),
         })
 }

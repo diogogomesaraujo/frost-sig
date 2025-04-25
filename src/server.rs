@@ -179,7 +179,7 @@ pub mod keygen_server {
         threshold: u32,
     ) -> Result<(), Box<dyn Error>> {
         let address = format!("{}:{}", ip, port);
-        let listener = TcpListener::bind(&address).await.unwrap();
+        let listener = TcpListener::bind(&address).await?;
 
         let seed: i32 = rand::rng().random();
         let mut rnd = RandState::new();
@@ -242,7 +242,7 @@ pub mod sign_server {
         threshold: u32,
     ) -> Result<(), Box<dyn Error>> {
         let address = format!("{}:{}", ip, port);
-        let listener = TcpListener::bind(&address).await.unwrap();
+        let listener = TcpListener::bind(&address).await?;
 
         let seed: i32 = rand::rng().random();
         let mut rnd = RandState::new();
@@ -269,7 +269,7 @@ pub mod sign_server {
         let barrier = Arc::new(Barrier::new(threshold as usize));
 
         while count < threshold {
-            let (stream, addr) = listener.accept().await.unwrap();
+            let (stream, addr) = listener.accept().await?;
             count += 1;
 
             let server = server.clone();
