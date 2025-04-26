@@ -22,7 +22,7 @@
   - Cargo installed
 
   ## Example
-  ```
+  ```Rust
   use frost_sig::*;
   use rand::Rng;
   use rug::rand::RandState;
