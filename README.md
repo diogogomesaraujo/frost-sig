@@ -14,8 +14,8 @@
   - `rug` is a arbitrary precision numbers crate and provides infrastructure for the 256bit numbers and calculations.
   - `rand` is a random number generation crate and it is used to generate a random seed for the 256bit numbers generation.
   - `sha-256` is an implementation of SHA-256 and it is the predefined hashing algorythm for the threshold signature system.
-  - `tokio` an async runtime for Rust.
-  - `serde` a crate to serialize and deserialize JSON.
+  - `tokio` is an async runtime for Rust.
+  - `serde` is a crate to serialize and deserialize JSON.
 
   ## Requirements
 
