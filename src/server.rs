@@ -217,10 +217,9 @@ pub mod keygen_server {
             threshold,
         )));
 
-        logging::print("Keygen initialized.");
         logging::print(
             format!(
-                "Running on {}{}{}",
+                "Keygen initialized on {}{}{}.",
                 logging::YELLOW,
                 address,
                 logging::RESET
@@ -242,7 +241,7 @@ pub mod keygen_server {
 
             // handle the participant in an isolated async thread
             tokio::spawn(async move {
-                logging::print("Accepted connection.");
+                logging::print("Accepted a connection.");
                 handle(count, barrier, server, stream, addr).await.unwrap();
             });
         }
@@ -262,6 +261,7 @@ pub mod keygen_server {
 
         // wait before closing the socket for messages that may be left unsent
         sleep(Duration::from_secs(1)).await;
+        logging::print("Successfully generated the key.");
         Ok(())
     }
 }
@@ -295,10 +295,9 @@ pub mod sign_server {
             threshold,
         )));
 
-        logging::print("Sign initialized.");
         logging::print(
             format!(
-                "Running on {}{}{}",
+                "Sign initialized on {}{}{}.",
                 logging::YELLOW,
                 address,
                 logging::RESET
@@ -320,13 +319,14 @@ pub mod sign_server {
 
             // handle participant's messages in an isolated async thread
             tokio::spawn(async move {
-                logging::print("Accepted connection.");
+                logging::print("Accepted a connection.");
                 handle(count, barrier, server, stream, addr).await.unwrap();
             });
         }
 
         // wait before closing the socket for messages that may be left unsent
         sleep(Duration::from_secs(1)).await;
+        logging::print("Successfully signed the message.");
         Ok(())
     }
 }

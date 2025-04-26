@@ -148,7 +148,7 @@ pub mod keygen_client {
     use crate::{
         keygen::{self, round_1, round_2},
         message::Message,
-        FrostState, RADIX,
+        FrostState,
     };
     use futures::SinkExt;
     use rand::Rng;
@@ -163,6 +163,8 @@ pub mod keygen_client {
         let address = format!("{}:{}", ip, port);
         let stream = TcpStream::connect(address).await?;
         let mut lines = Framed::new(stream, LinesCodec::new());
+
+        logging::print("Connected to the server successfully.");
 
         // init client
         let client = {
@@ -320,29 +322,9 @@ pub mod keygen_client {
             let private_key =
                 round_2::compute_private_key(&client.state, &own_share, &secret_shares)?;
 
-            logging::print(
-                format!(
-                    "This is your {}private key share{}: {}.",
-                    logging::YELLOW,
-                    logging::RESET,
-                    private_key.to_string_radix(RADIX),
-                )
-                .as_str(),
-            );
-
             // compute own public key share from the private key.
             let own_public_key_share =
                 round_2::compute_own_verification_share(&client.state, &private_key);
-
-            logging::print(
-                format!(
-                    "This is your {}public key share{}: {}",
-                    logging::YELLOW,
-                    logging::RESET,
-                    own_public_key_share.to_string_radix(RADIX),
-                )
-                .as_str(),
-            );
 
             let broadcasts = {
                 let mut temp = broadcasts;
@@ -379,10 +361,10 @@ pub mod keygen_client {
 
             logging::print(
                 format!(
-                    "This is the {}group public key{}: {}.",
+                    "The keygen process information was stored in {}{}{}.",
                     logging::YELLOW,
+                    path,
                     logging::RESET,
-                    aggregated_public_key.to_string_radix(RADIX),
                 )
                 .as_str(),
             );
@@ -578,10 +560,16 @@ pub mod sign_client {
 
                 // print aggregated response
                 logging::print(&format!(
-                    "The group {} computed this response {} with this message \"{}\".",
+                    "The group {}{}{} computed this response {}{}{} with this message {}\"{}\"{}.",
+                    logging::YELLOW,
                     sign_input.public_aggregated_key.to_string_radix(32),
+                    logging::RESET,
+                    logging::YELLOW,
                     aggregate_response.to_string_radix(32),
-                    sign_input.message
+                    logging::RESET,
+                    logging::YELLOW,
+                    sign_input.message,
+                    logging::RESET,
                 ));
             }
             // if the participant is not the SA
