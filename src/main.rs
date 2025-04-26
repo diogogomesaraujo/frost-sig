@@ -1,8 +1,7 @@
-use std::error::Error;
-
 use frost_sig::*;
 use rand::Rng;
 use rug::rand::RandState;
+use std::error::Error;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {

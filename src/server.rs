@@ -1,3 +1,15 @@
+//! Implementation of servers for FROST keygen and signing protocols.
+//!
+//! # Dependencies
+//!
+//! - `rug` is a arbitrary precision numbers crate and provides infrastructure for the 256bit numbers and calculations.
+//! - `rand` is a random number generation crate and it is used to generate a random seed for the 256bit numbers generation.
+//! - `tokio` is an async runtime for Rust.
+//!
+//! # Features
+//!
+//! - Keygen and sign CLI servers.
+
 use crate::*;
 use futures::{SinkExt, StreamExt};
 use message::Message;
@@ -93,9 +105,14 @@ impl FrostServer {
 
 /// Struct that represents the participants from the server's view.
 pub struct Participant {
+    /// Id of the participant inside a specific operation.
+    /// It is dynamically assigned as participants join the server.
     pub id: u32,
+    /// Recieve half of the participant's message channel.
     pub reciever: Rx,
+    /// Send half of the participant's message channel.
     pub sender: Tx,
+    /// Participant's address inside the server's socket.
     pub addr: SocketAddr,
 }
 
@@ -117,6 +134,7 @@ pub mod logging {
     pub const BLUE: &str = "\x1b[34m";
     pub const RESET: &str = "\x1b[0m";
 
+    /// Function that logs messages on to the terminal.
     pub fn print(message: &str) {
         println!("{}Frost Server:{} {}", BLUE, RESET, message);
     }
@@ -130,26 +148,29 @@ pub async fn handle(
     stream: TcpStream,
     addr: SocketAddr,
 ) -> Result<(), Box<dyn Error>> {
+    // init message channel
     let lines = Framed::new(stream, LinesCodec::new());
     let (mut writer, mut reader) = lines.split();
-
     let (tx, rx) = mpsc::unbounded_channel::<Message>();
 
+    // add participant to the server
     {
         let mut server = server.lock().await;
         server.by_id.insert(id, tx.clone());
         server.by_addr.insert(addr, tx.clone());
     }
-
     let mut participant = Participant::new(id, rx, tx, addr);
 
+    // send the assigned id to the participant
     participant
         .sender
         .send(Message::Id(participant.id.clone()))
         .unwrap();
 
-    barrier.wait().await; // Wait for all participants to join.
+    // wait for all participants to join
+    barrier.wait().await;
 
+    // handle all incoming and and outgoing messages
     loop {
         tokio::select! {
             Some(msg) = participant.reciever.recv() => {
@@ -168,8 +189,10 @@ pub async fn handle(
 
 /// Module that handles server operations in relation to the FROST keygen process.
 pub mod keygen_server {
+    use std::time::Duration;
+
     use super::*;
-    use tokio::sync::Barrier;
+    use tokio::{sync::Barrier, time::sleep};
 
     /// Function that runs the keygen process server.
     pub async fn run(
@@ -178,13 +201,16 @@ pub mod keygen_server {
         participants: u32,
         threshold: u32,
     ) -> Result<(), Box<dyn Error>> {
+        // init the socket
         let address = format!("{}:{}", ip, port);
         let listener = TcpListener::bind(&address).await?;
 
+        // init the random state
         let seed: i32 = rand::rng().random();
         let mut rnd = RandState::new();
         rnd.seed(&rug::Integer::from(seed));
 
+        // create the server instance
         let server = Arc::new(Mutex::new(FrostServer::new(
             &mut rnd,
             participants,
@@ -202,16 +228,19 @@ pub mod keygen_server {
             .as_str(),
         );
 
+        // init id count and joining participants barrier
         let mut count: u32 = 0;
         let barrier = Arc::new(Barrier::new((participants + 1) as usize));
 
         while count < participants {
+            // accept the participant's connection
             let (stream, addr) = listener.accept().await.unwrap();
             count += 1;
 
             let server = server.clone();
             let barrier = barrier.clone();
 
+            // handle the participant in an isolated async thread
             tokio::spawn(async move {
                 logging::print("Accepted connection.");
                 handle(count, barrier, server, stream, addr).await.unwrap();
@@ -220,34 +249,46 @@ pub mod keygen_server {
 
         // Send the frost state.
         {
-            barrier.wait().await; // Block until all have joined.
+            // Block until all have joined.
+            barrier.wait().await;
+
             let server = server.lock().await;
+
+            // send the shared `FrostState` to the participant
             server.by_addr.values().into_iter().for_each(|tx| {
                 tx.send(server.state.clone().to_message()).unwrap();
             });
         }
 
-        loop {}
+        // wait before closing the socket for messages that may be left unsent
+        sleep(Duration::from_secs(1)).await;
+        Ok(())
     }
 }
 
+/// Module that handles server operations in relation to the FROST sign process.
 pub mod sign_server {
     use super::*;
-    use tokio::sync::Barrier;
+    use std::time::Duration;
+    use tokio::{sync::Barrier, time::sleep};
 
+    /// Function that runs the sign process server.
     pub async fn run(
         ip: &str,
         port: u32,
         participants: u32,
         threshold: u32,
     ) -> Result<(), Box<dyn Error>> {
+        // init the socket
         let address = format!("{}:{}", ip, port);
         let listener = TcpListener::bind(&address).await?;
 
+        // init random state
         let seed: i32 = rand::rng().random();
         let mut rnd = RandState::new();
         rnd.seed(&rug::Integer::from(seed));
 
+        // create server instance
         let server = Arc::new(Mutex::new(FrostServer::new(
             &mut rnd,
             participants,
@@ -265,22 +306,27 @@ pub mod sign_server {
             .as_str(),
         );
 
+        // init id count and joining participants barrier
         let mut count: u32 = 0;
         let barrier = Arc::new(Barrier::new(threshold as usize));
 
         while count < threshold {
+            // accept participant connection
             let (stream, addr) = listener.accept().await?;
             count += 1;
 
             let server = server.clone();
             let barrier = barrier.clone();
 
+            // handle participant's messages in an isolated async thread
             tokio::spawn(async move {
                 logging::print("Accepted connection.");
                 handle(count, barrier, server, stream, addr).await.unwrap();
             });
         }
 
-        loop {}
+        // wait before closing the socket for messages that may be left unsent
+        sleep(Duration::from_secs(1)).await;
+        Ok(())
     }
 }

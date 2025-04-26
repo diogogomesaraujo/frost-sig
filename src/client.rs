@@ -1,3 +1,16 @@
+//! Implementation of clients for FROST keygen and signing protocols.
+//!
+//! # Dependencies
+//!
+//! - `rug` is a arbitrary precision numbers crate and provides infrastructure for the 256bit numbers and calculations.
+//! - `rand` is a random number generation crate and it is used to generate a random seed for the 256bit numbers generation.
+//! - `serde` is a crate to serialize and deserialize JSON.
+//! - `tokio` is an async runtime for Rust.
+//!
+//! # Features
+//!
+//! - Keygen and sign CLI clients.
+
 use crate::{message::Message, FrostState, FrostStateJSON, RADIX};
 use rug::Integer;
 use serde::{Deserialize, Serialize};
@@ -10,18 +23,23 @@ use tokio::{
 use tokio_stream::StreamExt;
 use tokio_util::codec::{Framed, LinesCodec};
 
+/// Struct that holds the state for the FROST operations and the id of the participant.
 #[derive(Debug)]
 pub struct FrostClient {
+    /// State that holds all the constants needed for the FROST computation.
     pub state: FrostState,
+    /// Id of the participant using the client.
     pub own_id: u32,
 }
 
 impl FrostClient {
+    /// Function that creates a new `FrostClient`.
     pub fn new(state: FrostState, own_id: u32) -> Self {
         Self { state, own_id }
     }
 }
 
+/// Function that recieves a `Message` of any type.
 pub async fn recieve_message(
     lines: &mut Framed<TcpStream, LinesCodec>,
 ) -> Result<Message, Box<dyn Error>> {
@@ -35,21 +53,30 @@ pub mod logging {
     pub const YELLOW: &str = "\x1b[33m";
     pub const RESET: &str = "\x1b[0m";
 
+    /// Function that logs messages on to the terminal.
     pub fn print(message: &str) {
         println!("{}Frost Client:{} {}", BLUE, RESET, message);
     }
 }
 
+/// Struct that has the information retrieved from the JSON file needed for the signing process.
+/// It is created during the keygen phase but you need to update the message before signing.
 #[derive(Debug)]
 pub struct SignInput {
+    /// State that holds all the constants needed for the FROST computations.
     state: FrostState,
+    /// Aggregated public key shared by the group.
     public_aggregated_key: Integer,
+    /// Public key that identifies the participant within' the group.
     own_public_share: Integer,
+    /// Private key that is needed for a participant to sign a transaction.
     own_private_share: Integer,
+    /// Message being signed.
     message: String,
 }
 
 impl SignInput {
+    /// Function that creates a `SignInput` from the file at the given path.
     pub async fn from_file(path: &str) -> Result<SignInput, Box<dyn Error>> {
         let file = File::open(path).await?;
 
@@ -78,6 +105,7 @@ impl SignInput {
         }
     }
 
+    /// Function that writes a Sign Input to a file.
     pub async fn to_file(&self, path: &str) -> Result<(), Box<dyn Error>> {
         let write_to_file = SignInputJSON {
             state: FrostStateJSON {
@@ -99,15 +127,22 @@ impl SignInput {
     }
 }
 
+/// Struct that represents the middle-man between the sign input file and the `SignInput`.
 #[derive(Serialize, Deserialize)]
 pub struct SignInputJSON {
+    /// State that holds all the constants needed for the FROST computations.
     state: FrostStateJSON,
+    /// Aggregated public key shared by the group.
     public_aggregated_key: String,
+    /// Public key that identifies the participant within' the group.
     own_public_share: String,
+    /// Private key that is needed for a participant to sign a transaction.
     own_private_share: String,
+    /// Message being signed.
     message: String,
 }
 
+/// Module that has the functions needed to run the client used for key generation.
 pub mod keygen_client {
     use super::{logging, recieve_message, FrostClient, SignInput};
     use crate::{
@@ -122,6 +157,7 @@ pub mod keygen_client {
     use tokio::net::TcpStream;
     use tokio_util::codec::{Framed, LinesCodec};
 
+    /// Function that runs the keygen client.
     pub async fn run(ip: &str, port: u32, path: &str) -> Result<(), Box<dyn Error>> {
         // connect
         let address = format!("{}:{}", ip, port);
@@ -130,6 +166,7 @@ pub mod keygen_client {
 
         // init client
         let client = {
+            // get id from the server
             let id = {
                 match recieve_message(&mut lines).await? {
                     Message::Id(id) => id,
@@ -137,6 +174,7 @@ pub mod keygen_client {
                 }
             };
 
+            // get state from the server
             let state = {
                 match recieve_message(&mut lines).await? {
                     Message::FrostState {
@@ -169,22 +207,31 @@ pub mod keygen_client {
 
         // execute round 1
         let (own_broadcast, broadcasts, participant_self) = {
+            // generate the secret polynomial
             let polynomial = keygen::round_1::generate_polynomial(&client.state, &mut rnd);
 
+            // initiate the participant used for the keygen
             let participant_self =
                 keygen::Participant::new(Integer::from(client.own_id), polynomial);
 
+            // compute signature
             let signature =
                 round_1::compute_proof_of_knowlodge(&client.state, &mut rnd, &participant_self);
+
+            // compute commitments
             let commitments = round_1::compute_public_commitments(&client.state, &participant_self);
 
+            // generate broadcast message
             let own_broadcast = Message::Broadcast {
                 participant_id: participant_self.id.clone(),
                 commitments,
                 signature,
             };
+
+            // send broadcast message
             lines.send(own_broadcast.to_json_string()).await?;
 
+            // get other participants' broadcast messages
             let broadcasts = {
                 let mut broadcasts = vec![];
                 for _i in 1..(client.state.participants) {
@@ -201,6 +248,7 @@ pub mod keygen_client {
                 broadcasts
             };
 
+            // verify other participants' broadcast messages
             assert!(round_1::verify_proofs(&client.state, &broadcasts));
 
             (own_broadcast, broadcasts, participant_self)
@@ -208,8 +256,10 @@ pub mod keygen_client {
 
         // execute round 2
         let (own_public_key, aggregate_public_key, private_key_share) = {
+            // compute own secret share
             let own_share = round_2::create_own_secret_share(&client.state, &participant_self);
 
+            // create and send secret shares for all other participants
             for i in 1..=client.state.participants {
                 if i != participant_self.id {
                     let share_to_send = round_2::create_share_for(
@@ -221,6 +271,7 @@ pub mod keygen_client {
                 }
             }
 
+            // get secret shares sent by other participants
             let secret_shares = {
                 let mut secret_shares = vec![];
                 for _i in 1..(client.state.participants) {
@@ -237,6 +288,7 @@ pub mod keygen_client {
                 secret_shares
             };
 
+            // verify other participants' secret shares
             secret_shares.iter().for_each(|s| {
                 let broadcast = broadcasts
                     .iter()
@@ -264,6 +316,7 @@ pub mod keygen_client {
                 ))
             });
 
+            // compute private key share with the secret shares
             let private_key =
                 round_2::compute_private_key(&client.state, &own_share, &secret_shares)?;
 
@@ -277,6 +330,7 @@ pub mod keygen_client {
                 .as_str(),
             );
 
+            // compute own public key share from the private key.
             let own_public_key_share =
                 round_2::compute_own_verification_share(&client.state, &private_key);
 
@@ -296,6 +350,7 @@ pub mod keygen_client {
                 temp
             };
 
+            // verify others' public key shares
             {
                 let verification_shares: Vec<Integer> = broadcasts
                     .iter()
@@ -318,6 +373,7 @@ pub mod keygen_client {
                 )
             }
 
+            // compute aggregated public key from the broadcast messages
             let aggregated_public_key =
                 round_2::compute_group_public_key(&client.state, &broadcasts)?;
 
@@ -334,6 +390,7 @@ pub mod keygen_client {
             (own_public_key_share, aggregated_public_key, private_key)
         };
 
+        // write the shared and private information to a file
         {
             let sign_input = SignInput {
                 state: client.state,
@@ -349,7 +406,9 @@ pub mod keygen_client {
     }
 }
 
+/// Module that has the functions needed to run the client used for signing.
 pub mod sign_client {
+    use super::*;
     use crate::{
         preprocess::generate_nonces_and_commitments,
         sign::{
@@ -357,14 +416,13 @@ pub mod sign_client {
             compute_own_response, lagrange_coefficient, verify_participant,
         },
     };
-
-    use super::*;
     use futures::SinkExt;
     use rand::Rng;
     use rug::{rand::RandState, Integer};
     use std::{collections::HashSet, error::Error};
     use tokio_util::codec::{Framed, LinesCodec};
 
+    /// Function that runs the sign client.
     pub async fn run(ip: &str, port: u32, path: &str) -> Result<(), Box<dyn Error>> {
         // wallet and participant info needed from file
         let sign_input = SignInput::from_file(path).await?;
@@ -409,6 +467,7 @@ pub mod sign_client {
             public_share: sign_input.own_public_share.clone(),
         };
 
+        // send public commitment
         lines.send(own_public_commitment.to_json_string()).await?;
 
         // recieving others commitments
@@ -435,6 +494,7 @@ pub mod sign_client {
             public_commitments
         };
 
+        // compute group commitment and challenge
         let (_group_commitment, challenge) = compute_group_commitment_and_challenge(
             &client.state,
             &public_commitments,
@@ -442,8 +502,10 @@ pub mod sign_client {
             sign_input.public_aggregated_key.clone(),
         )?;
 
+        // compute the lagrange coefficient
         let lagrange_coefficient = lagrange_coefficient(&client.state, &own_id);
 
+        // compute the response
         let own_response = compute_own_response(
             &client.state,
             own_id.clone(),
@@ -456,8 +518,9 @@ pub mod sign_client {
         )?;
 
         match client.own_id {
-            // if the participant is the SA.
+            // if the participant is the SA
             1 => {
+                // collect other participants' responses
                 let responses = {
                     let mut responses = vec![own_response];
                     for _i in 1..(client.state.threshold) {
@@ -473,6 +536,7 @@ pub mod sign_client {
                     responses
                 };
 
+                // verify responses
                 responses
                     .iter()
                     .try_for_each(|r| -> Result<(), Box<dyn Error>> {
@@ -509,8 +573,10 @@ pub mod sign_client {
                         }
                     })?;
 
+                // compute aggregated response
                 let aggregate_response = compute_aggregate_response(&client.state, &responses)?;
 
+                // print aggregated response
                 logging::print(&format!(
                     "The group {} computed this response {} with this message \"{}\".",
                     sign_input.public_aggregated_key.to_string_radix(32),
@@ -518,8 +584,9 @@ pub mod sign_client {
                     sign_input.message
                 ));
             }
-            // if the participant is not the SA.
+            // if the participant is not the SA
             _ => {
+                // send response to the SA
                 lines.send(&own_response.to_json_string()).await?;
             }
         }

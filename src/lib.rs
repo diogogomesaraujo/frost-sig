@@ -1,5 +1,3 @@
-//! This crate contains all the functions to implement the FROST protocol.
-//!
 //! # frost-sig
 //!
 //! `frost-sig` is a threshold signature library that implements the FROST protocol.
@@ -9,16 +7,73 @@
 //! - Key Generation.
 //! - Preprocessing.
 //! - Signing Transactions.
+//! - Servers/Clients to use the protocol in a pratical setting.
 //!
 //! ## Dependencies
 //!
 //! - `rug` is a arbitrary precision numbers crate and provides infrastructure for the 256bit numbers and calculations.
 //! - `rand` is a random number generation crate and it is used to generate a random seed for the 256bit numbers generation.
 //! - `sha-256` is an implementation of SHA-256 and it is the predefined hashing algorythm for the threshold signature system.
+//! - `tokio` an async runtime for Rust.
+//! - `serde` a crate to serialize and deserialize JSON.
 //!
 //! ## Requirements
 //!
 //! - Cargo installed
+//!
+//! ## Example
+//! ```
+//! use frost_sig::*;
+//! use rand::Rng;
+//! use rug::rand::RandState;
+//! use std::error::Error;
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn Error>> {
+//!     let mode = std::env::args()
+//!         .nth(1)
+//!         .expect("Failed to give enough arguments.");
+//!     let operation = std::env::args()
+//!         .nth(2)
+//!         .expect("Failed to give enough arguments.");
+//!
+//!     match (mode.as_str(), operation.as_str()) {
+//!         ("server", "keygen") => {
+//!             let seed: i32 = rand::rng().random();
+//!             let mut rnd = RandState::new();
+//!             rnd.seed(&rug::Integer::from(seed));
+//!
+//!             server::keygen_server::run("localhost", 3333, 3, 2).await?;
+//!         }
+//!         ("client", "keygen") => {
+//!             let path = std::env::args()
+//!                 .nth(3)
+//!                 .expect("Failed to give enough arguments.");
+//!             client::keygen_client::run("localhost", 3333, &path).await?;
+//!         }
+//!         ("server", "sign") => {
+//!             let seed: i32 = rand::rng().random();
+//!             let mut rnd = RandState::new();
+//!             rnd.seed(&rug::Integer::from(seed));
+//!
+//!             server::sign_server::run("localhost", 3333, 3, 2)
+//!                 .await
+//!                 .unwrap();
+//!         }
+//!         ("client", "sign") => {
+//!             let path = std::env::args()
+//!                 .nth(3)
+//!                 .expect("Failed to give enough arguments.");
+//!             client::sign_client::run("localhost", 3333, &path).await?;
+//!         }
+//!         _ => {
+//!             eprintln!("Invalid arguments.");
+//!         }
+//!     }
+//!
+//!     Ok(())
+//! }
+//!```
 //!
 //! ## Support
 //!
@@ -39,9 +94,6 @@ pub mod message;
 
 pub mod client;
 pub mod server;
-
-#[cfg(test)]
-pub mod test;
 
 /// Const value of the Integers' size in bits.
 pub const BITS: u32 = 256;
@@ -65,7 +117,7 @@ pub struct FrostState {
 }
 
 impl FrostState {
-    /// Function that newializes the FrostState.
+    /// Function that newializes the `FrostState`.
     pub fn new(rnd: &mut RandState, participants: u32, threshold: u32) -> Self {
         let (generated_prime, generated_q) = generate_prime_and_q(rnd);
         let generated_generator = generate_generator(rnd, &generated_q, &generated_prime);
@@ -78,6 +130,7 @@ impl FrostState {
         }
     }
 
+    /// Function that converts the `FrostState` to a frost state `Message`.
     pub fn to_message(self) -> Message {
         Message::FrostState {
             prime: self.prime,
@@ -88,6 +141,7 @@ impl FrostState {
         }
     }
 
+    /// Function that converts the `FrostState` into a JSON formated `String`.
     pub fn to_json_string(&self) -> String {
         let prime = self.prime.to_string_radix(RADIX);
         let q = self.q.to_string_radix(RADIX);
@@ -103,6 +157,7 @@ impl FrostState {
     }
 }
 
+/// Struct that represents the `FrostState` as JSON.
 #[derive(Serialize, Deserialize)]
 pub struct FrostStateJSON {
     pub prime: String,
@@ -113,6 +168,7 @@ pub struct FrostStateJSON {
 }
 
 impl FrostStateJSON {
+    /// Function that converts a `FrostStateJSON` to a `FrostState`.
     pub fn from_json(&self) -> FrostState {
         let prime = Integer::from_str_radix(&self.prime, RADIX).unwrap();
         let q = Integer::from_str_radix(&self.q, RADIX).unwrap();
@@ -164,7 +220,7 @@ pub fn generate_generator(rnd: &mut RandState, q: &Integer, prime: &Integer) -> 
     }
 }
 
-/// Function that hashes a vector of `Integers` using **sha256**.
+/// Function that hashes a vector of integers using **sha256**.
 pub fn hash(integers: &[Integer], q: &Integer) -> Integer {
     let h = integers
         .iter()

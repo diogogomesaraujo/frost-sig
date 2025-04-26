@@ -1,7 +1,19 @@
-use rug::Integer;
-use serde::{Deserialize, Serialize};
+//! Implementation of the messages that are sent and recieved.
+//!
+//! # Dependencies
+//!
+//! - `rug` is a arbitrary precision numbers crate and provides infrastructure for the 256bit numbers and calculations.
+//! - `serde` is a crate to serialize and deserialize JSON.
+//!
+//! # Features
+//!
+//! - `Message` Enum.
+//! - `MessageJSON` Enum.
+//! - Conversions from `Message` into a JSON formated `String` and the other way arround.
 
 use crate::RADIX;
+use rug::Integer;
+use serde::{Deserialize, Serialize};
 
 /// Enum that represents all the messages that will be sent during the FROST protocol operations.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -33,10 +45,7 @@ pub enum Message {
 
     /// Message that is sent during the signature phase.
     /// It is used to compute the aggregate response and is sent by every participant to the SA.
-    Response {
-        sender_id: Integer,
-        value: Integer,
-    },
+    Response { sender_id: Integer, value: Integer },
 
     /// Message that is sent at the beginning of a FROST operation.
     /// It is used to do all the calculations needed for all the FROST operations.
@@ -48,10 +57,13 @@ pub enum Message {
         threshold: u32,
     },
 
+    /// Message that is sent at the begging of the Frost sign operation.
+    /// It is used to atribute a temporary id to identify the participant as the operation is happening.
     Id(u32),
 }
 
 impl Message {
+    /// Function that converts a `Message` into a JSON formated `String`.
     pub fn to_json_string(&self) -> String {
         match self {
             Message::Broadcast {
@@ -139,6 +151,7 @@ impl Message {
         }
     }
 
+    /// Function that convert a JSON formated `String` into a `Message`.
     pub fn from_json_string(message: &str) -> Option<Message> {
         match serde_json::from_str::<MessageJSON>(&message) {
             Ok(message_json) => Some(message_json.from_json()),
@@ -147,28 +160,40 @@ impl Message {
     }
 }
 
+/// Enum that represents a `Message` as JSON.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum MessageJSON {
+    /// Message utilized during the keygen round 1 phase.
+    /// It represents the commitments and signature used to validate a user and create the aggregate public key.
     Broadcast {
         participant_id: String,
         commitments: Vec<String>,
         signature: (String, String),
     },
+
+    /// Message that is sent during the keygen round 2 phase.
+    /// It represents the secret sent from every participant to all others and it is used to calculate a participant's private key.
     SecretShare {
         sender_id: String,
         reciever_id: String,
         secret: String,
     },
+
+    /// Message that is sent during the signature phase.
+    /// It is used by the main participant (SA) for others to verify the commitments chosen by the SA.
     PublicCommitment {
         participant_id: String,
         di: String,
         ei: String,
         public_share: String,
     },
-    Response {
-        sender_id: String,
-        value: String,
-    },
+
+    /// Message that is sent during the signature phase.
+    /// It is used to compute the aggregate response and is sent by every participant to the SA.
+    Response { sender_id: String, value: String },
+
+    /// Message that is sent at the beginning of a FROST operation.
+    /// It is used to do all the calculations needed for all the FROST operations.
     FrostState {
         prime: String,
         q: String,
@@ -176,10 +201,14 @@ pub enum MessageJSON {
         participants: u32,
         threshold: u32,
     },
+
+    /// Message that is sent at the begging of the Frost sign operation.
+    /// It is used to atribute a temporary id to identify the participant as the operation is happening.
     Id(u32),
 }
 
 impl MessageJSON {
+    /// Function that converts a `MessageJSON` into a `Message`.
     pub fn from_json(&self) -> Message {
         match self {
             Self::Broadcast {

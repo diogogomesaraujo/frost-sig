@@ -55,10 +55,9 @@ impl Participant {
 
 /// The first round is responsible for generating nonces and commitments that will be used to generate the aggregated key if all the participants are verified.
 pub mod round_1 {
-    use message::Message;
-
     use super::*;
     use crate::*;
+    use message::Message;
 
     /// Function that generates a participant's polynomial that will be used to compute his nonces (`ex: ax^2 + bx + c -> [c, b, a]`).
     pub fn generate_polynomial(state: &FrostState, rnd: &mut RandState) -> Vec<Integer> {
@@ -135,11 +134,10 @@ pub mod round_1 {
 
 /// The second round is responsible for generating partial signatures for every participant and aggregate them to form the group keys that will be used to sign transactions.
 pub mod round_2 {
-    use std::error::Error;
-
     use super::Participant;
     use crate::{message::Message, modular, FrostState};
     use rug::Integer;
+    use std::error::Error;
 
     /// Function that calculates the y value for a given polinomial and an x.
     pub fn calculate_y(x: &Integer, pol: &[Integer], q: &Integer) -> Integer {
