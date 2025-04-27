@@ -12,7 +12,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     match (mode.as_str(), operation.as_str()) {
         ("server", "keygen") => {
-            server::keygen_server::run("localhost", 3333, 3, 2).await?;
+            server::keygen_server::run("localhost", 3333, 4, 3).await?;
         }
         ("client", "keygen") => {
             let path = std::env::args()
@@ -21,7 +21,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             client::keygen_client::run("localhost", 3333, &path).await?;
         }
         ("server", "sign") => {
-            server::sign_server::run("localhost", 3333, 3, 2)
+            server::sign_server::run("localhost", 3333, 4, 3)
                 .await
                 .unwrap();
         }

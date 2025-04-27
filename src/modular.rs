@@ -34,10 +34,12 @@ pub fn mul(a: Integer, b: Integer, m: &Integer) -> Integer {
 }
 
 /// Function that performs modular division.
-pub fn div(a: Integer, b: Integer, m: &Integer) -> Integer {
+pub fn div(a: Integer, b: Integer, m: &Integer) -> Option<Integer> {
     let a = a.modulo(m);
-    let inv = b.invert(m).expect("No modular inverse exists");
-    (inv * a).modulo(m)
+    match b.invert(m).map(|inv| (inv * a).modulo(m)) {
+        Ok(val) => Some(val),
+        Err(_) => None,
+    }
 }
 
 /// Function that performs modular power.

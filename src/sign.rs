@@ -149,7 +149,8 @@ pub fn lagrange_coefficient(state: &FrostState, participant_id: &Integer) -> Int
                         j.clone(),
                         modular::sub(j, participant_id.clone(), &state.q),
                         &state.q,
-                    ),
+                    )
+                    .unwrap(),
                     &state.q,
                 )
             }

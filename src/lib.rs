@@ -182,6 +182,9 @@ pub fn generate_integer(state: &FrostState, rnd: &mut RandState) -> Integer {
 pub fn generate_prime_and_q(rnd: &mut RandState) -> (Integer, Integer) {
     loop {
         let q_candidate = Integer::from(Integer::random_bits(BITS, rnd));
+        if let rug::integer::IsPrime::No = q_candidate.is_probably_prime(30) {
+            continue;
+        }
         let prime_candidate = Integer::from(2 * q_candidate.clone() + 1);
         match prime_candidate.is_probably_prime(30) {
             rug::integer::IsPrime::No => continue,
@@ -199,7 +202,11 @@ pub fn generate_generator(rnd: &mut RandState, q: &Integer, prime: &Integer) -> 
         let h = Integer::from(Integer::random_below(prime_minus.clone(), rnd));
         match h >= Integer::from(2) {
             true => {
-                let g = modular::pow(&h, &modular::div(prime_minus, q.clone(), &prime), &prime);
+                let g = modular::pow(
+                    &h,
+                    &modular::div(prime_minus, q.clone(), &prime).unwrap(),
+                    &prime,
+                );
                 match g == Integer::from(1) {
                     true => continue,
                     _ => return g,
