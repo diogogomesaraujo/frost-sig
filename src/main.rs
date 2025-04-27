@@ -1,6 +1,4 @@
 use frost_sig::*;
-use rand::Rng;
-use rug::rand::RandState;
 use std::error::Error;
 
 #[tokio::main]
@@ -14,10 +12,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     match (mode.as_str(), operation.as_str()) {
         ("server", "keygen") => {
-            let seed: i32 = rand::rng().random();
-            let mut rnd = RandState::new();
-            rnd.seed(&rug::Integer::from(seed));
-
             server::keygen_server::run("localhost", 3333, 3, 2).await?;
         }
         ("client", "keygen") => {
@@ -27,10 +21,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
             client::keygen_client::run("localhost", 3333, &path).await?;
         }
         ("server", "sign") => {
-            let seed: i32 = rand::rng().random();
-            let mut rnd = RandState::new();
-            rnd.seed(&rug::Integer::from(seed));
-
             server::sign_server::run("localhost", 3333, 3, 2)
                 .await
                 .unwrap();
