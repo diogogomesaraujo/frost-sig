@@ -9,6 +9,10 @@
   - Signing Transactions.
   - Servers/Clients to use the protocol in a pratical setting.
 
+  ## Usage Flow
+
+  ![Activity Diagrams](./assets/frost_sig.jpg)
+
   ## Dependencies
 
   - `rug` is a arbitrary precision numbers crate and provides infrastructure for the 256bit numbers and calculations.
