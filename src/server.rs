@@ -326,7 +326,7 @@ pub mod sign_server {
 
         // wait before closing the socket for messages that may be left unsent
         sleep(Duration::from_secs(1)).await;
-        logging::print("Successfully signed the message.");
+        logging::print("Shutting down server.");
         Ok(())
     }
 }

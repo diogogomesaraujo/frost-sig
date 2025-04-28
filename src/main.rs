@@ -12,7 +12,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     match (mode.as_str(), operation.as_str()) {
         ("server", "keygen") => {
-            server::keygen_server::run("localhost", 3333, 4, 3).await?;
+            let p = std::env::args()
+                .nth(3)
+                .expect("Failed to give enough arguments.")
+                .parse::<u32>()
+                .expect("Invalid arguments.");
+            let t = std::env::args()
+                .nth(4)
+                .expect("Failed to give enough arguments.")
+                .parse::<u32>()
+                .expect("Invalid arguments.");
+            server::keygen_server::run("localhost", 3333, p, t).await?;
         }
         ("client", "keygen") => {
             let path = std::env::args()
@@ -21,7 +31,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
             client::keygen_client::run("localhost", 3333, &path).await?;
         }
         ("server", "sign") => {
-            server::sign_server::run("localhost", 3333, 4, 3)
+            let p = std::env::args()
+                .nth(3)
+                .expect("Failed to give enough arguments.")
+                .parse::<u32>()
+                .expect("Invalid arguments.");
+            let t = std::env::args()
+                .nth(4)
+                .expect("Failed to give enough arguments.")
+                .parse::<u32>()
+                .expect("Invalid arguments.");
+            server::sign_server::run("localhost", 3333, p, t)
                 .await
                 .unwrap();
         }
