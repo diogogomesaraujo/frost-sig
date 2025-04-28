@@ -11,7 +11,7 @@
 
   ## Usage Flow
 
-  ![Activity Diagrams](./assets/frost_sig.jpg)
+  ![Activity Diagrams](./assets/frost-server.jpg)
 
   ## Dependencies
 
