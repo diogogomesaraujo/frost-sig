@@ -11,8 +11,8 @@
 //!
 //! - Keygen and sign CLI clients.
 
-use crate::{message::Message, FrostState, FrostStateJSON, RADIX};
-use rug::Integer;
+use crate::{message::Message, FrostState};
+use curve25519_dalek::{ristretto::CompressedRistretto, Scalar};
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 use tokio::{
@@ -61,16 +61,16 @@ pub mod logging {
 
 /// Struct that has the information retrieved from the JSON file needed for the signing process.
 /// It is created during the keygen phase but you need to update the message before signing.
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct SignInput {
     /// State that holds all the constants needed for the FROST computations.
     state: FrostState,
     /// Aggregated public key shared by the group.
-    public_aggregated_key: Integer,
+    public_aggregated_key: CompressedRistretto,
     /// Public key that identifies the participant within' the group.
-    own_public_share: Integer,
+    own_public_share: CompressedRistretto,
     /// Private key that is needed for a participant to sign a transaction.
-    own_private_share: Integer,
+    own_private_share: Scalar,
     /// Message being signed.
     message: String,
 }
@@ -84,62 +84,16 @@ impl SignInput {
         let mut contents = String::new();
         buf_reader.read_to_string(&mut contents).await?;
 
-        match serde_json::from_str::<SignInputJSON>(&contents) {
-            Ok(input_json) => {
-                let public_aggregated_key =
-                    Integer::from_str_radix(&input_json.public_aggregated_key, RADIX)?;
-                let own_public_share =
-                    Integer::from_str_radix(&input_json.own_public_share, RADIX)?;
-                let own_private_share =
-                    Integer::from_str_radix(&input_json.own_private_share, RADIX)?;
-                let state = input_json.state.from_json();
-                Ok(SignInput {
-                    state,
-                    public_aggregated_key,
-                    own_public_share,
-                    own_private_share,
-                    message: input_json.message,
-                })
-            }
-            Err(e) => return Err(e.into()),
-        }
+        Ok(serde_json::from_str::<SignInput>(&contents)?)
     }
 
     /// Function that writes a Sign Input to a file.
     pub async fn to_file(&self, path: &str) -> Result<(), Box<dyn Error>> {
-        let write_to_file = SignInputJSON {
-            state: FrostStateJSON {
-                prime: self.state.prime.to_string_radix(RADIX),
-                q: self.state.q.to_string_radix(RADIX),
-                generator: self.state.generator.to_string_radix(RADIX),
-                participants: self.state.participants,
-                threshold: self.state.threshold,
-            },
-            public_aggregated_key: self.public_aggregated_key.to_string_radix(RADIX),
-            own_public_share: self.own_public_share.to_string_radix(RADIX),
-            own_private_share: self.own_private_share.to_string_radix(RADIX),
-            message: self.message.clone(),
-        };
         let mut file = File::create(path).await?;
-        file.write_all(serde_json::to_string(&write_to_file)?.as_bytes())
+        file.write_all(serde_json::to_string(&self)?.as_bytes())
             .await?;
         Ok(())
     }
-}
-
-/// Struct that represents the middle-man between the sign input file and the `SignInput`.
-#[derive(Serialize, Deserialize)]
-pub struct SignInputJSON {
-    /// State that holds all the constants needed for the FROST computations.
-    state: FrostStateJSON,
-    /// Aggregated public key shared by the group.
-    public_aggregated_key: String,
-    /// Public key that identifies the participant within' the group.
-    own_public_share: String,
-    /// Private key that is needed for a participant to sign a transaction.
-    own_private_share: String,
-    /// Message being signed.
-    message: String,
 }
 
 /// Module that has the functions needed to run the client used for key generation.
@@ -150,9 +104,9 @@ pub mod keygen_client {
         message::Message,
         FrostState,
     };
+    use curve25519_dalek::ristretto::CompressedRistretto;
     use futures::SinkExt;
-    use rand::Rng;
-    use rug::{rand::RandState, Integer};
+    use rand::{rngs::OsRng, Rng};
     use std::error::Error;
     use tokio::net::TcpStream;
     use tokio_util::codec::{Framed, LinesCodec};
@@ -180,15 +134,9 @@ pub mod keygen_client {
             let state = {
                 match recieve_message(&mut lines).await? {
                     Message::FrostState {
-                        prime,
-                        q,
-                        generator,
                         participants,
                         threshold,
                     } => FrostState {
-                        prime,
-                        q,
-                        generator,
                         participants,
                         threshold,
                     },
@@ -199,29 +147,21 @@ pub mod keygen_client {
         };
 
         // init random state
-        let mut rnd = {
-            let seed: i32 = rand::thread_rng().gen();
-            let mut rnd = RandState::new();
-            rnd.seed(&rug::Integer::from(seed));
-
-            rnd
-        };
+        let mut rng = OsRng;
 
         // execute round 1
         let (own_broadcast, broadcasts, participant_self) = {
             // generate the secret polynomial
-            let polynomial = keygen::round_1::generate_polynomial(&client.state, &mut rnd);
+            let polynomial = keygen::round_1::generate_polynomial(&client.state, &mut rng);
 
             // initiate the participant used for the keygen
-            let participant_self =
-                keygen::Participant::new(Integer::from(client.own_id), polynomial);
+            let participant_self = keygen::Participant::new(client.own_id, polynomial);
 
             // compute signature
-            let signature =
-                round_1::compute_proof_of_knowlodge(&client.state, &mut rnd, &participant_self);
+            let signature = round_1::compute_proof_of_knowlodge(&mut rng, &participant_self);
 
             // compute commitments
-            let commitments = round_1::compute_public_commitments(&client.state, &participant_self);
+            let commitments = round_1::compute_public_commitments(&participant_self);
 
             // generate broadcast message
             let own_broadcast = Message::Broadcast {
@@ -231,7 +171,7 @@ pub mod keygen_client {
             };
 
             // send broadcast message
-            lines.send(own_broadcast.to_json_string()).await?;
+            lines.send(own_broadcast.to_json_string()?).await?;
 
             // get other participants' broadcast messages
             let broadcasts = {
@@ -251,7 +191,7 @@ pub mod keygen_client {
             };
 
             // verify other participants' broadcast messages
-            assert!(round_1::verify_proofs(&client.state, &broadcasts));
+            assert!(round_1::verify_proofs(&broadcasts));
 
             (own_broadcast, broadcasts, participant_self)
         };
@@ -259,17 +199,13 @@ pub mod keygen_client {
         // execute round 2
         let (own_public_key, aggregate_public_key, private_key_share) = {
             // compute own secret share
-            let own_share = round_2::create_own_secret_share(&client.state, &participant_self);
+            let own_share = round_2::create_own_secret_share(&participant_self);
 
             // create and send secret shares for all other participants
             for i in 1..=client.state.participants {
                 if i != participant_self.id {
-                    let share_to_send = round_2::create_share_for(
-                        &client.state,
-                        &participant_self,
-                        &Integer::from(i),
-                    );
-                    lines.send(share_to_send.to_json_string()).await?;
+                    let share_to_send = round_2::create_share_for(&participant_self, &i);
+                    lines.send(share_to_send.to_json_string()?).await?;
                 }
             }
 
@@ -311,7 +247,6 @@ pub mod keygen_client {
                     })
                     .unwrap();
                 assert!(round_2::verify_share_validity(
-                    &client.state,
                     &participant_self,
                     &s,
                     &broadcast
@@ -319,12 +254,10 @@ pub mod keygen_client {
             });
 
             // compute private key share with the secret shares
-            let private_key =
-                round_2::compute_private_key(&client.state, &own_share, &secret_shares)?;
+            let private_key = round_2::compute_private_key(&own_share, &secret_shares)?;
 
             // compute own public key share from the private key.
-            let own_public_key_share =
-                round_2::compute_own_verification_share(&client.state, &private_key);
+            let own_public_key_share = round_2::compute_own_verification_share(&private_key);
 
             let broadcasts = {
                 let mut temp = broadcasts;
@@ -334,20 +267,16 @@ pub mod keygen_client {
 
             // verify others' public key shares
             {
-                let verification_shares: Vec<Integer> = broadcasts
+                let verification_shares: Vec<CompressedRistretto> = broadcasts
                     .iter()
                     .map(|b| {
-                        round_2::compute_participant_verification_share(
-                            &client.state,
-                            &participant_self,
-                            &b,
-                        )
-                        .unwrap()
+                        round_2::compute_participant_verification_share(&participant_self, &b)
+                            .unwrap()
                     })
                     .collect();
 
                 let others_verification_shares =
-                    round_2::compute_others_verification_share(&client.state, &verification_shares);
+                    round_2::compute_others_verification_share(&verification_shares);
 
                 assert_eq!(
                     own_public_key_share, others_verification_shares,
@@ -356,8 +285,7 @@ pub mod keygen_client {
             }
 
             // compute aggregated public key from the broadcast messages
-            let aggregated_public_key =
-                round_2::compute_group_public_key(&client.state, &broadcasts)?;
+            let aggregated_public_key = round_2::compute_group_public_key(&broadcasts)?;
 
             logging::print(
                 format!(
@@ -399,7 +327,7 @@ pub mod sign_client {
         },
     };
     use futures::SinkExt;
-    use rand::Rng;
+    use rand::{rngs::OsRng, Rng};
     use rug::{rand::RandState, Integer};
     use std::{collections::HashSet, error::Error};
     use tokio_util::codec::{Framed, LinesCodec};
@@ -427,30 +355,22 @@ pub mod sign_client {
             FrostClient::new(state, id)
         };
 
-        let own_id = Integer::from(client.own_id);
-
         // init random state
-        let mut rnd = {
-            let seed: i32 = rand::thread_rng().gen();
-            let mut rnd = RandState::new();
-            rnd.seed(&rug::Integer::from(seed));
-
-            rnd
-        };
+        let mut rng = OsRng;
 
         // preprocess nonces and commitments
-        let nonces_and_commitments = generate_nonces_and_commitments(&client.state, &mut rnd);
+        let nonces_and_commitments = generate_nonces_and_commitments(&mut rng);
 
         // compute public commitment to send
         let own_public_commitment = Message::PublicCommitment {
-            participant_id: own_id.clone(),
+            participant_id: client.own_id,
             di: nonces_and_commitments.1 .0.clone(),
             ei: nonces_and_commitments.1 .1.clone(),
             public_share: sign_input.own_public_share.clone(),
         };
 
         // send public commitment
-        lines.send(own_public_commitment.to_json_string()).await?;
+        lines.send(own_public_commitment.to_json_string()?).await?;
 
         // recieving others commitments
         let public_commitments = {
@@ -478,19 +398,17 @@ pub mod sign_client {
 
         // compute group commitment and challenge
         let (_group_commitment, challenge) = compute_group_commitment_and_challenge(
-            &client.state,
             &public_commitments,
             &sign_input.message,
             sign_input.public_aggregated_key.clone(),
         )?;
 
         // compute the lagrange coefficient
-        let lagrange_coefficient = lagrange_coefficient(&client.state, &own_id);
+        let lagrange_coefficient = lagrange_coefficient(&client.state, &client.own_id);
 
         // compute the response
         let own_response = compute_own_response(
-            &client.state,
-            own_id.clone(),
+            client.own_id,
             &own_public_commitment,
             &sign_input.own_private_share,
             &nonces_and_commitments.0,
@@ -556,16 +474,16 @@ pub mod sign_client {
                     })?;
 
                 // compute aggregated response
-                let aggregate_response = compute_aggregate_response(&client.state, &responses)?;
+                let aggregate_response = compute_aggregate_response(&responses)?;
 
                 // print aggregated response
                 logging::print(&format!(
-                    "The group {}{}{} computed this response {}{}{} with this message {}\"{}\"{}.",
+                    "The group {}{:?}{} computed this response {}{:?}{} with this message {}\"{}\"{}.",
                     logging::YELLOW,
-                    sign_input.public_aggregated_key.to_string_radix(32),
+                    sign_input.public_aggregated_key.as_bytes(),
                     logging::RESET,
                     logging::YELLOW,
-                    aggregate_response.to_string_radix(32),
+                    aggregate_response.as_bytes(),
                     logging::RESET,
                     logging::YELLOW,
                     sign_input.message,
@@ -575,7 +493,7 @@ pub mod sign_client {
             // if the participant is not the SA
             _ => {
                 // send response to the SA
-                lines.send(&own_response.to_json_string()).await?;
+                lines.send(&own_response.to_json_string()?).await?;
             }
         }
 

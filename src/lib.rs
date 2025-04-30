@@ -80,19 +80,14 @@ pub mod sign;
 
 pub mod message;
 
+#[cfg(test)]
 pub mod test;
 
-// pub mod client;
-// pub mod server;
-
-/// Const value of the Integers' size in bits.
-pub const BITS: u32 = 256;
-
-/// Const value for the serialization of numbers to base32 format.
-pub const RADIX: i32 = 32;
+pub mod client;
+pub mod server;
 
 /// Struct that saves the constants needed for FROST. These values should be used by all participants throughout the signing session and discarted after.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FrostState {
     /// `participants` is the chosen number of participants that hold a secret share and can participate in signing operations.
     pub participants: u32,
@@ -119,31 +114,6 @@ impl FrostState {
 
     /// Function that converts the `FrostState` into a JSON formated `String`.
     pub fn to_json_string(&self) -> String {
-        let message = FrostStateJSON {
-            participants: self.participants,
-            threshold: self.threshold,
-        };
-        serde_json::to_string(&message).unwrap()
+        serde_json::to_string(&self).unwrap()
     }
 }
-
-/// Struct that represents the `FrostState` as JSON.
-#[derive(Serialize, Deserialize)]
-pub struct FrostStateJSON {
-    pub participants: u32,
-    pub threshold: u32,
-}
-/*
-impl FrostStateJSON {
-    /// Function that converts a `FrostStateJSON` to a `FrostState`.
-    pub fn from_json(&self) -> FrostState {
-        let prime = Integer::from_str_radix(&self.prime, RADIX).unwrap();
-        let q = Integer::from_str_radix(&self.q, RADIX).unwrap();
-        let generator = Integer::from_str_radix(&self.generator, RADIX).unwrap();
-        FrostState {
-            participants: self.participants,
-            threshold: self.threshold,
-        }
-    }
-}
-*/

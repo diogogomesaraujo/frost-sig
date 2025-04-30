@@ -13,7 +13,7 @@
 use crate::*;
 use futures::{SinkExt, StreamExt};
 use message::Message;
-use rand::Rng;
+use rand::rngs::OsRng;
 use std::{collections::HashMap, error::Error, net::SocketAddr, sync::Arc};
 use tokio::{
     net::{TcpListener, TcpStream},
@@ -40,9 +40,9 @@ pub struct FrostServer {
 
 impl FrostServer {
     /// Function that creates a new `FrostServer`.
-    pub fn new(rnd: &mut RandState, participants: u32, threshold: u32) -> Self {
+    pub fn new(participants: u32, threshold: u32) -> Self {
         Self {
-            state: FrostState::new(rnd, participants, threshold),
+            state: FrostState::new(participants, threshold),
             by_addr: HashMap::new(),
             by_id: HashMap::new(),
         }
@@ -89,7 +89,7 @@ impl FrostServer {
                 reciever_id,
                 secret: _,
             } => {
-                self.send_to(reciever_id.to_u32().unwrap(), msg).await; // Should not fail.
+                self.send_to(*reciever_id, msg).await; // Should not fail.
             }
             Message::Response {
                 sender_id: _,
@@ -174,7 +174,7 @@ pub async fn handle(
     loop {
         tokio::select! {
             Some(msg) = participant.reciever.recv() => {
-                let msg_json = msg.to_json_string();
+                let msg_json = msg.to_json_string()?;
                 writer.send(msg_json).await.unwrap();
             }
             Some(Ok(msg_json)) = reader.next() => {
@@ -205,17 +205,8 @@ pub mod keygen_server {
         let address = format!("{}:{}", ip, port);
         let listener = TcpListener::bind(&address).await?;
 
-        // init the random state
-        let seed: i32 = rand::thread_rng().gen();
-        let mut rnd = RandState::new();
-        rnd.seed(&rug::Integer::from(seed));
-
         // create the server instance
-        let server = Arc::new(Mutex::new(FrostServer::new(
-            &mut rnd,
-            participants,
-            threshold,
-        )));
+        let server = Arc::new(Mutex::new(FrostServer::new(participants, threshold)));
 
         logging::print(
             format!(
@@ -283,17 +274,8 @@ pub mod sign_server {
         let address = format!("{}:{}", ip, port);
         let listener = TcpListener::bind(&address).await?;
 
-        // init random state
-        let seed: i32 = rand::thread_rng().gen();
-        let mut rnd = RandState::new();
-        rnd.seed(&rug::Integer::from(seed));
-
         // create server instance
-        let server = Arc::new(Mutex::new(FrostServer::new(
-            &mut rnd,
-            participants,
-            threshold,
-        )));
+        let server = Arc::new(Mutex::new(FrostServer::new(participants, threshold)));
 
         logging::print(
             format!(

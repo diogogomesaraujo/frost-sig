@@ -36,8 +36,6 @@
 
 use crate::message::Message;
 use curve25519_dalek::Scalar;
-use rand::rngs::OsRng;
-use std::error::Error;
 
 /// Struct that represents the participant.
 pub struct Participant {
@@ -136,7 +134,7 @@ pub mod round_1 {
 /// The second round is responsible for generating partial signatures for every participant and aggregate them to form the group keys that will be used to sign transactions.
 pub mod round_2 {
     use super::Participant;
-    use crate::{message::Message, FrostState};
+    use crate::message::Message;
     use curve25519_dalek::{
         constants::RISTRETTO_BASEPOINT_POINT, ristretto::CompressedRistretto, traits::Identity,
         RistrettoPoint, Scalar,
@@ -280,7 +278,6 @@ pub mod round_2 {
 
     /// Function that computes other participants' verification share.
     pub fn compute_others_verification_share(
-        state: &FrostState,
         verifying_shares: &[CompressedRistretto],
     ) -> CompressedRistretto {
         verifying_shares

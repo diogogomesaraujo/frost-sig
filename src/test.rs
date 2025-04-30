@@ -110,14 +110,11 @@ pub fn test_keygen() -> Result<(), Box<dyn Error>> {
         round_2::compute_participant_verification_share(&participant_1, &participant_broadcast_3)
             .unwrap();
 
-    let public_verification_share_1 = round_2::compute_others_verification_share(
-        &state,
-        &[
-            public_verification_share_1,
-            public_verification_share_1_from_2,
-            public_verification_share_1_from_3,
-        ],
-    );
+    let public_verification_share_1 = round_2::compute_others_verification_share(&[
+        public_verification_share_1,
+        public_verification_share_1_from_2,
+        public_verification_share_1_from_3,
+    ]);
 
     assert_eq!(own_verification_share_1, public_verification_share_1);
 
