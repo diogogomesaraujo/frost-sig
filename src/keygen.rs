@@ -56,10 +56,10 @@ impl Participant {
 pub mod round_1 {
     use super::*;
     use crate::*;
+    use blake2::Blake2b512;
     use curve25519_dalek::{constants::RISTRETTO_BASEPOINT_POINT, ristretto::CompressedRistretto};
     use message::Message;
     use rand::rngs::OsRng;
-    use sha2::Sha512;
 
     /// Function that generates a participant's polynomial that will be used to compute his nonces (`ex: ax^2 + bx + c -> [c, b, a]`).
     pub fn generate_polynomial(state: &FrostState, rng: &mut OsRng) -> Vec<Scalar> {
@@ -87,7 +87,7 @@ pub mod round_1 {
                     .as_bytes(),
             );
             buf.extend_from_slice(ri.compress().as_bytes());
-            Scalar::hash_from_bytes::<Sha512>(&buf)
+            Scalar::hash_from_bytes::<Blake2b512>(&buf)
         };
         let wi = k + participant.polynomial[0] * ci;
         (wi, ci)
@@ -122,7 +122,7 @@ pub mod round_1 {
                         buf.extend_from_slice(&participant_id.to_le_bytes());
                         buf.extend_from_slice(commitments[0].as_bytes());
                         buf.extend_from_slice(rp.compress().as_bytes());
-                        Scalar::hash_from_bytes::<Sha512>(&buf)
+                        Scalar::hash_from_bytes::<Blake2b512>(&buf)
                     };
                     acc && (&reconstructed_cp == cp)
                 }

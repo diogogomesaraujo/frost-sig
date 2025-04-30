@@ -65,11 +65,11 @@
 //! See the [resources](https://eprint.iacr.org/2020/852.pdf) here.
 
 use crate::{message::Message, FrostState};
+use blake2::Blake2b512;
 use curve25519_dalek::{
     constants::RISTRETTO_BASEPOINT_POINT, ristretto::CompressedRistretto, traits::Identity,
     RistrettoPoint, Scalar,
 };
-use sha2::Sha512;
 use std::error::Error;
 
 /// Function that computes the binding values for a participant.
@@ -93,7 +93,7 @@ pub fn compute_binding_value(
             buf.extend_from_slice(ei.as_bytes());
             buf.extend_from_slice(public_share.as_bytes());
 
-            Scalar::hash_from_bytes::<Sha512>(&buf)
+            Scalar::hash_from_bytes::<Blake2b512>(&buf)
         }),
         _ => Err("Message was not of the desired type.".into()),
     }
@@ -132,7 +132,7 @@ pub fn compute_group_commitment_and_challenge(
         buf.extend_from_slice(group_public_key.as_bytes());
         buf.extend_from_slice(message.as_bytes());
 
-        Scalar::hash_from_bytes::<Sha512>(&buf)
+        Scalar::hash_from_bytes::<Blake2b512>(&buf)
     };
     Ok((group_commitment, challenge))
 }

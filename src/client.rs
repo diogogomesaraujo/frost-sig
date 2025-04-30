@@ -328,7 +328,6 @@ pub mod sign_client {
     };
     use futures::SinkExt;
     use rand::{rngs::OsRng, Rng};
-    use rug::{rand::RandState, Integer};
     use std::{collections::HashSet, error::Error};
     use tokio_util::codec::{Framed, LinesCodec};
 
