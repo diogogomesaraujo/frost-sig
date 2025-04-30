@@ -2,9 +2,7 @@
 //!
 //! # Dependencies
 //!
-//! - `rug` is a arbitrary precision numbers crate and provides infrastructure for the 256bit numbers and calculations.
-//! - `rand` is a random number generation crate and it is used to generate a random seed for the 256bit numbers generation.
-//! - `tokio` is an async runtime for Rust.
+//! - `tokio` is a runtime for writting reliable async Rust code.
 //!
 //! # Features
 //!
@@ -13,7 +11,6 @@
 use crate::*;
 use futures::{SinkExt, StreamExt};
 use message::Message;
-use rand::rngs::OsRng;
 use std::{collections::HashMap, error::Error, net::SocketAddr, sync::Arc};
 use tokio::{
     net::{TcpListener, TcpStream},
@@ -189,9 +186,8 @@ pub async fn handle(
 
 /// Module that handles server operations in relation to the FROST keygen process.
 pub mod keygen_server {
-    use std::time::Duration;
-
     use super::*;
+    use std::time::Duration;
     use tokio::{sync::Barrier, time::sleep};
 
     /// Function that runs the keygen process server.

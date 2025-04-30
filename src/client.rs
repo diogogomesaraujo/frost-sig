@@ -2,10 +2,9 @@
 //!
 //! # Dependencies
 //!
-//! - `rug` is a arbitrary precision numbers crate and provides infrastructure for the 256bit numbers and calculations.
 //! - `rand` is a random number generation crate and it is used to generate a random seed for the 256bit numbers generation.
-//! - `serde` is a crate to serialize and deserialize JSON.
-//! - `tokio` is an async runtime for Rust.
+//! - `serde` is a framework for serializing and deserializing Rust data structures efficiently and generically.
+//! - `tokio` is a runtime for writting reliable async Rust code.
 //!
 //! # Features
 //!
@@ -106,7 +105,7 @@ pub mod keygen_client {
     };
     use curve25519_dalek::ristretto::CompressedRistretto;
     use futures::SinkExt;
-    use rand::{rngs::OsRng, Rng};
+    use rand::rngs::OsRng;
     use std::error::Error;
     use tokio::net::TcpStream;
     use tokio_util::codec::{Framed, LinesCodec};

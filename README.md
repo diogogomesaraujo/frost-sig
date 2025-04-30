@@ -2,6 +2,8 @@
 
   `frost-sig` is a threshold signature library that implements the FROST protocol.
 
+ It uses [Risttretto](https://ristretto.group/) elliptic curve cryptography and the [Blake2](https://www.blake2.net/) hashing algorythm for computations.
+
   ## Features
 
   - Key Generation.
@@ -15,11 +17,10 @@
 
   ## Dependencies
 
-  - `rug` is a arbitrary precision numbers crate and provides infrastructure for the 256bit numbers and calculations.
-  - `rand` is a random number generation crate and it is used to generate a random seed for the 256bit numbers generation.
-  - `sha-256` is an implementation of SHA-256 and it is the predefined hashing algorythm for the threshold signature system.
-  - `tokio` is an async runtime for Rust.
-  - `serde` is a crate to serialize and deserialize JSON.
+- `curve25519_dalek` is a crate for elliptic curve cryptography.
+- `rand` is a random number generation crate and it is used to generate a random seed for the 256bit numbers generation.
+- `serde` is a framework for serializing and deserializing Rust data structures efficiently and generically.
+- `tokio` is a runtime for writting reliable async Rust code.
 
   ## Requirements
 

@@ -2,9 +2,9 @@
 //!
 //! # Dependencies
 //!
-//! - `rug` is a arbitrary precision numbers crate and provides infrastructure for the 256bit numbers and calculations.
-//! - `rand` is a random number generation crate and it is used to generate a random seed for the 256bit numbers generation.
-//! - `sha-256` is an implementation of SHA-256 and it is the predefined hashing algorythm for the threshold signature system.
+//! - `rand` is a random number generation crate and it is used to get randomness from the OS.
+//! - `blake2` is an implementation of the BLAKE2 hash functions.
+//! - `curve25519_dalek` is a crate for elliptic curve cryptography.
 //!
 //! # Features
 //!
@@ -34,7 +34,6 @@
 //!
 //! See the [resources](https://eprint.iacr.org/2020/852.pdf) here.
 
-use crate::message::Message;
 use curve25519_dalek::Scalar;
 
 /// Struct that represents the participant.
