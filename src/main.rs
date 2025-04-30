@@ -1,6 +1,6 @@
 use frost_sig::*;
 use std::error::Error;
-
+/*
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let mode = std::env::args()
@@ -58,3 +58,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
+*/
+
+fn main() {}

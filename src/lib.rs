@@ -70,20 +70,20 @@
 //! See the [resources](https://eprint.iacr.org/2020/852.pdf) here.
 
 use message::Message;
-use rug::{rand::RandState, Integer};
 use serde::{Deserialize, Serialize};
-use sha256::digest;
 
 pub mod keygen;
 pub mod preprocess;
 pub mod sign;
 
-pub mod modular;
+// pub mod modular;
 
 pub mod message;
 
-pub mod client;
-pub mod server;
+pub mod test;
+
+// pub mod client;
+// pub mod server;
 
 /// Const value of the Integers' size in bits.
 pub const BITS: u32 = 256;
@@ -94,12 +94,6 @@ pub const RADIX: i32 = 32;
 /// Struct that saves the constants needed for FROST. These values should be used by all participants throughout the signing session and discarted after.
 #[derive(Clone, Debug)]
 pub struct FrostState {
-    /// `prime` is a prime number bigger than any possible key or share generated and is used for modular arithmetic.
-    pub prime: Integer,
-    /// `q` is computed as `(prime - 1) / 2` and it is also used for modular arithmetic.
-    pub q: Integer,
-    /// `generator` is a constant value used for generating secret shares.
-    pub generator: Integer,
     /// `participants` is the chosen number of participants that hold a secret share and can participate in signing operations.
     pub participants: u32,
     /// `threshold` is the minimum ammount of participants needed to sign a message.
@@ -107,14 +101,9 @@ pub struct FrostState {
 }
 
 impl FrostState {
-    /// Function that newializes the `FrostState`.
-    pub fn new(rnd: &mut RandState, participants: u32, threshold: u32) -> Self {
-        let (generated_prime, generated_q) = generate_prime_and_q(rnd);
-        let generated_generator = generate_generator(rnd, &generated_q, &generated_prime);
+    /// Function that creates a new `FrostState`.
+    pub fn new(participants: u32, threshold: u32) -> Self {
         Self {
-            prime: generated_prime,
-            q: generated_q,
-            generator: generated_generator,
             participants,
             threshold,
         }
@@ -123,9 +112,6 @@ impl FrostState {
     /// Function that converts the `FrostState` to a frost state `Message`.
     pub fn to_message(self) -> Message {
         Message::FrostState {
-            prime: self.prime,
-            q: self.q,
-            generator: self.generator,
             participants: self.participants,
             threshold: self.threshold,
         }
@@ -133,13 +119,7 @@ impl FrostState {
 
     /// Function that converts the `FrostState` into a JSON formated `String`.
     pub fn to_json_string(&self) -> String {
-        let prime = self.prime.to_string_radix(RADIX);
-        let q = self.q.to_string_radix(RADIX);
-        let generator = self.generator.to_string_radix(RADIX);
         let message = FrostStateJSON {
-            prime,
-            q,
-            generator,
             participants: self.participants,
             threshold: self.threshold,
         };
@@ -150,13 +130,10 @@ impl FrostState {
 /// Struct that represents the `FrostState` as JSON.
 #[derive(Serialize, Deserialize)]
 pub struct FrostStateJSON {
-    pub prime: String,
-    pub q: String,
-    pub generator: String,
     pub participants: u32,
     pub threshold: u32,
 }
-
+/*
 impl FrostStateJSON {
     /// Function that converts a `FrostStateJSON` to a `FrostState`.
     pub fn from_json(&self) -> FrostState {
@@ -164,65 +141,9 @@ impl FrostStateJSON {
         let q = Integer::from_str_radix(&self.q, RADIX).unwrap();
         let generator = Integer::from_str_radix(&self.generator, RADIX).unwrap();
         FrostState {
-            prime,
-            q,
-            generator,
             participants: self.participants,
             threshold: self.threshold,
         }
     }
 }
-
-/// Function that generates a random 256bit integer.
-pub fn generate_integer(state: &FrostState, rnd: &mut RandState) -> Integer {
-    Integer::from(Integer::random_below(state.q.clone(), rnd))
-}
-
-/// Function that generates a random `prime` and corresponding `q`.
-pub fn generate_prime_and_q(rnd: &mut RandState) -> (Integer, Integer) {
-    loop {
-        let q_candidate = Integer::from(Integer::random_bits(BITS, rnd));
-        if let rug::integer::IsPrime::No = q_candidate.is_probably_prime(30) {
-            continue;
-        }
-        let prime_candidate = Integer::from(2 * q_candidate.clone() + 1);
-        match prime_candidate.is_probably_prime(30) {
-            rug::integer::IsPrime::No => continue,
-            _ => {
-                return (prime_candidate, q_candidate);
-            }
-        }
-    }
-}
-
-/// Function that generates a random `generator`.
-pub fn generate_generator(rnd: &mut RandState, q: &Integer, prime: &Integer) -> Integer {
-    loop {
-        let prime_minus = Integer::from(prime.clone() - 1);
-        let h = Integer::from(Integer::random_below(prime_minus.clone(), rnd));
-        match h >= Integer::from(2) {
-            true => {
-                let g = modular::pow(
-                    &h,
-                    &modular::div(prime_minus, q.clone(), &prime).unwrap(),
-                    &prime,
-                );
-                match g == Integer::from(1) {
-                    true => continue,
-                    _ => return g,
-                }
-            }
-            _ => continue,
-        }
-    }
-}
-
-/// Function that hashes a vector of integers using **sha256**.
-pub fn hash(integers: &[Integer], q: &Integer) -> Integer {
-    let h = integers
-        .iter()
-        .fold(Integer::from(0), |acc, i| modular::add(acc, i.clone(), &q));
-    Integer::from_str_radix(digest(h.to_string_radix(RADIX)).as_str(), 16)
-        .unwrap()
-        .modulo(&q)
-}
+*/

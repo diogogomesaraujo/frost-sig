@@ -64,95 +64,90 @@
 //!
 //! See the [resources](https://eprint.iacr.org/2020/852.pdf) here.
 
-use crate::{hash, message::Message, modular, FrostState};
-use rand::Rng;
-use rug::{integer::Order, Integer};
+use crate::{message::Message, FrostState};
+use curve25519_dalek::{
+    constants::RISTRETTO_BASEPOINT_POINT, ristretto::CompressedRistretto, traits::Identity,
+    RistrettoPoint, Scalar,
+};
+use sha2::Sha512;
 use std::error::Error;
 
 /// Function that computes the binding values for a participant.
 /// It recieves the message that will be signed and creates a hashed value that will be used to verify the participants commitment.
 /// It follows this format: *id::::message::::commitment*.
 pub fn compute_binding_value(
-    state: &FrostState,
     participant_commitment: &Message,
     message: &str,
-) -> Result<Integer, Box<dyn Error>> {
+) -> Result<Scalar, Box<dyn Error>> {
     match participant_commitment {
         Message::PublicCommitment {
             participant_id,
             di,
             ei,
             public_share,
-        } => Ok(hash(
-            &[
-                participant_id.clone(),
-                Integer::from_digits(message.as_bytes(), Order::MsfBe),
-                di.clone(),
-                ei.clone(),
-                public_share.clone(),
-            ],
-            &state.q,
-        )),
+        } => Ok({
+            let mut buf = vec![];
+            buf.extend_from_slice(&participant_id.to_le_bytes());
+            buf.extend_from_slice(message.as_bytes());
+            buf.extend_from_slice(di.as_bytes());
+            buf.extend_from_slice(ei.as_bytes());
+            buf.extend_from_slice(public_share.as_bytes());
+
+            Scalar::hash_from_bytes::<Sha512>(&buf)
+        }),
         _ => Err("Message was not of the desired type.".into()),
     }
 }
 
 /// Function that computes the aggregate group commitment and a challenge that will be verified by other participants.
 pub fn compute_group_commitment_and_challenge(
-    state: &FrostState,
     participants_commitments: &[Message],
     message: &str,
-    group_public_key: Integer,
-) -> Result<(Integer, Integer), Box<dyn Error>> {
-    let group_commitment = participants_commitments.iter().try_fold(
-        Integer::from(1),
-        |acc, pc| -> Result<Integer, Box<dyn Error>> {
-            match pc {
-                Message::PublicCommitment {
-                    participant_id: _,
-                    di,
-                    ei,
-                    public_share: _,
-                } => Ok({
-                    let binding_value = compute_binding_value(&state, &pc, &message)?;
-                    modular::mul(
-                        modular::mul(acc.clone(), di.clone(), &state.prime),
-                        modular::pow(&ei, &binding_value, &state.prime),
-                        &state.prime,
-                    )
-                }),
-                _ => Err("Message was not of the desired type.".into()),
-            }
-        },
-    )?;
-    let message = Integer::from_digits(message.as_bytes(), Order::MsfBe);
-    let challenge = hash(
-        &[group_commitment.clone(), group_public_key, message],
-        &state.q,
-    );
+    group_public_key: CompressedRistretto,
+) -> Result<(CompressedRistretto, Scalar), Box<dyn Error>> {
+    let group_commitment = participants_commitments
+        .iter()
+        .try_fold(
+            RistrettoPoint::identity(),
+            |acc, pc| -> Result<RistrettoPoint, Box<dyn Error>> {
+                match pc {
+                    Message::PublicCommitment {
+                        participant_id: _,
+                        di,
+                        ei,
+                        public_share: _,
+                    } => Ok({
+                        let binding_value = compute_binding_value(&pc, &message)?;
+                        acc + (di.decompress().unwrap()
+                            + (ei.decompress().unwrap() * binding_value))
+                    }),
+                    _ => Err("Message was not of the desired type.".into()),
+                }
+            },
+        )?
+        .compress();
+    let challenge = {
+        let mut buf = vec![];
+        buf.extend_from_slice(group_commitment.as_bytes());
+        buf.extend_from_slice(group_public_key.as_bytes());
+        buf.extend_from_slice(message.as_bytes());
+
+        Scalar::hash_from_bytes::<Sha512>(&buf)
+    };
     Ok((group_commitment, challenge))
 }
 
 /// Function that calculates the lagrange_coefficient of a participant.
-pub fn lagrange_coefficient(state: &FrostState, participant_id: &Integer) -> Integer {
+pub fn lagrange_coefficient(state: &FrostState, participant_id: &u32) -> Scalar {
+    let id = Scalar::from(*participant_id);
     (1..=state.threshold)
         .into_iter()
-        .fold(Integer::from(1), |acc, j| {
-            let j = Integer::from(j);
+        .fold(Scalar::ONE, |acc, j| {
             if &j == participant_id {
                 acc
             } else {
-                let j = Integer::from(j);
-                modular::mul(
-                    acc.clone(),
-                    modular::div(
-                        j.clone(),
-                        modular::sub(j, participant_id.clone(), &state.q),
-                        &state.q,
-                    )
-                    .unwrap(),
-                    &state.q,
-                )
+                let j = Scalar::from(j);
+                acc * (j * (j - id).invert())
             }
         })
 }
@@ -160,33 +155,20 @@ pub fn lagrange_coefficient(state: &FrostState, participant_id: &Integer) -> Int
 /// Function that calculates a participant's response that will be sent to the SA (main participant).
 /// It is computed from the users private nonces and secret keys.
 pub fn compute_own_response(
-    state: &FrostState,
-    participant_id: Integer,
+    participant_id: u32,
     participant_commitment: &Message,
-    private_key: &Integer,
-    private_nonces: &(Integer, Integer),
-    lagrange_coefficient: &Integer,
-    challenge: &Integer,
+    private_key: &Scalar,
+    private_nonces: &(Scalar, Scalar),
+    lagrange_coefficient: &Scalar,
+    challenge: &Scalar,
     message: &str,
 ) -> Result<Message, Box<dyn Error>> {
-    let binding_value = compute_binding_value(&state, &participant_commitment, &message)?;
+    let binding_value = compute_binding_value(&participant_commitment, &message)?;
     let (di, ei) = private_nonces;
 
     Ok(Message::Response {
         sender_id: participant_id,
-        value: modular::add(
-            di.clone(),
-            modular::add(
-                modular::mul(ei.clone(), binding_value, &state.q),
-                modular::mul(
-                    modular::mul(lagrange_coefficient.clone(), private_key.clone(), &state.q),
-                    challenge.clone(),
-                    &state.q,
-                ),
-                &state.q,
-            ),
-            &state.q,
-        ),
+        value: di + (ei * binding_value) + (lagrange_coefficient * private_key * challenge),
     })
 }
 
@@ -196,7 +178,7 @@ pub fn verify_participant(
     participant_commitment: &Message,
     message: &str,
     response: &Message,
-    challenge: &Integer,
+    challenge: &Scalar,
 ) -> Result<bool, Box<dyn Error>> {
     match (participant_commitment, response) {
         (
@@ -211,24 +193,12 @@ pub fn verify_participant(
                 value,
             },
         ) => {
-            let gz: Integer = modular::pow(&state.generator, &value, &state.prime);
-            let binding_value = compute_binding_value(&state, &participant_commitment, &message)?;
-            let ri = modular::mul(
-                di.clone(),
-                modular::pow(&ei, &binding_value, &state.prime),
-                &state.prime,
-            );
+            let gz = value * RISTRETTO_BASEPOINT_POINT;
+            let binding_value = compute_binding_value(participant_commitment, message)?;
+            let ri = di.decompress().unwrap() + (ei.decompress().unwrap() * binding_value);
             let to_validate = {
-                let exponent = modular::mul(
-                    challenge.clone(),
-                    lagrange_coefficient(&state, &participant_id),
-                    &state.q,
-                );
-                modular::mul(
-                    ri,
-                    modular::pow(&public_share, &exponent, &state.prime),
-                    &state.prime,
-                )
+                let exponent = challenge * lagrange_coefficient(state, participant_id);
+                ri + (public_share.decompress().unwrap() * exponent)
             };
             assert_eq!(
                 gz, to_validate,
@@ -243,16 +213,15 @@ pub fn verify_participant(
 
 /// Function that computes the aggregate response created from all responses.
 pub fn compute_aggregate_response(
-    state: &FrostState,
     participants_responses: &[Message],
-) -> Result<Integer, Box<dyn Error>> {
+) -> Result<Scalar, Box<dyn Error>> {
     participants_responses
         .iter()
-        .try_fold(Integer::from(0), |acc, pr| match pr {
+        .try_fold(Scalar::ZERO, |acc, pr| match pr {
             Message::Response {
                 sender_id: _,
                 value,
-            } => Ok(modular::add(acc, value.clone(), &state.q)),
+            } => Ok(acc + value),
             _ => Err("Message was not of the desired type.".into()),
         })
 }

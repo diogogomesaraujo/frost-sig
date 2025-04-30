@@ -12,6 +12,7 @@
 //! - Conversions from `Message` into a JSON formated `String` and the other way arround.
 
 use crate::RADIX;
+use curve25519_dalek::{ristretto::CompressedRistretto, Scalar};
 use rug::Integer;
 use serde::{Deserialize, Serialize};
 
@@ -21,47 +22,41 @@ pub enum Message {
     /// Message utilized during the keygen round 1 phase.
     /// It represents the commitments and signature used to validate a user and create the aggregate public key.
     Broadcast {
-        participant_id: Integer,
-        commitments: Vec<Integer>,
-        signature: (Integer, Integer),
+        participant_id: u32,
+        commitments: Vec<CompressedRistretto>,
+        signature: (Scalar, Scalar),
     },
 
     /// Message that is sent during the keygen round 2 phase.
     /// It represents the secret sent from every participant to all others and it is used to calculate a participant's private key.
     SecretShare {
-        sender_id: Integer,
-        reciever_id: Integer,
-        secret: Integer,
+        sender_id: u32,
+        reciever_id: u32,
+        secret: Scalar,
     },
 
     /// Message that is sent during the signature phase.
     /// It is used by the main participant (SA) for others to verify the commitments chosen by the SA.
     PublicCommitment {
-        participant_id: Integer,
-        di: Integer,
-        ei: Integer,
-        public_share: Integer,
+        participant_id: u32,
+        di: CompressedRistretto,
+        ei: CompressedRistretto,
+        public_share: CompressedRistretto,
     },
 
     /// Message that is sent during the signature phase.
     /// It is used to compute the aggregate response and is sent by every participant to the SA.
-    Response { sender_id: Integer, value: Integer },
+    Response { sender_id: u32, value: Scalar },
 
     /// Message that is sent at the beginning of a FROST operation.
     /// It is used to do all the calculations needed for all the FROST operations.
-    FrostState {
-        prime: Integer,
-        q: Integer,
-        generator: Integer,
-        participants: u32,
-        threshold: u32,
-    },
+    FrostState { participants: u32, threshold: u32 },
 
     /// Message that is sent at the begging of the Frost sign operation.
     /// It is used to atribute a temporary id to identify the participant as the operation is happening.
     Id(u32),
 }
-
+/*
 impl Message {
     /// Function that converts a `Message` into a JSON formated `String`.
     pub fn to_json_string(&self) -> String {
@@ -294,3 +289,4 @@ impl MessageJSON {
         }
     }
 }
+*/

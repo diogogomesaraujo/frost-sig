@@ -206,7 +206,7 @@ pub mod keygen_server {
         let listener = TcpListener::bind(&address).await?;
 
         // init the random state
-        let seed: i32 = rand::rng().random();
+        let seed: i32 = rand::thread_rng().gen();
         let mut rnd = RandState::new();
         rnd.seed(&rug::Integer::from(seed));
 
@@ -284,7 +284,7 @@ pub mod sign_server {
         let listener = TcpListener::bind(&address).await?;
 
         // init random state
-        let seed: i32 = rand::rng().random();
+        let seed: i32 = rand::thread_rng().gen();
         let mut rnd = RandState::new();
         rnd.seed(&rug::Integer::from(seed));
 

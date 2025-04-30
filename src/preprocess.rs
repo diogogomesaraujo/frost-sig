@@ -24,16 +24,18 @@
 //!
 //! See the [resources](https://eprint.iacr.org/2020/852.pdf) here.
 
-use crate::*;
+use curve25519_dalek::{
+    constants::RISTRETTO_BASEPOINT_POINT, ristretto::CompressedRistretto, Scalar,
+};
+use rand::rngs::OsRng;
 
 /// Function that generates a set of one-time-use nonces and commitments.
 pub fn generate_nonces_and_commitments(
-    state: &FrostState,
-    rnd: &mut RandState,
-) -> ((Integer, Integer), (Integer, Integer)) {
-    let own_dij = generate_integer(&state, rnd);
-    let own_eij = generate_integer(&state, rnd);
-    let dij = modular::pow(&state.generator, &own_dij, &state.prime);
-    let eij = modular::pow(&state.generator, &own_eij, &state.prime);
-    ((own_dij, own_eij), (dij, eij))
+    rng: &mut OsRng,
+) -> ((Scalar, Scalar), (CompressedRistretto, CompressedRistretto)) {
+    let own_dij = Scalar::random(rng);
+    let own_eij = Scalar::random(rng);
+    let dij = own_dij * RISTRETTO_BASEPOINT_POINT;
+    let eij = own_eij * RISTRETTO_BASEPOINT_POINT;
+    ((own_dij, own_eij), (dij.compress(), eij.compress()))
 }
