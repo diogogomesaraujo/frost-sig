@@ -70,6 +70,8 @@ pub struct SignInput {
     own_public_share: CompressedRistretto,
     /// Private key that is needed for a participant to sign a transaction.
     own_private_share: Scalar,
+    /// Participants' broadcasts sent during keygen.
+    participants_proofs: Vec<Message>,
     /// Message being signed.
     message: String,
 }
@@ -196,7 +198,7 @@ pub mod keygen_client {
         };
 
         // execute round 2
-        let (own_public_key, aggregate_public_key, private_key_share) = {
+        let (own_public_key, aggregate_public_key, private_key_share, all_broadcasts) = {
             // compute own secret share
             let own_share = round_2::create_own_secret_share(&participant_self);
 
@@ -258,7 +260,7 @@ pub mod keygen_client {
             // compute own public key share from the private key.
             let own_public_key_share = round_2::compute_own_verification_share(&private_key);
 
-            let broadcasts = {
+            let all_broadcasts = {
                 let mut temp = broadcasts;
                 temp.push(own_broadcast);
                 temp
@@ -266,7 +268,7 @@ pub mod keygen_client {
 
             // verify others' public key shares
             {
-                let verification_shares: Vec<CompressedRistretto> = broadcasts
+                let verification_shares: Vec<CompressedRistretto> = all_broadcasts
                     .iter()
                     .map(|b| {
                         round_2::compute_participant_verification_share(&participant_self, &b)
@@ -284,7 +286,7 @@ pub mod keygen_client {
             }
 
             // compute aggregated public key from the broadcast messages
-            let aggregated_public_key = round_2::compute_group_public_key(&broadcasts)?;
+            let aggregated_public_key = round_2::compute_group_public_key(&all_broadcasts)?;
 
             logging::print(
                 format!(
@@ -296,7 +298,12 @@ pub mod keygen_client {
                 .as_str(),
             );
 
-            (own_public_key_share, aggregated_public_key, private_key)
+            (
+                own_public_key_share,
+                aggregated_public_key,
+                private_key,
+                all_broadcasts,
+            )
         };
 
         // write the shared and private information to a file
@@ -306,6 +313,7 @@ pub mod keygen_client {
                 own_public_share: own_public_key,
                 own_private_share: private_key_share,
                 public_aggregated_key: aggregate_public_key,
+                participants_proofs: all_broadcasts,
                 message: String::new(),
             };
             sign_input.to_file(path).await?;
@@ -319,6 +327,7 @@ pub mod keygen_client {
 pub mod sign_client {
     use super::*;
     use crate::{
+        keygen::{round_1::verify_proofs, round_2::compute_group_public_key},
         preprocess::generate_nonces_and_commitments,
         sign::{
             compute_aggregate_response, compute_group_commitment_and_challenge,
@@ -326,7 +335,7 @@ pub mod sign_client {
         },
     };
     use futures::SinkExt;
-    use rand::{rngs::OsRng, Rng};
+    use rand::rngs::OsRng;
     use std::{collections::HashSet, error::Error};
     use tokio_util::codec::{Framed, LinesCodec};
 
@@ -335,6 +344,28 @@ pub mod sign_client {
         // wallet and participant info needed from file
         let sign_input = SignInput::from_file(path).await?;
 
+        // verify mallicious behaviour (don't know if this is the right way to do it)
+        {
+            // verify if proofs were tampered with
+            assert!(
+                verify_proofs(&sign_input.participants_proofs),
+                "You are trying to perform a signature with tampered data."
+            );
+
+            // verify if threshold was tampered with
+            assert!(
+                sign_input.participants_proofs.len() >= sign_input.state.threshold as usize,
+                "You are trying to perform a signature with tampered data."
+            );
+
+            // verify if the public aggregated key was tampered with
+            assert_eq!(
+                compute_group_public_key(&sign_input.participants_proofs)?,
+                sign_input.public_aggregated_key,
+                "You are trying to perform a signature with tampered data."
+            );
+        }
+
         // connect
         let address = format!("{}:{}", ip, port);
         let stream = TcpStream::connect(address).await?;
@@ -342,6 +373,7 @@ pub mod sign_client {
 
         // init client
         let client = {
+            // get id from the server
             let id = {
                 match recieve_message(&mut lines).await? {
                     Message::Id(id) => id,
@@ -349,8 +381,7 @@ pub mod sign_client {
                 }
             };
 
-            let state = sign_input.state;
-            FrostClient::new(state, id)
+            FrostClient::new(sign_input.state, id)
         };
 
         // init random state
@@ -373,17 +404,17 @@ pub mod sign_client {
         // recieving others commitments
         let public_commitments = {
             let mut seen = HashSet::new();
-            seen.insert(sign_input.own_public_share);
+            seen.insert((sign_input.own_public_share, client.own_id));
             let mut public_commitments = vec![own_public_commitment.clone()];
             for _i in 1..(client.state.threshold) {
                 let message = recieve_message(&mut lines).await?;
                 match &message {
                     Message::PublicCommitment {
-                        participant_id: _,
+                        participant_id,
                         di: _,
                         ei: _,
                         public_share,
-                    } => match seen.insert(public_share.clone()) {
+                    } => match seen.insert((*public_share, *participant_id)) {
                         true => public_commitments.push(message.clone()),
                         false => return Err("Multiple instances of the same participant tried to sign the operation.".into())
                     },

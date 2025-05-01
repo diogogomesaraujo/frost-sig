@@ -2,6 +2,8 @@
 //!
 //! `frost-sig` is a threshold signature library that implements the FROST protocol.
 //!
+//! It uses [Risttretto](https://ristretto.group/) elliptic curve cryptography and the [Blake2](https://www.blake2.net/) hashing algorythm for computations.
+//!
 //! ## Features
 //!
 //! - Key Generation.
@@ -9,20 +11,23 @@
 //! - Signing Transactions.
 //! - Servers/Clients to use the protocol in a pratical setting.
 //!
+//! ## Usage Flow
+//!
+//! ![Activity Diagrams](./assets/frost-server.jpg)
+//!
 //! ## Dependencies
 //!
-//! - `rug` is a arbitrary precision numbers crate and provides infrastructure for the 256bit numbers and calculations.
+//! - `curve25519_dalek` is a crate for elliptic curve cryptography.
 //! - `rand` is a random number generation crate and it is used to generate a random seed for the 256bit numbers generation.
-//! - `sha-256` is an implementation of SHA-256 and it is the predefined hashing algorythm for the threshold signature system.
-//! - `tokio` an async runtime for Rust.
-//! - `serde` a crate to serialize and deserialize JSON.
+//! - `serde` is a framework for serializing and deserializing Rust data structures efficiently and generically.
+//! - `tokio` is a runtime for writting reliable async Rust code.
 //!
 //! ## Requirements
 //!
 //! - Cargo installed
 //!
 //! ## Example
-//! ```
+//! ```rust
 //! use frost_sig::*;
 //! use std::error::Error;
 //!
@@ -37,7 +42,17 @@
 //!
 //!     match (mode.as_str(), operation.as_str()) {
 //!         ("server", "keygen") => {
-//!             server::keygen_server::run("localhost", 3333, 3, 2).await?;
+//!             let p = std::env::args()
+//!                 .nth(3)
+//!                 .expect("Failed to give enough arguments.")
+//!                 .parse::<u32>()
+//!                 .expect("Invalid arguments.");
+//!             let t = std::env::args()
+//!                 .nth(4)
+//!                 .expect("Failed to give enough arguments.")
+//!                 .parse::<u32>()
+//!                 .expect("Invalid arguments.");
+//!             server::keygen_server::run("localhost", 3333, p, t).await?;
 //!         }
 //!         ("client", "keygen") => {
 //!             let path = std::env::args()
@@ -46,7 +61,17 @@
 //!             client::keygen_client::run("localhost", 3333, &path).await?;
 //!         }
 //!         ("server", "sign") => {
-//!             server::sign_server::run("localhost", 3333, 3, 2)
+//!             let p = std::env::args()
+//!                 .nth(3)
+//!                 .expect("Failed to give enough arguments.")
+//!                 .parse::<u32>()
+//!                 .expect("Invalid arguments.");
+//!             let t = std::env::args()
+//!                 .nth(4)
+//!                 .expect("Failed to give enough arguments.")
+//!                 .parse::<u32>()
+//!                 .expect("Invalid arguments.");
+//!             server::sign_server::run("localhost", 3333, p, t)
 //!                 .await
 //!                 .unwrap();
 //!         }
@@ -63,7 +88,7 @@
 //!
 //!     Ok(())
 //! }
-//!```
+//! ```
 //!
 //! ## Support
 //!
