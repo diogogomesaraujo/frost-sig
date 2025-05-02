@@ -30,7 +30,7 @@ It uses [Risttretto](https://ristretto.group/) elliptic curve cryptography and t
 
 ### Socket
 
-This example shows how to use the `client` and `server` modules to create a socket for participant's to generate keys and sign transactions in a real-time CLI enviroment.
+This example shows how to use the `client` and `server` modules to create a socket for participants to generate keys and sign transactions in a real-time CLI enviroment.
 
 ```Rust
 use frost_sig::{client, server};
