@@ -13,7 +13,7 @@
 //!
 //! ## Usage Flow
 //!
-//! ![Activity Diagrams](./assets/frost-server.jpg)
+//! ![Activity Diagrams](./doc/assets/frost-server.jpg)
 //!
 //! ## Dependencies
 //!
@@ -101,15 +101,13 @@ pub mod keygen;
 pub mod preprocess;
 pub mod sign;
 
-// pub mod modular;
-
 pub mod message;
-
-#[cfg(test)]
-pub mod test;
 
 pub mod client;
 pub mod server;
+
+#[cfg(test)]
+mod test;
 
 /// Struct that saves the constants needed for FROST. These values should be used by all participants throughout the signing session and discarted after.
 #[derive(Clone, Debug, Serialize, Deserialize)]

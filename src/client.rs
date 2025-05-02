@@ -258,7 +258,7 @@ pub mod keygen_client {
             let private_key = round_2::compute_private_key(&own_share, &secret_shares)?;
 
             // compute own public key share from the private key.
-            let own_public_key_share = round_2::compute_own_verification_share(&private_key);
+            let own_public_key_share = round_2::compute_own_public_share(&private_key);
 
             let all_broadcasts = {
                 let mut temp = broadcasts;

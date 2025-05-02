@@ -4,9 +4,9 @@ version = "0.0.1"
 edition = "2021"
 description = "A threshold signature library that implements the FROST protocol."
 license = "MIT"
-repository = "https://github.com/diogogomesaraujo/thresh"
+repository = "https://github.com/diogogomesaraujo/frost-sig"
 categories = ["cryptography"]
-keywords = ["frost", "threshold", "schnorr"]
+keywords = ["frost", "cryptography", "signature"]
 readme = "README.md"
 
 [dependencies]

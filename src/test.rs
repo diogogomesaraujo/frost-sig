@@ -6,207 +6,277 @@ use rand::rngs::OsRng;
 use std::error::Error;
 
 #[test]
-pub fn test_keygen() -> Result<(), Box<dyn Error>> {
+pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
+    // This example shows the FROST keygen, preprocess and signature flow for 3 participants with a threshold of 2.
+
+    // get the os generator
     let mut rng = OsRng;
 
-    // let ctx = keygen_ctx(Integer::from(1), Integer::from(1));
+    // create the state with the desired number of participants and threshold
     let state = crate::FrostState::new(3, 2);
 
-    // KEYGEN ROUND 1
+    // keygen
+    // round 1
 
-    let pol_1 = round_1::generate_polynomial(&state, &mut rng);
-    let pol_2 = round_1::generate_polynomial(&state, &mut rng);
-    let pol_3 = round_1::generate_polynomial(&state, &mut rng);
+    // each participant computes his polynomial
+    let walter_polynomial = round_1::generate_polynomial(&state, &mut rng);
+    let jessie_polynomial = round_1::generate_polynomial(&state, &mut rng);
+    let skylar_polynomial = round_1::generate_polynomial(&state, &mut rng);
 
-    let participant_1 = Participant::new(1, pol_1);
-    let participant_2 = Participant::new(2, pol_2);
-    let participant_3 = Participant::new(3, pol_3);
+    // each participant initializes his state with his id and the polynomial
+    let walter = Participant::new(1, walter_polynomial);
+    let jessie = Participant::new(2, jessie_polynomial);
+    let skylar = Participant::new(3, skylar_polynomial);
 
-    let signature_1 = round_1::compute_proof_of_knowlodge(&mut rng, &participant_1);
-    let signature_2 = round_1::compute_proof_of_knowlodge(&mut rng, &participant_2);
-    let signature_3 = round_1::compute_proof_of_knowlodge(&mut rng, &participant_3);
+    // each participant computes his signature
+    let walter_signature = round_1::compute_proof_of_knowlodge(&mut rng, &walter);
+    let jessie_signature = round_1::compute_proof_of_knowlodge(&mut rng, &jessie);
+    let skylar_signature = round_1::compute_proof_of_knowlodge(&mut rng, &skylar);
 
-    let commitments_1 = round_1::compute_public_commitments(&participant_1);
-    let commitments_2 = round_1::compute_public_commitments(&participant_2);
-    let commitments_3 = round_1::compute_public_commitments(&participant_3);
+    // each participant computes his commitments
+    let walter_commitments = round_1::compute_public_commitments(&walter);
+    let jessie_commitments = round_1::compute_public_commitments(&jessie);
+    let skylar_commitments = round_1::compute_public_commitments(&skylar);
 
-    let participant_broadcast_1 = Message::Broadcast {
-        participant_id: participant_1.id.clone(),
-        commitments: commitments_1,
-        signature: signature_1,
+    // each participant computes and sends his broadcast
+    let walter_broadcast = Message::Broadcast {
+        participant_id: walter.id.clone(),
+        commitments: walter_commitments,
+        signature: walter_signature,
     };
-    let participant_broadcast_2 = Message::Broadcast {
-        participant_id: participant_2.id.clone(),
-        commitments: commitments_2,
-        signature: signature_2,
+    let jessie_broadcast = Message::Broadcast {
+        participant_id: jessie.id.clone(),
+        commitments: jessie_commitments,
+        signature: jessie_signature,
     };
-    let participant_broadcast_3 = Message::Broadcast {
-        participant_id: participant_3.id.clone(),
-        commitments: commitments_3,
-        signature: signature_3,
+    let skylar_broadcast = Message::Broadcast {
+        participant_id: skylar.id.clone(),
+        commitments: skylar_commitments,
+        signature: skylar_signature,
     };
 
+    // each participant verifies all broadcasts recieved
     assert!(round_1::verify_proofs(&[
-        participant_broadcast_2.clone(),
-        participant_broadcast_3.clone(),
+        jessie_broadcast.clone(),
+        skylar_broadcast.clone(),
+    ]));
+    assert!(round_1::verify_proofs(&[
+        walter_broadcast.clone(),
+        skylar_broadcast.clone(),
+    ]));
+    assert!(round_1::verify_proofs(&[
+        walter_broadcast.clone(),
+        jessie_broadcast.clone(),
     ]));
 
-    // KEYGEN ROUND 2
+    // round 2
 
-    let own_share_1 = round_2::create_own_secret_share(&participant_1);
-    let own_share_2 = round_2::create_own_secret_share(&participant_2);
+    // each participant computes his how secret share
+    let walter_own_share = round_2::create_own_secret_share(&walter);
+    let jessie_own_share = round_2::create_own_secret_share(&jessie);
+    let skylar_own_share = round_2::create_own_secret_share(&skylar);
 
-    let share_from_3_to_1 = round_2::create_share_for(&participant_3, &participant_1.id);
-    let share_from_2_to_1 = round_2::create_share_for(&participant_2, &participant_1.id);
+    // each participant computes a share for each other participant and sends it
+    let share_from_skylar_to_walter = round_2::create_share_for(&skylar, &walter.id);
+    let share_from_jessie_to_walter = round_2::create_share_for(&jessie, &walter.id);
 
-    let share_from_3_to_2 = round_2::create_share_for(&participant_3, &participant_2.id);
-    let share_from_1_to_2 = round_2::create_share_for(&participant_1, &participant_2.id);
+    let share_from_skylar_to_jessie = round_2::create_share_for(&skylar, &jessie.id);
+    let share_from_walter_to_jessie = round_2::create_share_for(&walter, &jessie.id);
 
-    assert!(round_2::verify_share_validity(
-        &participant_1,
-        &share_from_3_to_1,
-        &participant_broadcast_3,
-    ));
-    assert!(round_2::verify_share_validity(
-        &participant_1,
-        &share_from_2_to_1,
-        &participant_broadcast_2,
-    ));
+    let share_from_jessie_to_skylar = round_2::create_share_for(&jessie, &skylar.id);
+    let share_from_walter_to_skylar = round_2::create_share_for(&walter, &skylar.id);
 
-    assert!(round_2::verify_share_validity(
-        &participant_2,
-        &share_from_3_to_2,
-        &participant_broadcast_3,
-    ));
-    assert!(round_2::verify_share_validity(
-        &participant_2,
-        &share_from_1_to_2,
-        &participant_broadcast_1,
-    ));
+    // each participant verifies the secret shares recieved
+    {
+        assert!(round_2::verify_share_validity(
+            &walter,
+            &share_from_skylar_to_walter,
+            &skylar_broadcast,
+        ));
+        assert!(round_2::verify_share_validity(
+            &walter,
+            &share_from_jessie_to_walter,
+            &jessie_broadcast,
+        ));
+    }
+    {
+        assert!(round_2::verify_share_validity(
+            &jessie,
+            &share_from_skylar_to_jessie,
+            &skylar_broadcast,
+        ));
+        assert!(round_2::verify_share_validity(
+            &jessie,
+            &share_from_walter_to_jessie,
+            &walter_broadcast,
+        ));
+    }
+    {
+        assert!(round_2::verify_share_validity(
+            &skylar,
+            &share_from_walter_to_skylar,
+            &walter_broadcast,
+        ));
+        assert!(round_2::verify_share_validity(
+            &skylar,
+            &share_from_jessie_to_skylar,
+            &jessie_broadcast,
+        ));
+    }
 
-    let private_key_1 =
-        round_2::compute_private_key(&own_share_1, &[share_from_2_to_1, share_from_3_to_1])
-            .unwrap();
+    // each participant computes their own public key
+    let walter_private_key = round_2::compute_private_key(
+        &walter_own_share,
+        &[
+            share_from_jessie_to_walter.clone(),
+            share_from_skylar_to_walter.clone(),
+        ],
+    )
+    .unwrap();
+    let jessie_private_key = round_2::compute_private_key(
+        &jessie_own_share,
+        &[
+            share_from_walter_to_jessie.clone(),
+            share_from_skylar_to_jessie.clone(),
+        ],
+    )
+    .unwrap();
+    let skylar_private_key = round_2::compute_private_key(
+        &skylar_own_share,
+        &[share_from_jessie_to_skylar, share_from_walter_to_skylar],
+    )
+    .unwrap();
 
-    let private_key_2 =
-        round_2::compute_private_key(&own_share_2, &[share_from_3_to_2, share_from_1_to_2])
-            .unwrap();
+    // each participant computes their own public key
+    let walter_public_key = round_2::compute_own_public_share(&walter_private_key);
+    let jessie_public_key = round_2::compute_own_public_share(&jessie_private_key);
+    let skylar_public_key = round_2::compute_own_public_share(&skylar_private_key);
 
-    println!(
-        "This is your private key. save it in a secure place: {:?}.",
-        private_key_1.as_bytes()
-    );
+    // each participant computes a verification share
+    let walter_own_verification_share =
+        round_2::compute_participant_verification_share(&walter, &walter_broadcast).unwrap();
+    let walter_jessie_verification_share =
+        round_2::compute_participant_verification_share(&walter, &jessie_broadcast).unwrap();
+    let walter_skylar_verification_share =
+        round_2::compute_participant_verification_share(&walter, &skylar_broadcast).unwrap();
 
-    let own_verification_share_1 = round_2::compute_own_verification_share(&private_key_1);
-    let own_verification_share_2 = round_2::compute_own_verification_share(&private_key_2);
+    let jessie_own_verification_share =
+        round_2::compute_participant_verification_share(&jessie, &jessie_broadcast).unwrap();
+    let jessie_walter_verification_share =
+        round_2::compute_participant_verification_share(&jessie, &walter_broadcast).unwrap();
+    let jessie_skylar_verification_share =
+        round_2::compute_participant_verification_share(&jessie, &skylar_broadcast).unwrap();
 
-    let public_verification_share_1 =
-        round_2::compute_participant_verification_share(&participant_1, &participant_broadcast_1)
-            .unwrap();
-    let public_verification_share_1_from_2 =
-        round_2::compute_participant_verification_share(&participant_1, &participant_broadcast_2)
-            .unwrap();
-    let public_verification_share_1_from_3 =
-        round_2::compute_participant_verification_share(&participant_1, &participant_broadcast_3)
-            .unwrap();
+    let skylar_own_verification_share =
+        round_2::compute_participant_verification_share(&skylar, &skylar_broadcast).unwrap();
+    let skylar_jessie_verification_share =
+        round_2::compute_participant_verification_share(&skylar, &jessie_broadcast).unwrap();
+    let skylar_walter_verification_share =
+        round_2::compute_participant_verification_share(&skylar, &walter_broadcast).unwrap();
 
-    let public_verification_share_1 = round_2::compute_others_verification_share(&[
-        public_verification_share_1,
-        public_verification_share_1_from_2,
-        public_verification_share_1_from_3,
+    // each participant computes the aggregate verification share from the recieved secret shares
+    let walter_aggregate_verification_share = round_2::compute_others_verification_share(&[
+        walter_own_verification_share,
+        walter_jessie_verification_share,
+        walter_skylar_verification_share,
+    ]);
+    let jessie_aggregate_verification_share = round_2::compute_others_verification_share(&[
+        jessie_own_verification_share,
+        jessie_walter_verification_share,
+        jessie_skylar_verification_share,
+    ]);
+    let skylar_aggregate_verification_share = round_2::compute_others_verification_share(&[
+        skylar_own_verification_share,
+        skylar_walter_verification_share,
+        skylar_jessie_verification_share,
     ]);
 
-    assert_eq!(own_verification_share_1, public_verification_share_1);
+    // each participant verifies if the public key matches the aggregate verification share
+    assert_eq!(walter_public_key, walter_aggregate_verification_share);
+    assert_eq!(jessie_public_key, jessie_aggregate_verification_share);
+    assert_eq!(skylar_public_key, skylar_aggregate_verification_share);
 
-    let group_public_key_1 = round_2::compute_group_public_key(&[
-        participant_broadcast_1.clone(),
-        participant_broadcast_2.clone(),
-        participant_broadcast_3.clone(),
-    ])?;
+    // each participant computes the group public key from the commitments
+    let group_public_key =
+        round_2::compute_group_public_key(&[walter_broadcast, jessie_broadcast, skylar_broadcast])?;
 
-    println!(
-        "The generated group public key is:                   {:?}.",
-        group_public_key_1.as_bytes()
-    );
+    // sign
 
-    // SIGN
+    // the message that will be signed
+    let message = "Send Gustavo 10 bucks.";
 
-    let message = "Send Bob 10 bucks";
+    // each participant generates nonces and commitments for the signature
+    let walter_commitments = generate_nonces_and_commitments(&mut rng);
+    let skylar_commitments = generate_nonces_and_commitments(&mut rng);
 
-    let public_share_1 = own_verification_share_1;
-    let public_share_2 = own_verification_share_2;
-
-    let participant_commitment_1 = generate_nonces_and_commitments(&mut rng);
-    let participant_commitment_2 = generate_nonces_and_commitments(&mut rng);
-
-    let public_commitment_1 = Message::PublicCommitment {
-        participant_id: participant_1.id.clone(),
-        di: participant_commitment_1.1 .0.clone(),
-        ei: participant_commitment_1.1 .1.clone(),
-        public_share: public_share_1,
+    // each participant sends the commitments to others
+    let walter_commitments_message = Message::PublicCommitment {
+        participant_id: walter.id.clone(),
+        di: walter_commitments.1 .0.clone(),
+        ei: walter_commitments.1 .1.clone(),
+        public_share: walter_public_key,
+    };
+    let skylar_commitments_message = Message::PublicCommitment {
+        participant_id: jessie.id.clone(),
+        di: skylar_commitments.1 .0.clone(),
+        ei: skylar_commitments.1 .1.clone(),
+        public_share: skylar_public_key,
     };
 
-    let public_commitment_2 = Message::PublicCommitment {
-        participant_id: participant_2.id.clone(),
-        di: participant_commitment_2.1 .0.clone(),
-        ei: participant_commitment_2.1 .1.clone(),
-        public_share: public_share_2,
-    };
-
+    // each participant computes the group commitment and challenge from the recieved commitments
     let (_group_commitment, challenge) = compute_group_commitment_and_challenge(
-        &[public_commitment_2.clone(), public_commitment_1.clone()],
+        &[
+            skylar_commitments_message.clone(),
+            walter_commitments_message.clone(),
+        ],
         message,
-        group_public_key_1.clone(),
+        group_public_key.clone(),
     )?;
 
-    let lagrange_coefficient_1 = lagrange_coefficient(&state, &participant_1.id);
-    let lagrange_coefficient_2 = lagrange_coefficient(&state, &participant_2.id);
+    // each participant calculates all the participants' lagrange coefficients
+    let walter_lagrange_coefficient = lagrange_coefficient(&state, &walter.id);
+    let skylar_lagrange_coefficient = lagrange_coefficient(&state, &jessie.id);
 
-    let response_1 = compute_own_response(
-        participant_1.id.clone(),
-        &public_commitment_1,
-        &private_key_1,
-        &participant_commitment_1.0,
-        &lagrange_coefficient_1,
+    // each participant computes their response and sends to the sa
+    let walter_response = compute_own_response(
+        walter.id.clone(),
+        &walter_commitments_message,
+        &walter_private_key,
+        &walter_commitments.0,
+        &walter_lagrange_coefficient,
         &challenge,
         &message,
     )?;
-    let response_2 = compute_own_response(
-        participant_2.id.clone(),
-        &public_commitment_2,
-        &private_key_2,
-        &participant_commitment_2.0,
-        &lagrange_coefficient_2,
+    let skylar_response = compute_own_response(
+        jessie.id.clone(),
+        &skylar_commitments_message,
+        &skylar_private_key,
+        &skylar_commitments.0,
+        &skylar_lagrange_coefficient,
         &challenge,
         &message,
     )?;
 
-    let verify_1 = verify_participant(
+    // sa verifies others' responses
+    let verify_walter = verify_participant(
         &state,
-        &public_commitment_1,
+        &walter_commitments_message,
         message,
-        &response_1,
+        &walter_response,
         &challenge,
     )?;
-
-    let verify_2 = verify_participant(
+    let verify_skylar = verify_participant(
         &state,
-        &public_commitment_2,
+        &skylar_commitments_message,
         message,
-        &response_2,
+        &skylar_response,
         &challenge,
     )?;
+    assert!(verify_walter);
+    assert!(verify_skylar);
 
-    assert!(verify_1);
-    assert!(verify_2);
-
-    let aggregate_response = compute_aggregate_response(&[response_1, response_2])?;
-    println!(
-        "The group {:?} computed this response {:?} with this message \"{}\".",
-        group_public_key_1.as_bytes(),
-        aggregate_response.as_bytes(),
-        message
-    );
+    // sa computes the aggregate response
+    let _aggregate_response = compute_aggregate_response(&[walter_response, skylar_response])?;
 
     Ok(())
 }

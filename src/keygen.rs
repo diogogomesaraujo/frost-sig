@@ -228,7 +228,7 @@ pub mod round_2 {
     }
 
     /// Function that computes a participant's verification share.
-    pub fn compute_own_verification_share(private_key: &Scalar) -> CompressedRistretto {
+    pub fn compute_own_public_share(private_key: &Scalar) -> CompressedRistretto {
         (private_key * RISTRETTO_BASEPOINT_POINT).compress()
     }
 
