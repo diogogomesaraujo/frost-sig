@@ -106,11 +106,11 @@ cargo run -- server keygen p t
 # for the keygen client
 cargo run -- server keygen p t
 
-# for the keygen client (saves the keys in ex.json)
-cargo run -- client keygen keys.json
+# for the keygen client (saves the keys in frost.json)
+cargo run -- client keygen frost.json
 
-# for the keygen client (gets the keys from ex.json)
-cargo run -- client sign keys.json
+# for the keygen client (gets the keys from frost.json)
+cargo run -- client sign frost.json
 ```
 
 ### No Socket
