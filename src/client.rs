@@ -10,7 +10,11 @@
 //!
 //! - Keygen and sign CLI clients.
 
-use crate::{message::Message, FrostState};
+use crate::{
+    keygen::{round_1::verify_proofs, round_2::compute_group_public_key},
+    message::Message,
+    FrostState,
+};
 use curve25519_dalek::{ristretto::CompressedRistretto, Scalar};
 use serde::{Deserialize, Serialize};
 use std::error::Error;
@@ -94,6 +98,40 @@ impl SignInput {
         file.write_all(serde_json::to_string(&self)?.as_bytes())
             .await?;
         Ok(())
+    }
+
+    pub fn verify(&self) -> Result<(), Box<dyn Error>> {
+        {
+            // verify if proofs were tampered with
+            assert!(
+                verify_proofs(&self.participants_proofs),
+                "You are trying to perform a signature with tampered data."
+            );
+
+            // verify if threshold was tampered with again
+            match &self.participants_proofs[0] {
+                Message::Broadcast {
+                    participant_id: _,
+                    commitments,
+                    signature: _,
+                } => {
+                    assert!(
+                        commitments.len() as u32 == self.state.threshold,
+                        "You are trying to perform a signature with tampered data."
+                    )
+                }
+                _ => return Err("You are trying to perform a signature with tampered data.".into()),
+            }
+
+            // verify if the public aggregated key was tampered with
+            assert_eq!(
+                compute_group_public_key(&self.participants_proofs)?,
+                self.public_aggregated_key,
+                "You are trying to perform a signature with tampered data."
+            );
+
+            Ok(())
+        }
     }
 }
 
@@ -327,7 +365,6 @@ pub mod keygen_client {
 pub mod sign_client {
     use super::*;
     use crate::{
-        keygen::{round_1::verify_proofs, round_2::compute_group_public_key},
         preprocess::generate_nonces_and_commitments,
         sign::{
             compute_aggregate_response, compute_group_commitment_and_challenge,
@@ -345,26 +382,7 @@ pub mod sign_client {
         let sign_input = SignInput::from_file(path).await?;
 
         // verify mallicious behaviour (don't know if this is the right way to do it)
-        {
-            // verify if proofs were tampered with
-            assert!(
-                verify_proofs(&sign_input.participants_proofs),
-                "You are trying to perform a signature with tampered data."
-            );
-
-            // verify if threshold was tampered with
-            assert!(
-                sign_input.participants_proofs.len() >= sign_input.state.threshold as usize,
-                "You are trying to perform a signature with tampered data."
-            );
-
-            // verify if the public aggregated key was tampered with
-            assert_eq!(
-                compute_group_public_key(&sign_input.participants_proofs)?,
-                sign_input.public_aggregated_key,
-                "You are trying to perform a signature with tampered data."
-            );
-        }
+        sign_input.verify()?;
 
         // connect
         let address = format!("{}:{}", ip, port);
