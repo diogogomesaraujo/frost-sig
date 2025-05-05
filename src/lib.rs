@@ -420,6 +420,9 @@
 //!
 //! See the [resources](https://eprint.iacr.org/2020/852.pdf) here.
 
+use std::error::Error;
+
+use curve25519_dalek::{ristretto::CompressedRistretto, RistrettoPoint};
 use message::Message;
 use serde::{Deserialize, Serialize};
 
@@ -464,5 +467,14 @@ impl FrostState {
     /// Function that converts the `FrostState` into a JSON formated `String`.
     pub fn to_json_string(&self) -> String {
         serde_json::to_string(&self).unwrap()
+    }
+}
+
+pub fn decompress(
+    compressed_point: &CompressedRistretto,
+) -> Result<RistrettoPoint, Box<dyn Error>> {
+    match compressed_point.decompress() {
+        Some(point) => Ok(point),
+        None => return Err("Couldn't decompress the point.".into()),
     }
 }

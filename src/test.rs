@@ -59,15 +59,15 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
     assert!(round_1::verify_proofs(&[
         jessie_broadcast.clone(),
         skylar_broadcast.clone(),
-    ]));
+    ])?);
     assert!(round_1::verify_proofs(&[
         walter_broadcast.clone(),
         skylar_broadcast.clone(),
-    ]));
+    ])?);
     assert!(round_1::verify_proofs(&[
         walter_broadcast.clone(),
         jessie_broadcast.clone(),
-    ]));
+    ])?);
 
     // round 2
 
@@ -92,36 +92,36 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
             &walter,
             &share_from_skylar_to_walter,
             &skylar_broadcast,
-        ));
+        )?);
         assert!(round_2::verify_share_validity(
             &walter,
             &share_from_jessie_to_walter,
             &jessie_broadcast,
-        ));
+        )?);
     }
     {
         assert!(round_2::verify_share_validity(
             &jessie,
             &share_from_skylar_to_jessie,
             &skylar_broadcast,
-        ));
+        )?);
         assert!(round_2::verify_share_validity(
             &jessie,
             &share_from_walter_to_jessie,
             &walter_broadcast,
-        ));
+        )?);
     }
     {
         assert!(round_2::verify_share_validity(
             &skylar,
             &share_from_walter_to_skylar,
             &walter_broadcast,
-        ));
+        )?);
         assert!(round_2::verify_share_validity(
             &skylar,
             &share_from_jessie_to_skylar,
             &jessie_broadcast,
-        ));
+        )?);
     }
 
     // each participant computes their own public key
@@ -179,17 +179,17 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
         walter_own_verification_share,
         walter_jessie_verification_share,
         walter_skylar_verification_share,
-    ]);
+    ])?;
     let jessie_aggregate_verification_share = round_2::compute_others_verification_share(&[
         jessie_own_verification_share,
         jessie_walter_verification_share,
         jessie_skylar_verification_share,
-    ]);
+    ])?;
     let skylar_aggregate_verification_share = round_2::compute_others_verification_share(&[
         skylar_own_verification_share,
         skylar_walter_verification_share,
         skylar_jessie_verification_share,
-    ]);
+    ])?;
 
     // each participant verifies if the public key matches the aggregate verification share
     assert_eq!(walter_public_key, walter_aggregate_verification_share);

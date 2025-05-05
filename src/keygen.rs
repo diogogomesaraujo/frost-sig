@@ -102,38 +102,41 @@ pub mod round_1 {
     }
 
     /// Function that is used by a participant to verify if other participants are valid or not.
-    pub fn verify_proofs(participants_broadcasts: &[Message]) -> bool {
-        participants_broadcasts
-            .iter()
-            .fold(true, |acc, pb| match pb {
-                Message::Broadcast {
-                    signature: (wp, cp),
-                    commitments,
-                    participant_id,
-                } => {
-                    let rp = {
-                        let temp1 = wp * RISTRETTO_BASEPOINT_POINT;
-                        let temp2 = commitments[0].decompress().unwrap() * cp;
-                        temp1 - temp2
-                    };
-                    let reconstructed_cp = {
-                        let mut buf = vec![];
-                        buf.extend_from_slice(&participant_id.to_le_bytes());
-                        buf.extend_from_slice(commitments[0].as_bytes());
-                        buf.extend_from_slice(rp.compress().as_bytes());
-                        Scalar::hash_from_bytes::<Blake2b512>(&buf)
-                    };
-                    acc && (&reconstructed_cp == cp)
+    pub fn verify_proofs(participants_broadcasts: &[Message]) -> Result<bool, Box<dyn Error>> {
+        Ok(participants_broadcasts.iter().try_fold(
+            true,
+            |acc, pb| -> Result<bool, Box<dyn Error>> {
+                match pb {
+                    Message::Broadcast {
+                        signature: (wp, cp),
+                        commitments,
+                        participant_id,
+                    } => {
+                        let rp = {
+                            let temp1 = wp * RISTRETTO_BASEPOINT_POINT;
+                            let temp2 = decompress(&commitments[0])? * cp;
+                            temp1 - temp2
+                        };
+                        let reconstructed_cp = {
+                            let mut buf = vec![];
+                            buf.extend_from_slice(&participant_id.to_le_bytes());
+                            buf.extend_from_slice(commitments[0].as_bytes());
+                            buf.extend_from_slice(rp.compress().as_bytes());
+                            Scalar::hash_from_bytes::<Blake2b512>(&buf)
+                        };
+                        Ok(acc && (&reconstructed_cp == cp))
+                    }
+                    _ => Ok(false),
                 }
-                _ => false,
-            })
+            },
+        )?)
     }
 }
 
 /// The second round is responsible for generating partial signatures for every participant and aggregate them to form the group keys that will be used to sign transactions.
 pub mod round_2 {
     use super::Participant;
-    use crate::message::Message;
+    use crate::{decompress, message::Message};
     use curve25519_dalek::{
         constants::RISTRETTO_BASEPOINT_POINT, ristretto::CompressedRistretto, traits::Identity,
         RistrettoPoint, Scalar,
@@ -171,7 +174,7 @@ pub mod round_2 {
         participant: &Participant,
         secret_share: &Message,
         participant_broadcast: &Message,
-    ) -> bool {
+    ) -> Result<bool, Box<dyn Error>> {
         match (secret_share, participant_broadcast) {
             (
                 Message::SecretShare {
@@ -186,16 +189,15 @@ pub mod round_2 {
                 },
             ) => {
                 let own = secret * RISTRETTO_BASEPOINT_POINT;
-                let others = commitments.iter().enumerate().fold(
+                let others = commitments.iter().enumerate().try_fold(
                     RistrettoPoint::identity(),
-                    |acc, (k, apk)| {
-                        acc + (apk.decompress().unwrap()
-                            * Scalar::from(participant.id.pow(k as u32)))
+                    |acc, (k, apk)| -> Result<RistrettoPoint, Box<dyn Error>> {
+                        Ok(acc + (decompress(apk)? * Scalar::from(participant.id.pow(k as u32))))
                     },
-                );
-                own == others
+                )?;
+                Ok(own == others)
             }
-            _ => false,
+            _ => Ok(false),
         }
     }
 
@@ -246,7 +248,7 @@ pub mod round_2 {
                             participant_id: _,
                             commitments,
                             signature: _,
-                        } => Ok(commitments[0].decompress().unwrap() + acc),
+                        } => Ok(decompress(&commitments[0])? + acc),
                         _ => Err("Message was not of the desired type.".into()),
                     }
                 },
@@ -267,9 +269,12 @@ pub mod round_2 {
             } => Ok(commitments
                 .iter()
                 .enumerate()
-                .fold(RistrettoPoint::identity(), |acc, (k, apk)| {
-                    acc + (apk.decompress().unwrap() * Scalar::from(participant.id.pow(k as u32)))
-                })
+                .try_fold(
+                    RistrettoPoint::identity(),
+                    |acc, (k, apk)| -> Result<RistrettoPoint, Box<dyn Error>> {
+                        Ok(acc + (decompress(apk)? * Scalar::from(participant.id.pow(k as u32))))
+                    },
+                )?
                 .compress()),
             _ => Err("Message is not a participant broadcast".into()),
         }
@@ -278,12 +283,15 @@ pub mod round_2 {
     /// Function that computes other participants' verification share.
     pub fn compute_others_verification_share(
         verifying_shares: &[CompressedRistretto],
-    ) -> CompressedRistretto {
-        verifying_shares
+    ) -> Result<CompressedRistretto, Box<dyn Error>> {
+        Ok(verifying_shares
             .iter()
-            .fold(RistrettoPoint::identity(), |acc, share| {
-                acc + share.decompress().unwrap()
-            })
-            .compress()
+            .try_fold(
+                RistrettoPoint::identity(),
+                |acc, share| -> Result<RistrettoPoint, Box<dyn Error>> {
+                    Ok(acc + decompress(share)?)
+                },
+            )?
+            .compress())
     }
 }

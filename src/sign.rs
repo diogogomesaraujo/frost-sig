@@ -63,7 +63,7 @@
 //!
 //! See the [resources](https://eprint.iacr.org/2020/852.pdf) here.
 
-use crate::{message::Message, FrostState};
+use crate::{decompress, message::Message, FrostState};
 use blake2::Blake2b512;
 use curve25519_dalek::{
     constants::RISTRETTO_BASEPOINT_POINT, ristretto::CompressedRistretto, traits::Identity,
@@ -117,8 +117,7 @@ pub fn compute_group_commitment_and_challenge(
                         public_share: _,
                     } => Ok({
                         let binding_value = compute_binding_value(&pc, &message)?;
-                        acc + (di.decompress().unwrap()
-                            + (ei.decompress().unwrap() * binding_value))
+                        acc + (decompress(di)? + (decompress(ei)? * binding_value))
                     }),
                     _ => Err("Message was not of the desired type.".into()),
                 }
@@ -194,10 +193,10 @@ pub fn verify_participant(
         ) => {
             let gz = value * RISTRETTO_BASEPOINT_POINT;
             let binding_value = compute_binding_value(participant_commitment, message)?;
-            let ri = di.decompress().unwrap() + (ei.decompress().unwrap() * binding_value);
+            let ri = decompress(di)? + (decompress(ei)? * binding_value);
             let to_validate = {
                 let exponent = challenge * lagrange_coefficient(state, participant_id);
-                ri + (public_share.decompress().unwrap() * exponent)
+                ri + (decompress(public_share)? * exponent)
             };
             assert_eq!(
                 gz, to_validate,

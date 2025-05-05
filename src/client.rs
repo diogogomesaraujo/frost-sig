@@ -100,11 +100,13 @@ impl SignInput {
         Ok(())
     }
 
+    /// Function that verifies if the data retrieved from the `SignInput` is valid or if it was modified.
+    /// It performs mathematically checks if the proofs make sense and also check if the number of people signing is valid as well.
     pub fn verify(&self) -> Result<(), Box<dyn Error>> {
         {
             // verify if proofs were tampered with
             assert!(
-                verify_proofs(&self.participants_proofs),
+                verify_proofs(&self.participants_proofs)?,
                 "You are trying to perform a signature with tampered data."
             );
 
@@ -230,7 +232,7 @@ pub mod keygen_client {
             };
 
             // verify other participants' broadcast messages
-            assert!(round_1::verify_proofs(&broadcasts));
+            assert!(round_1::verify_proofs(&broadcasts)?);
 
             (own_broadcast, broadcasts, participant_self)
         };
@@ -266,31 +268,34 @@ pub mod keygen_client {
             };
 
             // verify other participants' secret shares
-            secret_shares.iter().for_each(|s| {
-                let broadcast = broadcasts
-                    .iter()
-                    .find(|&b| match (b, s) {
-                        (
-                            Message::Broadcast {
-                                participant_id,
-                                commitments: _,
-                                signature: _,
-                            },
-                            Message::SecretShare {
-                                sender_id,
-                                reciever_id: _,
-                                secret: _,
-                            },
-                        ) => participant_id == sender_id,
-                        _ => false,
-                    })
-                    .unwrap();
-                assert!(round_2::verify_share_validity(
-                    &participant_self,
-                    &s,
-                    &broadcast
-                ))
-            });
+            secret_shares
+                .iter()
+                .try_for_each(|s| -> Result<(), Box<dyn Error>> {
+                    let broadcast = broadcasts
+                        .iter()
+                        .find(|&b| match (b, s) {
+                            (
+                                Message::Broadcast {
+                                    participant_id,
+                                    commitments: _,
+                                    signature: _,
+                                },
+                                Message::SecretShare {
+                                    sender_id,
+                                    reciever_id: _,
+                                    secret: _,
+                                },
+                            ) => participant_id == sender_id,
+                            _ => false,
+                        })
+                        .unwrap();
+                    assert!(round_2::verify_share_validity(
+                        &participant_self,
+                        &s,
+                        &broadcast
+                    )?);
+                    Ok(())
+                })?;
 
             // compute private key share with the secret shares
             let private_key = round_2::compute_private_key(&own_share, &secret_shares)?;
@@ -315,7 +320,7 @@ pub mod keygen_client {
                     .collect();
 
                 let others_verification_shares =
-                    round_2::compute_others_verification_share(&verification_shares);
+                    round_2::compute_others_verification_share(&verification_shares)?;
 
                 assert_eq!(
                     own_public_key_share, others_verification_shares,

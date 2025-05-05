@@ -161,8 +161,7 @@ pub async fn handle(
     // send the assigned id to the participant
     participant
         .sender
-        .send(Message::Id(participant.id.clone()))
-        .unwrap();
+        .send(Message::Id(participant.id.clone()))?;
 
     // wait for all participants to join
     barrier.wait().await;
@@ -172,11 +171,11 @@ pub async fn handle(
         tokio::select! {
             Some(msg) = participant.reciever.recv() => {
                 let msg_json = msg.to_json_string()?;
-                writer.send(msg_json).await.unwrap();
+                writer.send(msg_json).await?;
             }
             Some(Ok(msg_json)) = reader.next() => {
                 match Message::from_json_string(msg_json.as_str()) {
-                    Some(msg) => server.lock().await.send_message(&participant, msg).await.unwrap(),
+                    Some(msg) => server.lock().await.send_message(&participant, msg).await?,
                     None => return Err("Tried to send invalid message.".into()),
                 }
             }
@@ -220,7 +219,7 @@ pub mod keygen_server {
 
         while count < participants {
             // accept the participant's connection
-            let (stream, addr) = listener.accept().await.unwrap();
+            let (stream, addr) = listener.accept().await?;
             count += 1;
 
             let server = server.clone();
@@ -229,7 +228,9 @@ pub mod keygen_server {
             // handle the participant in an isolated async thread
             tokio::spawn(async move {
                 logging::print("Accepted a connection.");
-                handle(count, barrier, server, stream, addr).await.unwrap();
+                if let Err(e) = handle(count, barrier, server, stream, addr).await {
+                    eprintln!("{e}");
+                }
             });
         }
 
@@ -241,9 +242,12 @@ pub mod keygen_server {
             let server = server.lock().await;
 
             // send the shared `FrostState` to the participant
-            server.by_addr.values().into_iter().for_each(|tx| {
-                tx.send(server.state.clone().to_message()).unwrap();
-            });
+            server.by_addr.values().into_iter().try_for_each(
+                |tx| -> Result<(), Box<dyn Error>> {
+                    tx.send(server.state.clone().to_message())?;
+                    Ok(())
+                },
+            )?;
         }
 
         // wait before closing the socket for messages that may be left unsent
@@ -298,7 +302,9 @@ pub mod sign_server {
             // handle participant's messages in an isolated async thread
             tokio::spawn(async move {
                 logging::print("Accepted a connection.");
-                handle(count, barrier, server, stream, addr).await.unwrap();
+                if let Err(e) = handle(count, barrier, server, stream, addr).await {
+                    eprintln!("{e}");
+                }
             });
         }
 
