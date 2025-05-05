@@ -169,15 +169,15 @@ Each participant verifies the broadcasts recieved from others, and we finishing 
 assert!(round_1::verify_proofs(&[
     jessie_broadcast.clone(),
     skylar_broadcast.clone(),
-]));
+])?);
 assert!(round_1::verify_proofs(&[
     walter_broadcast.clone(),
     skylar_broadcast.clone(),
-]));
+])?);
 assert!(round_1::verify_proofs(&[
     walter_broadcast.clone(),
     jessie_broadcast.clone(),
-]));
+])?);
 ```
 
 Then we begin round 2 by having each participant compute their secret share.
@@ -206,36 +206,36 @@ Each participant verifies the recieved secret shares.
         &walter,
         &share_from_skylar_to_walter,
         &skylar_broadcast,
-    ));
+    )?);
     assert!(round_2::verify_share_validity(
         &walter,
         &share_from_jessie_to_walter,
         &jessie_broadcast,
-    ));
+    )?);
 }
 {
     assert!(round_2::verify_share_validity(
         &jessie,
         &share_from_skylar_to_jessie,
         &skylar_broadcast,
-    ));
+    )?);
     assert!(round_2::verify_share_validity(
         &jessie,
         &share_from_walter_to_jessie,
         &walter_broadcast,
-    ));
+    )?);
 }
 {
     assert!(round_2::verify_share_validity(
         &skylar,
         &share_from_walter_to_skylar,
         &walter_broadcast,
-    ));
+    )?);
     assert!(round_2::verify_share_validity(
         &skylar,
         &share_from_jessie_to_skylar,
         &jessie_broadcast,
-    ));
+    )?);
 }
 ```
 
@@ -247,21 +247,18 @@ let walter_private_key = round_2::compute_private_key(
         share_from_jessie_to_walter.clone(),
         share_from_skylar_to_walter.clone(),
     ],
-)
-.unwrap();
+)?;
 let jessie_private_key = round_2::compute_private_key(
     &jessie_own_share,
     &[
         share_from_walter_to_jessie.clone(),
         share_from_skylar_to_jessie.clone(),
     ],
-)
-.unwrap();
+)?;
 let skylar_private_key = round_2::compute_private_key(
     &skylar_own_share,
     &[share_from_jessie_to_skylar, share_from_walter_to_skylar],
-)
-.unwrap();
+)?;
 ```
 
 Each participant computes their public key.
@@ -274,25 +271,25 @@ let skylar_public_key = round_2::compute_own_public_share(&skylar_private_key);
 Each participant computes their verification share and one for each broadcast recieved.
 ```Rust
 let walter_own_verification_share =
-    round_2::compute_participant_verification_share(&walter, &walter_broadcast).unwrap();
+    round_2::compute_participant_verification_share(&walter, &walter_broadcast)?;
 let walter_jessie_verification_share =
-    round_2::compute_participant_verification_share(&walter, &jessie_broadcast).unwrap();
+    round_2::compute_participant_verification_share(&walter, &jessie_broadcast)?;
 let walter_skylar_verification_share =
-    round_2::compute_participant_verification_share(&walter, &skylar_broadcast).unwrap();
+    round_2::compute_participant_verification_share(&walter, &skylar_broadcast)?;
 
 let jessie_own_verification_share =
-    round_2::compute_participant_verification_share(&jessie, &jessie_broadcast).unwrap();
+    round_2::compute_participant_verification_share(&jessie, &jessie_broadcast)?;
 let jessie_walter_verification_share =
-    round_2::compute_participant_verification_share(&jessie, &walter_broadcast).unwrap();
+    round_2::compute_participant_verification_share(&jessie, &walter_broadcast)?;
 let jessie_skylar_verification_share =
-    round_2::compute_participant_verification_share(&jessie, &skylar_broadcast).unwrap();
+    round_2::compute_participant_verification_share(&jessie, &skylar_broadcast)?;
 
 let skylar_own_verification_share =
-    round_2::compute_participant_verification_share(&skylar, &skylar_broadcast).unwrap();
+    round_2::compute_participant_verification_share(&skylar, &skylar_broadcast)?;
 let skylar_jessie_verification_share =
-    round_2::compute_participant_verification_share(&skylar, &jessie_broadcast).unwrap();
+    round_2::compute_participant_verification_share(&skylar, &jessie_broadcast)?;
 let skylar_walter_verification_share =
-    round_2::compute_participant_verification_share(&skylar, &walter_broadcast).unwrap();
+    round_2::compute_participant_verification_share(&skylar, &walter_broadcast)?;
 ```
 
 Each participant computes the aggregate verification share from the recieved secret shares.
