@@ -23,3 +23,4 @@ curve25519-dalek = { version = "4", features = [
     "serde",
 ] }
 blake2 = "0.10.6"
+base32 = "0.5.1"
