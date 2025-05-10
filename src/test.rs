@@ -1,6 +1,5 @@
 use crate::keygen::*;
 use crate::message::*;
-use crate::nano;
 use crate::preprocess::*;
 use crate::sign::*;
 use rand::rngs::OsRng;
@@ -274,12 +273,7 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
     assert!(verify_skylar);
 
     // sa computes the aggregate response
-    let aggregate_response = compute_aggregate_response(&[walter_response, skylar_response])?;
-
-    println!(
-        "{}",
-        nano::public_key_to_nano_account(group_public_key.as_bytes())?
-    );
+    let _aggregate_response = compute_aggregate_response(&[walter_response, skylar_response])?;
 
     Ok(())
 }
