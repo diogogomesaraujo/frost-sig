@@ -274,7 +274,7 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
     assert!(verify_skylar);
 
     // sa computes the aggregate response
-    let aggregate_response = compute_aggregate_response(&[walter_response, skylar_response])?;
+    let _aggregate_response = compute_aggregate_response(&[walter_response, skylar_response])?;
 
     println!(
         "{}",
