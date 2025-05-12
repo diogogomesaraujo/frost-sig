@@ -417,11 +417,10 @@
 //!
 //! See the [resources](https://eprint.iacr.org/2020/852.pdf) here.
 
-use std::error::Error;
-
 use curve25519_dalek::{ristretto::CompressedRistretto, RistrettoPoint};
 use message::Message;
 use serde::{Deserialize, Serialize};
+use std::error::Error;
 
 pub mod keygen;
 pub mod preprocess;
@@ -431,6 +430,8 @@ pub mod message;
 
 pub mod client;
 pub mod server;
+
+pub mod nano;
 
 #[cfg(test)]
 mod test;
