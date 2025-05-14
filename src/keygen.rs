@@ -56,13 +56,14 @@ pub mod round_1 {
     use super::*;
     use crate::*;
     use blake2::Blake2b512;
-    use curve25519_dalek::{constants::RISTRETTO_BASEPOINT_POINT, ristretto::CompressedRistretto};
+    use curve25519_dalek::{constants::ED25519_BASEPOINT_POINT, edwards::CompressedEdwardsY};
     use message::Message;
     use rand::rngs::OsRng;
 
     /// Function that generates a participant's polynomial that will be used to compute his nonces (`ex: ax^2 + bx + c -> [c, b, a]`).
     pub fn generate_polynomial(state: &FrostState, rng: &mut OsRng) -> Vec<Scalar> {
         let mut polynomial: Vec<Scalar> = Vec::new();
+
         for _i in 0..state.threshold {
             let a = Scalar::random(rng);
             polynomial.push(a);
@@ -76,12 +77,12 @@ pub mod round_1 {
         participant: &Participant,
     ) -> (Scalar, Scalar) {
         let k = Scalar::random(rng);
-        let ri = k * RISTRETTO_BASEPOINT_POINT;
+        let ri = k * ED25519_BASEPOINT_POINT;
         let ci = {
             let mut buf = vec![];
             buf.extend_from_slice(&participant.id.to_le_bytes());
             buf.extend_from_slice(
-                (participant.polynomial[0] * RISTRETTO_BASEPOINT_POINT)
+                (participant.polynomial[0] * ED25519_BASEPOINT_POINT)
                     .compress()
                     .as_bytes(),
             );
@@ -93,11 +94,11 @@ pub mod round_1 {
     }
 
     /// Function that computes a participant's public commitment that will be broadcasted and used to verify him.
-    pub fn compute_public_commitments(participant: &Participant) -> Vec<CompressedRistretto> {
+    pub fn compute_public_commitments(participant: &Participant) -> Vec<CompressedEdwardsY> {
         participant
             .polynomial
             .iter()
-            .map(|coefficient| (coefficient * RISTRETTO_BASEPOINT_POINT).compress())
+            .map(|coefficient| (coefficient * ED25519_BASEPOINT_POINT).compress())
             .collect()
     }
 
@@ -113,7 +114,7 @@ pub mod round_1 {
                         participant_id,
                     } => {
                         let rp = {
-                            let temp1 = wp * RISTRETTO_BASEPOINT_POINT;
+                            let temp1 = wp * ED25519_BASEPOINT_POINT;
                             let temp2 = decompress(&commitments[0])? * cp;
                             temp1 - temp2
                         };
@@ -138,8 +139,8 @@ pub mod round_2 {
     use super::Participant;
     use crate::{decompress, message::Message};
     use curve25519_dalek::{
-        constants::RISTRETTO_BASEPOINT_POINT, ristretto::CompressedRistretto, traits::Identity,
-        RistrettoPoint, Scalar,
+        constants::ED25519_BASEPOINT_POINT, edwards::CompressedEdwardsY, traits::Identity,
+        EdwardsPoint, Scalar,
     };
     use std::error::Error;
 
@@ -188,10 +189,10 @@ pub mod round_2 {
                     signature: _,
                 },
             ) => {
-                let own = secret * RISTRETTO_BASEPOINT_POINT;
+                let own = secret * ED25519_BASEPOINT_POINT;
                 let others = commitments.iter().enumerate().try_fold(
-                    RistrettoPoint::identity(),
-                    |acc, (k, apk)| -> Result<RistrettoPoint, Box<dyn Error>> {
+                    EdwardsPoint::identity(),
+                    |acc, (k, apk)| -> Result<EdwardsPoint, Box<dyn Error>> {
                         Ok(acc + (decompress(apk)? * Scalar::from(participant.id.pow(k as u32))))
                     },
                 )?;
@@ -230,19 +231,19 @@ pub mod round_2 {
     }
 
     /// Function that computes a participant's verification share.
-    pub fn compute_own_public_share(private_key: &Scalar) -> CompressedRistretto {
-        (private_key * RISTRETTO_BASEPOINT_POINT).compress()
+    pub fn compute_own_public_share(private_key: &Scalar) -> CompressedEdwardsY {
+        (private_key * ED25519_BASEPOINT_POINT).compress()
     }
 
     /// Function that computes the group public key used to sign transactions and identify the group.
     pub fn compute_group_public_key(
         participants_broadcasts: &[Message],
-    ) -> Result<CompressedRistretto, Box<dyn Error>> {
+    ) -> Result<CompressedEdwardsY, Box<dyn Error>> {
         Ok(participants_broadcasts
             .iter()
             .try_fold(
-                RistrettoPoint::identity(),
-                |acc, pb| -> Result<RistrettoPoint, Box<dyn Error>> {
+                EdwardsPoint::identity(),
+                |acc, pb| -> Result<EdwardsPoint, Box<dyn Error>> {
                     match pb {
                         Message::Broadcast {
                             participant_id: _,
@@ -260,7 +261,7 @@ pub mod round_2 {
     pub fn compute_participant_verification_share(
         participant: &Participant,
         participant_broadcast: &Message,
-    ) -> Result<CompressedRistretto, Box<dyn Error>> {
+    ) -> Result<CompressedEdwardsY, Box<dyn Error>> {
         match participant_broadcast {
             Message::Broadcast {
                 participant_id: _,
@@ -270,8 +271,8 @@ pub mod round_2 {
                 .iter()
                 .enumerate()
                 .try_fold(
-                    RistrettoPoint::identity(),
-                    |acc, (k, apk)| -> Result<RistrettoPoint, Box<dyn Error>> {
+                    EdwardsPoint::identity(),
+                    |acc, (k, apk)| -> Result<EdwardsPoint, Box<dyn Error>> {
                         Ok(acc + (decompress(apk)? * Scalar::from(participant.id.pow(k as u32))))
                     },
                 )?
@@ -282,13 +283,13 @@ pub mod round_2 {
 
     /// Function that computes other participants' verification share.
     pub fn compute_others_verification_share(
-        verifying_shares: &[CompressedRistretto],
-    ) -> Result<CompressedRistretto, Box<dyn Error>> {
+        verifying_shares: &[CompressedEdwardsY],
+    ) -> Result<CompressedEdwardsY, Box<dyn Error>> {
         Ok(verifying_shares
             .iter()
             .try_fold(
-                RistrettoPoint::identity(),
-                |acc, share| -> Result<RistrettoPoint, Box<dyn Error>> {
+                EdwardsPoint::identity(),
+                |acc, share| -> Result<EdwardsPoint, Box<dyn Error>> {
                     Ok(acc + decompress(share)?)
                 },
             )?

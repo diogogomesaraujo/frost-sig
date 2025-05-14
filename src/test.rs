@@ -1,6 +1,6 @@
 use crate::keygen::*;
 use crate::message::*;
-use crate::nano::public_key_to_nano_account;
+use crate::nano::account::public_key_to_nano_account;
 use crate::preprocess::*;
 use crate::sign::*;
 use rand::rngs::OsRng;

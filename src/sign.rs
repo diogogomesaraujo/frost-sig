@@ -66,8 +66,8 @@
 use crate::{decompress, message::Message, FrostState};
 use blake2::Blake2b512;
 use curve25519_dalek::{
-    constants::RISTRETTO_BASEPOINT_POINT, ristretto::CompressedRistretto, traits::Identity,
-    RistrettoPoint, Scalar,
+    constants::ED25519_BASEPOINT_POINT, edwards::CompressedEdwardsY, traits::Identity,
+    EdwardsPoint, Scalar,
 };
 use std::error::Error;
 
@@ -102,13 +102,13 @@ pub fn compute_binding_value(
 pub fn compute_group_commitment_and_challenge(
     participants_commitments: &[Message],
     message: &str,
-    group_public_key: CompressedRistretto,
-) -> Result<(CompressedRistretto, Scalar), Box<dyn Error>> {
+    group_public_key: CompressedEdwardsY,
+) -> Result<(CompressedEdwardsY, Scalar), Box<dyn Error>> {
     let group_commitment = participants_commitments
         .iter()
         .try_fold(
-            RistrettoPoint::identity(),
-            |acc, pc| -> Result<RistrettoPoint, Box<dyn Error>> {
+            EdwardsPoint::identity(),
+            |acc, pc| -> Result<EdwardsPoint, Box<dyn Error>> {
                 match pc {
                     Message::PublicCommitment {
                         participant_id: _,
@@ -191,7 +191,7 @@ pub fn verify_participant(
                 value,
             },
         ) => {
-            let gz = value * RISTRETTO_BASEPOINT_POINT;
+            let gz = value * ED25519_BASEPOINT_POINT;
             let binding_value = compute_binding_value(participant_commitment, message)?;
             let ri = decompress(di)? + (decompress(ei)? * binding_value);
             let to_validate = {

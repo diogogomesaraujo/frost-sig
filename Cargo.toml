@@ -24,3 +24,5 @@ curve25519-dalek = { version = "4", features = [
 ] }
 blake2 = "0.10.6"
 primitive-types = "0.13.1"
+reqwest = { version = "0.12.15", features = ["json"] }
+dotenv = "0.15.0"

@@ -15,7 +15,7 @@ use crate::{
     message::Message,
     FrostState,
 };
-use curve25519_dalek::{ristretto::CompressedRistretto, Scalar};
+use curve25519_dalek::{edwards::CompressedEdwardsY, Scalar};
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 use tokio::{
@@ -69,9 +69,9 @@ pub struct SignInput {
     /// State that holds all the constants needed for the FROST computations.
     state: FrostState,
     /// Aggregated public key shared by the group.
-    public_aggregated_key: CompressedRistretto,
+    public_aggregated_key: CompressedEdwardsY,
     /// Public key that identifies the participant within' the group.
-    own_public_share: CompressedRistretto,
+    own_public_share: CompressedEdwardsY,
     /// Private key that is needed for a participant to sign a transaction.
     own_private_share: Scalar,
     /// Participants' broadcasts sent during keygen.
@@ -143,9 +143,10 @@ pub mod keygen_client {
     use crate::{
         keygen::{self, round_1, round_2},
         message::Message,
+        nano::account::public_key_to_nano_account,
         FrostState,
     };
-    use curve25519_dalek::ristretto::CompressedRistretto;
+    use curve25519_dalek::edwards::CompressedEdwardsY;
     use futures::SinkExt;
     use rand::rngs::OsRng;
     use std::error::Error;
@@ -311,7 +312,7 @@ pub mod keygen_client {
 
             // verify others' public key shares
             {
-                let verification_shares: Vec<CompressedRistretto> = all_broadcasts
+                let verification_shares: Vec<CompressedEdwardsY> = all_broadcasts
                     .iter()
                     .map(|b| {
                         round_2::compute_participant_verification_share(&participant_self, &b)
@@ -329,7 +330,17 @@ pub mod keygen_client {
             }
 
             // compute aggregated public key from the broadcast messages
-            let aggregated_public_key = round_2::compute_group_public_key(&all_broadcasts)?;
+            let aggregate_public_key = round_2::compute_group_public_key(&all_broadcasts)?;
+
+            logging::print(
+                format!(
+                    "This is the group's nano account {}{}{}.",
+                    logging::YELLOW,
+                    public_key_to_nano_account(&aggregate_public_key.as_bytes()),
+                    logging::RESET,
+                )
+                .as_str(),
+            );
 
             logging::print(
                 format!(
@@ -343,7 +354,7 @@ pub mod keygen_client {
 
             (
                 own_public_key_share,
-                aggregated_public_key,
+                aggregate_public_key,
                 private_key,
                 all_broadcasts,
             )

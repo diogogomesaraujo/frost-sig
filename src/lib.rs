@@ -417,7 +417,7 @@
 //!
 //! See the [resources](https://eprint.iacr.org/2020/852.pdf) here.
 
-use curve25519_dalek::{ristretto::CompressedRistretto, RistrettoPoint};
+use curve25519_dalek::{edwards::CompressedEdwardsY, EdwardsPoint};
 use message::Message;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
@@ -468,9 +468,7 @@ impl FrostState {
     }
 }
 
-pub fn decompress(
-    compressed_point: &CompressedRistretto,
-) -> Result<RistrettoPoint, Box<dyn Error>> {
+pub fn decompress(compressed_point: &CompressedEdwardsY) -> Result<EdwardsPoint, Box<dyn Error>> {
     match compressed_point.decompress() {
         Some(point) => Ok(point),
         None => return Err("Couldn't decompress the point.".into()),

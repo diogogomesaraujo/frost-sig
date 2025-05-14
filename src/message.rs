@@ -13,7 +13,7 @@
 
 use std::error::Error;
 
-use curve25519_dalek::{ristretto::CompressedRistretto, Scalar};
+use curve25519_dalek::{edwards::CompressedEdwardsY, Scalar};
 use serde::{Deserialize, Serialize};
 
 /// Enum that represents all the messages that will be sent during the FROST protocol operations.
@@ -23,7 +23,7 @@ pub enum Message {
     /// It represents the commitments and signature used to validate a user and create the aggregate public key.
     Broadcast {
         participant_id: u32,
-        commitments: Vec<CompressedRistretto>,
+        commitments: Vec<CompressedEdwardsY>,
         signature: (Scalar, Scalar),
     },
 
@@ -39,9 +39,9 @@ pub enum Message {
     /// It is used by the main participant (SA) for others to verify the commitments chosen by the SA.
     PublicCommitment {
         participant_id: u32,
-        di: CompressedRistretto,
-        ei: CompressedRistretto,
-        public_share: CompressedRistretto,
+        di: CompressedEdwardsY,
+        ei: CompressedEdwardsY,
+        public_share: CompressedEdwardsY,
     },
 
     /// Message that is sent during the signature phase.
