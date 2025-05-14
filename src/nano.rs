@@ -1,7 +1,22 @@
 pub mod sign {
+    use super::rpc;
     use serde::{Deserialize, Serialize};
 
-    use super::rpc;
+    pub enum Subtype {
+        SEND,
+        RECEIVE,
+        OPEN,
+    }
+
+    impl Subtype {
+        pub fn as_str(&self) -> &str {
+            match self {
+                Self::SEND => "send",
+                Self::RECEIVE => "receive",
+                Self::OPEN => "open",
+            }
+        }
+    }
 
     #[derive(Serialize, Deserialize)]
     pub struct UnsignedBlock {
@@ -11,7 +26,6 @@ pub mod sign {
         pub representative: String,
         pub balance: String,
         pub link: String,
-        pub link_as_account: String,
     }
 
     impl UnsignedBlock {
@@ -21,7 +35,6 @@ pub mod sign {
             representative: String,
             balance: String,
             link: String,
-            link_as_account: String,
         ) -> Self {
             Self {
                 r#type: "state".to_string(),
@@ -30,7 +43,6 @@ pub mod sign {
                 representative,
                 balance,
                 link,
-                link_as_account,
             }
         }
 
@@ -38,15 +50,14 @@ pub mod sign {
             state: &rpc::RPCState,
             account_address: &str,
         ) -> Result<Self, Box<dyn std::error::Error>> {
-            let recievable = rpc::Receivable::get_from_rpc(&state, account_address, 1).await?;
-            let block = rpc::BlockInfo::get_from_rpc(&state, &recievable.blocks[0]).await?;
+            let receivable = rpc::Receivable::get_from_rpc(&state, account_address, 1).await?;
+            let block = rpc::BlockInfo::get_from_rpc(&state, &receivable.blocks[0]).await?;
 
             let account = account_address.to_string();
             let previous = "0".to_string();
             let representative = std::env::var("REPRESENTATIVE")?;
             let balance = block.amount;
-            let link = recievable.blocks[0].clone();
-            let link_as_account = block.block_account;
+            let link = receivable.blocks[0].clone();
 
             Ok(UnsignedBlock::new(
                 account,
@@ -54,7 +65,6 @@ pub mod sign {
                 representative,
                 balance,
                 link,
-                link_as_account,
             ))
         }
     }
@@ -94,14 +104,20 @@ pub mod account {
         ACCOUNT_LOOKUP[value as usize]
     }
 
+    fn account_checksum(aggregate_public_key: &[u8; 32]) -> [u8; 5] {
+        let mut check = [0u8; 5];
+        let mut blake = Blake2bVar::new(check.len()).unwrap();
+        blake.update(aggregate_public_key);
+        blake.finalize_variable(&mut check).unwrap();
+        check
+    }
+
     pub fn public_key_to_nano_account(aggregate_public_key: &[u8; 32]) -> String {
         let mut number = U512::from_big_endian(aggregate_public_key);
         let check = U512::from_little_endian(&account_checksum(aggregate_public_key));
         number <<= 40;
         number |= check;
-
         let mut result = String::with_capacity(65);
-
         for _i in 0..60 {
             let r = number.byte(0) & 0x1f_u8;
             number >>= 5;
@@ -110,14 +126,6 @@ pub mod account {
         result.push_str("_onan");
         result.chars().rev().collect()
     }
-
-    fn account_checksum(aggregate_public_key: &[u8; 32]) -> [u8; 5] {
-        let mut check = [0u8; 5];
-        let mut blake = Blake2bVar::new(check.len()).unwrap();
-        blake.update(aggregate_public_key);
-        blake.finalize_variable(&mut check).unwrap();
-        check
-    }
 }
 
 pub mod rpc {
@@ -125,8 +133,6 @@ pub mod rpc {
     use serde::{de::DeserializeOwned, Deserialize, Serialize};
     use serde_json::{json, Value};
     use std::error::Error;
-
-    use crate::nano::sign::UnsignedBlock;
 
     pub struct RPCState {
         pub url: String,
@@ -161,12 +167,6 @@ pub mod rpc {
         pub open_block: String,
         pub representative_block: String,
         pub balance: String,
-        pub balance_nano: String,
-        pub modified_timestamp: String,
-        pub block_count: String,
-        pub account_version: String,
-        pub confirmation_height: String,
-        pub confirmation_height_frontier: String,
     }
 
     impl AccountInfo {
@@ -207,13 +207,8 @@ pub mod rpc {
 
     #[derive(Serialize, Deserialize)]
     pub struct WorkGenerate {
-        pub difficulty: String,
-        pub multiplier: String,
         pub work: String,
         pub frontier: String,
-        pub duration: String,
-        pub credits: u32,
-        pub cached: bool,
     }
 
     impl WorkGenerate {
@@ -267,6 +262,27 @@ pub mod rpc {
         }
     }
 
+    #[derive(Serialize, Deserialize)]
+    struct Process {
+        hash: String,
+    }
+
+    impl Process {
+        pub async fn sign_in_rpc(
+            state: &RPCState,
+            subtype: &super::sign::Subtype,
+            signed_block: &super::sign::SignedBlock,
+        ) -> Result<Self, Box<dyn Error>> {
+            let data = json!({
+                "action": "process",
+                "subtype": subtype.as_str(),
+                "json_block": "true",
+                "block": serde_json::to_string(&signed_block)?
+            });
+            state.request::<Self>(&data).await
+        }
+    }
+
     #[tokio::test]
     async fn test_rpc() -> Result<(), Box<dyn Error>> {
         dotenv::dotenv().ok();
@@ -275,10 +291,13 @@ pub mod rpc {
 
         let state = RPCState::new(&std::env::var("URL")?);
 
-        let unsigned_block = UnsignedBlock::create_open(&state, &account).await?;
+        let unsigned_block =
+            crate::nano::sign::UnsignedBlock::create_open(&state, &account).await?;
 
         println!("{}", serde_json::to_string(&unsigned_block)?);
+
         assert!(true);
+
         Ok(())
     }
 }

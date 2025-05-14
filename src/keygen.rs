@@ -155,22 +155,22 @@ pub mod round_2 {
         let secret = calculate_y(&Scalar::from(participant.id), &participant.polynomial);
         Message::SecretShare {
             sender_id: participant.id.clone(),
-            reciever_id: participant.id.clone(),
+            receiver_id: participant.id.clone(),
             secret,
         }
     }
 
     /// Function that creates a participant's secret share for other participants to verify.
-    pub fn create_share_for(sender: &Participant, reciever_id: &u32) -> Message {
-        let secret = calculate_y(&Scalar::from(*reciever_id), &sender.polynomial);
+    pub fn create_share_for(sender: &Participant, receiver_id: &u32) -> Message {
+        let secret = calculate_y(&Scalar::from(*receiver_id), &sender.polynomial);
         Message::SecretShare {
-            reciever_id: reciever_id.clone(),
+            receiver_id: receiver_id.clone(),
             sender_id: sender.id.clone(),
             secret,
         }
     }
 
-    /// Function that verifies a sender using the reciever's share and a sender's broadcast.
+    /// Function that verifies a sender using the receiver's share and a sender's broadcast.
     pub fn verify_share_validity(
         participant: &Participant,
         secret_share: &Message,
@@ -180,7 +180,7 @@ pub mod round_2 {
             (
                 Message::SecretShare {
                     sender_id: _,
-                    reciever_id: _,
+                    receiver_id: _,
                     secret,
                 },
                 Message::Broadcast {
@@ -202,7 +202,7 @@ pub mod round_2 {
         }
     }
 
-    /// Function that verifies a sender using the reciever's share and a sender's broadcast.
+    /// Function that verifies a sender using the receiver's share and a sender's broadcast.
     pub fn compute_private_key(
         own_secret_share: &Message,
         others_secret_shares: &[Message],
@@ -210,7 +210,7 @@ pub mod round_2 {
         match own_secret_share {
             Message::SecretShare {
                 sender_id: _,
-                reciever_id: _,
+                receiver_id: _,
                 secret,
             } => Ok(secret
                 + others_secret_shares.iter().try_fold(
@@ -219,7 +219,7 @@ pub mod round_2 {
                         match pc {
                             Message::SecretShare {
                                 sender_id: _,
-                                reciever_id: _,
+                                receiver_id: _,
                                 secret,
                             } => Ok(acc + secret),
                             _ => Err("Message was not of the desired type.".into()),

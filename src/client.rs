@@ -42,12 +42,12 @@ impl FrostClient {
     }
 }
 
-/// Function that recieves a `Message` of any type.
-pub async fn recieve_message(
+/// Function that receives a `Message` of any type.
+pub async fn receive_message(
     lines: &mut Framed<TcpStream, LinesCodec>,
 ) -> Result<Message, Box<dyn Error>> {
-    let line = lines.next().await.expect("Couldn't recieve the message.")?;
-    Ok(Message::from_json_string(line.as_str()).expect("Couldn't recieve the message."))
+    let line = lines.next().await.expect("Couldn't receive the message.")?;
+    Ok(Message::from_json_string(line.as_str()).expect("Couldn't receive the message."))
 }
 
 /// Module that handles the client side logging.
@@ -139,7 +139,7 @@ impl SignInput {
 
 /// Module that has the functions needed to run the client used for key generation.
 pub mod keygen_client {
-    use super::{logging, recieve_message, FrostClient, SignInput};
+    use super::{logging, receive_message, FrostClient, SignInput};
     use crate::{
         keygen::{self, round_1, round_2},
         message::Message,
@@ -166,7 +166,7 @@ pub mod keygen_client {
         let client = {
             // get id from the server
             let id = {
-                match recieve_message(&mut lines).await? {
+                match receive_message(&mut lines).await? {
                     Message::Id(id) => id,
                     _ => return Err("Couldn't parse the message.".into()),
                 }
@@ -174,7 +174,7 @@ pub mod keygen_client {
 
             // get state from the server
             let state = {
-                match recieve_message(&mut lines).await? {
+                match receive_message(&mut lines).await? {
                     Message::FrostState {
                         participants,
                         threshold,
@@ -219,7 +219,7 @@ pub mod keygen_client {
             let broadcasts = {
                 let mut broadcasts = vec![];
                 for _i in 1..(client.state.participants) {
-                    let message = recieve_message(&mut lines).await?;
+                    let message = receive_message(&mut lines).await?;
                     match message {
                         Message::Broadcast {
                             participant_id: _,
@@ -255,11 +255,11 @@ pub mod keygen_client {
             let secret_shares = {
                 let mut secret_shares = vec![];
                 for _i in 1..(client.state.participants) {
-                    let message = recieve_message(&mut lines).await?;
+                    let message = receive_message(&mut lines).await?;
                     match message {
                         Message::SecretShare {
                             sender_id: _,
-                            reciever_id: _,
+                            receiver_id: _,
                             secret: _,
                         } => secret_shares.push(message),
                         _ => return Err("Couldn't parse the message.".into()),
@@ -283,7 +283,7 @@ pub mod keygen_client {
                                 },
                                 Message::SecretShare {
                                     sender_id,
-                                    reciever_id: _,
+                                    receiver_id: _,
                                     secret: _,
                                 },
                             ) => participant_id == sender_id,
@@ -409,7 +409,7 @@ pub mod sign_client {
         let client = {
             // get id from the server
             let id = {
-                match recieve_message(&mut lines).await? {
+                match receive_message(&mut lines).await? {
                     Message::Id(id) => id,
                     _ => return Err("Couldn't parse the message.".into()),
                 }
@@ -435,13 +435,13 @@ pub mod sign_client {
         // send public commitment
         lines.send(own_public_commitment.to_json_string()?).await?;
 
-        // recieving others commitments
+        // receiving others commitments
         let public_commitments = {
             let mut seen = HashSet::new();
             seen.insert((sign_input.own_public_share, client.own_id));
             let mut public_commitments = vec![own_public_commitment.clone()];
             for _i in 1..(client.state.threshold) {
-                let message = recieve_message(&mut lines).await?;
+                let message = receive_message(&mut lines).await?;
                 match &message {
                     Message::PublicCommitment {
                         participant_id,
@@ -487,7 +487,7 @@ pub mod sign_client {
                 let responses = {
                     let mut responses = vec![own_response];
                     for _i in 1..(client.state.threshold) {
-                        let message = recieve_message(&mut lines).await?;
+                        let message = receive_message(&mut lines).await?;
                         match message {
                             Message::Response {
                                 sender_id: _,

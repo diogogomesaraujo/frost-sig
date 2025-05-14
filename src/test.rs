@@ -56,7 +56,7 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
         signature: skylar_signature,
     };
 
-    // each participant verifies all broadcasts recieved
+    // each participant verifies all broadcasts received
     assert!(round_1::verify_proofs(&[
         jessie_broadcast.clone(),
         skylar_broadcast.clone(),
@@ -87,7 +87,7 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
     let share_from_jessie_to_skylar = round_2::create_share_for(&jessie, &skylar.id);
     let share_from_walter_to_skylar = round_2::create_share_for(&walter, &skylar.id);
 
-    // each participant verifies the secret shares recieved
+    // each participant verifies the secret shares received
     {
         assert!(round_2::verify_share_validity(
             &walter,
@@ -172,7 +172,7 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
     let skylar_walter_verification_share =
         round_2::compute_participant_verification_share(&skylar, &walter_broadcast)?;
 
-    // each participant computes the aggregate verification share from the recieved secret shares
+    // each participant computes the aggregate verification share from the received secret shares
     let walter_aggregate_verification_share = round_2::compute_others_verification_share(&[
         walter_own_verification_share,
         walter_jessie_verification_share,
@@ -226,7 +226,7 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
         public_share: skylar_public_key,
     };
 
-    // each participant computes the group commitment and challenge from the recieved commitments
+    // each participant computes the group commitment and challenge from the received commitments
     let (_group_commitment, challenge) = compute_group_commitment_and_challenge(
         &[
             skylar_commitments_message.clone(),

@@ -1,4 +1,4 @@
-//! Implementation of the messages that are sent and recieved.
+//! Implementation of the messages that are sent and received.
 //!
 //! # Dependencies
 //!
@@ -31,7 +31,7 @@ pub enum Message {
     /// It represents the secret sent from every participant to all others and it is used to calculate a participant's private key.
     SecretShare {
         sender_id: u32,
-        reciever_id: u32,
+        receiver_id: u32,
         secret: Scalar,
     },
 

@@ -72,7 +72,7 @@ use curve25519_dalek::{
 use std::error::Error;
 
 /// Function that computes the binding values for a participant.
-/// It recieves the message that will be signed and creates a hashed value that will be used to verify the participants commitment.
+/// It receives the message that will be signed and creates a hashed value that will be used to verify the participants commitment.
 /// It follows this format: *id::::message::::commitment*.
 pub fn compute_binding_value(
     participant_commitment: &Message,

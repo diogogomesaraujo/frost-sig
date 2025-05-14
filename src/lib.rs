@@ -164,7 +164,7 @@
 //! };
 //! ```
 //!
-//! Each participant verifies the broadcasts recieved from others, and we finishing round 1.
+//! Each participant verifies the broadcasts received from others, and we finishing round 1.
 //! ```rust
 //! assert!(round_1::verify_proofs(&[
 //!     jessie_broadcast.clone(),
@@ -199,7 +199,7 @@
 //! let share_from_walter_to_skylar = round_2::create_share_for(&walter, &skylar.id);
 //! ```
 //!
-//! Each participant verifies the recieved secret shares.
+//! Each participant verifies the received secret shares.
 //! ```rust
 //! {
 //!     assert!(round_2::verify_share_validity(
@@ -268,7 +268,7 @@
 //! let skylar_public_key = round_2::compute_own_public_share(&skylar_private_key);
 //! ```
 //!
-//! Each participant computes their verification share and one for each broadcast recieved.
+//! Each participant computes their verification share and one for each broadcast received.
 //! ```rust
 //! let walter_own_verification_share =
 //!     round_2::compute_participant_verification_share(&walter, &walter_broadcast)?;
@@ -292,7 +292,7 @@
 //!     round_2::compute_participant_verification_share(&skylar, &walter_broadcast)?;
 //! ```
 //!
-//! Each participant computes the aggregate verification share from the recieved secret shares.
+//! Each participant computes the aggregate verification share from the received secret shares.
 //! ```rust
 //! let walter_aggregate_verification_share = round_2::compute_others_verification_share(&[
 //!     walter_own_verification_share,
@@ -348,7 +348,7 @@
 //! };
 //! ```
 //!
-//! Each participant computes the group commitment and challenge from the recieved commitments.
+//! Each participant computes the group commitment and challenge from the received commitments.
 //! ```rust
 //! let (_group_commitment, challenge) = compute_group_commitment_and_challenge(
 //!     &[

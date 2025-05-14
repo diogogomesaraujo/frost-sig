@@ -55,8 +55,8 @@ impl FrostServer {
     }
 
     /// Function that sends a message to a specific client in the socket.
-    pub async fn send_to(&mut self, reciever: u32, message: Message) {
-        if let Some(tx) = self.by_id.get(&reciever) {
+    pub async fn send_to(&mut self, receiver: u32, message: Message) {
+        if let Some(tx) = self.by_id.get(&receiver) {
             let _ = tx.send(message);
         }
     }
@@ -83,10 +83,10 @@ impl FrostServer {
             }
             Message::SecretShare {
                 sender_id: _,
-                reciever_id,
+                receiver_id,
                 secret: _,
             } => {
-                self.send_to(*reciever_id, msg).await; // Should not fail.
+                self.send_to(*receiver_id, msg).await; // Should not fail.
             }
             Message::Response {
                 sender_id: _,
@@ -105,8 +105,8 @@ pub struct Participant {
     /// Id of the participant inside a specific operation.
     /// It is dynamically assigned as participants join the server.
     pub id: u32,
-    /// Recieve half of the participant's message channel.
-    pub reciever: Rx,
+    /// receive half of the participant's message channel.
+    pub receiver: Rx,
     /// Send half of the participant's message channel.
     pub sender: Tx,
     /// Participant's address inside the server's socket.
@@ -115,10 +115,10 @@ pub struct Participant {
 
 impl Participant {
     /// Function that creates a new `Participant`.
-    pub fn new(id: u32, reciever: Rx, sender: Tx, addr: SocketAddr) -> Self {
+    pub fn new(id: u32, receiver: Rx, sender: Tx, addr: SocketAddr) -> Self {
         Self {
             id,
-            reciever,
+            receiver,
             sender,
             addr,
         }
@@ -169,7 +169,7 @@ pub async fn handle(
     // handle all incoming and and outgoing messages
     loop {
         tokio::select! {
-            Some(msg) = participant.reciever.recv() => {
+            Some(msg) = participant.receiver.recv() => {
                 let msg_json = msg.to_json_string()?;
                 writer.send(msg_json).await?;
             }
