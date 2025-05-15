@@ -336,6 +336,7 @@ dependencies = [
  "curve25519-dalek",
  "dotenv",
  "futures",
+ "hex",
  "primitive-types",
  "rand",
  "reqwest",

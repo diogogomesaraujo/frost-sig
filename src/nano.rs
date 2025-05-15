@@ -1,7 +1,10 @@
 pub mod sign {
+    use std::error::Error;
+
     use super::rpc;
     use serde::{Deserialize, Serialize};
 
+    #[derive(Serialize, Deserialize, Debug)]
     pub enum Subtype {
         SEND,
         RECEIVE,
@@ -18,7 +21,7 @@ pub mod sign {
         }
     }
 
-    #[derive(Serialize, Deserialize)]
+    #[derive(Serialize, Deserialize, Debug)]
     pub struct UnsignedBlock {
         pub r#type: String,
         pub account: String,
@@ -26,6 +29,7 @@ pub mod sign {
         pub representative: String,
         pub balance: String,
         pub link: String,
+        pub link_as_account: String,
     }
 
     impl UnsignedBlock {
@@ -35,6 +39,7 @@ pub mod sign {
             representative: String,
             balance: String,
             link: String,
+            link_as_account: String,
         ) -> Self {
             Self {
                 r#type: "state".to_string(),
@@ -43,7 +48,32 @@ pub mod sign {
                 representative,
                 balance,
                 link,
+                link_as_account,
             }
+        }
+
+        pub fn empty() -> Self {
+            Self::new(
+                String::from("to fill"),
+                String::from("to fill"),
+                String::from("to fill"),
+                String::from("to fill"),
+                String::from("to fill"),
+                String::from("to fill"),
+            )
+        }
+
+        pub fn to_signed_block(self, signature: &str, work: &str) -> SignedBlock {
+            SignedBlock::new(
+                self.previous,
+                self.account,
+                self.representative,
+                self.balance,
+                self.link,
+                self.link_as_account,
+                signature.to_string(),
+                work.to_string(),
+            )
         }
 
         pub async fn create_open(
@@ -58,6 +88,7 @@ pub mod sign {
             let representative = std::env::var("REPRESENTATIVE")?;
             let balance = block.amount;
             let link = receivable.blocks[0].clone();
+            let link_as_account = block.block_account;
 
             Ok(UnsignedBlock::new(
                 account,
@@ -65,26 +96,65 @@ pub mod sign {
                 representative,
                 balance,
                 link,
+                link_as_account,
             ))
         }
     }
 
     #[derive(Serialize, Deserialize)]
     pub struct SignedBlock {
-        pub block_type: String,
-        pub previous_block: String,
-        pub account_id: String,
+        pub r#type: String,
+        pub previous: String,
+        pub account: String,
         pub representative: String,
         pub balance: String,
         pub link: String,
         pub link_as_account: String,
         pub signature: String,
         pub work: String,
-        pub subtype: Option<String>,
     }
 
     impl SignedBlock {
-        pub fn new() {}
+        pub fn new(
+            previous: String,
+            account: String,
+            representative: String,
+            balance: String,
+            link: String,
+            link_as_account: String,
+            signature: String,
+            work: String,
+        ) -> Self {
+            Self {
+                r#type: "state".to_string(),
+                previous,
+                account,
+                representative,
+                balance,
+                link,
+                link_as_account,
+                signature,
+                work,
+            }
+        }
+    }
+
+    pub async fn create_signed_block(
+        state: &rpc::RPCState,
+        unsigned_block: UnsignedBlock,
+        signature: &str,
+        aggregate_public_key: &str,
+    ) -> Result<SignedBlock, Box<dyn Error>> {
+        let work = super::rpc::WorkGenerate::get_from_rpc(
+            &state,
+            match unsigned_block.previous.as_str() {
+                "0" => aggregate_public_key,
+                previous => previous,
+            },
+            &std::env::var("KEY")?,
+        )
+        .await?;
+        Ok(unsigned_block.to_signed_block(&signature, &work.work))
     }
 }
 
@@ -226,7 +296,7 @@ pub mod rpc {
         }
     }
 
-    #[derive(Serialize, Deserialize)]
+    #[derive(Serialize, Deserialize, Debug)]
     pub struct Receivable {
         pub blocks: Vec<String>,
     }
@@ -263,8 +333,8 @@ pub mod rpc {
     }
 
     #[derive(Serialize, Deserialize)]
-    struct Process {
-        hash: String,
+    pub struct Process {
+        pub hash: String,
     }
 
     impl Process {
@@ -277,8 +347,10 @@ pub mod rpc {
                 "action": "process",
                 "subtype": subtype.as_str(),
                 "json_block": "true",
-                "block": serde_json::to_string(&signed_block)?
+                "block": &signed_block
             });
+
+            println!("{data}");
             state.request::<Self>(&data).await
         }
     }
@@ -287,9 +359,12 @@ pub mod rpc {
     async fn test_rpc() -> Result<(), Box<dyn Error>> {
         dotenv::dotenv().ok();
 
-        let account = "nano_1c4nmdix64gdmqx65fdh8qsqx9nfz4fo96pbqyhagpihpzxxrrugrt1rrgss";
+        let account = "nano_14cn1otwksnjwg6kfsqu46te5rj4pgjskw63dxja7gdt9rgydt94jap7e6rw";
 
         let state = RPCState::new(&std::env::var("URL")?);
+
+        let recievable = Receivable::get_from_rpc(&state, account, 1).await?;
+        println!("{:?}", recievable);
 
         let unsigned_block =
             crate::nano::sign::UnsignedBlock::create_open(&state, &account).await?;

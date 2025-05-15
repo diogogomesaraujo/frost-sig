@@ -226,6 +226,11 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
         public_share: skylar_public_key,
     };
 
+    let commitments = vec![
+        walter_commitments_message.clone(),
+        skylar_commitments_message.clone(),
+    ];
+
     // each participant computes the group commitment and challenge from the received commitments
     let (_group_commitment, challenge) = compute_group_commitment_and_challenge(
         &[
@@ -233,7 +238,7 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
             walter_commitments_message.clone(),
         ],
         message,
-        group_public_key.clone(),
+        group_public_key,
     )?;
 
     // each participant calculates all the participants' lagrange coefficients
@@ -244,6 +249,7 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
     let walter_response = compute_own_response(
         walter.id.clone(),
         &walter_commitments_message,
+        &commitments,
         &walter_private_key,
         &walter_commitments.0,
         &walter_lagrange_coefficient,
@@ -253,6 +259,7 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
     let skylar_response = compute_own_response(
         jessie.id.clone(),
         &skylar_commitments_message,
+        &commitments,
         &skylar_private_key,
         &skylar_commitments.0,
         &skylar_lagrange_coefficient,
@@ -264,14 +271,16 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
     let verify_walter = verify_participant(
         &state,
         &walter_commitments_message,
-        message,
+        &commitments,
+        &message,
         &walter_response,
         &challenge,
     )?;
     let verify_skylar = verify_participant(
         &state,
         &skylar_commitments_message,
-        message,
+        &commitments,
+        &message,
         &skylar_response,
         &challenge,
     )?;

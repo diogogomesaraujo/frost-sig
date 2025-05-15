@@ -13,6 +13,7 @@
 use crate::{
     keygen::{round_1::verify_proofs, round_2::compute_group_public_key},
     message::Message,
+    nano::sign::{Subtype, UnsignedBlock},
     FrostState,
 };
 use curve25519_dalek::{edwards::CompressedEdwardsY, Scalar};
@@ -76,8 +77,10 @@ pub struct SignInput {
     own_private_share: Scalar,
     /// Participants' broadcasts sent during keygen.
     participants_proofs: Vec<Message>,
+    /// Subtype of the transaction (if it is to receive, send or open a block).
+    subtype: Subtype,
     /// Message being signed.
-    message: String,
+    message: UnsignedBlock,
 }
 
 impl SignInput {
@@ -143,7 +146,10 @@ pub mod keygen_client {
     use crate::{
         keygen::{self, round_1, round_2},
         message::Message,
-        nano::account::public_key_to_nano_account,
+        nano::{
+            account::public_key_to_nano_account,
+            sign::{Subtype, UnsignedBlock},
+        },
         FrostState,
     };
     use curve25519_dalek::edwards::CompressedEdwardsY;
@@ -368,7 +374,8 @@ pub mod keygen_client {
                 own_private_share: private_key_share,
                 public_aggregated_key: aggregate_public_key,
                 participants_proofs: all_broadcasts,
-                message: String::new(),
+                subtype: Subtype::OPEN,
+                message: UnsignedBlock::empty(),
             };
             sign_input.to_file(path).await?;
         }
@@ -381,10 +388,15 @@ pub mod keygen_client {
 pub mod sign_client {
     use super::*;
     use crate::{
+        nano::{
+            rpc::{Process, RPCState},
+            sign::create_signed_block,
+        },
         preprocess::generate_nonces_and_commitments,
         sign::{
             compute_aggregate_response, compute_group_commitment_and_challenge,
-            compute_own_response, lagrange_coefficient, verify_participant,
+            compute_own_response, computed_response_to_signature, lagrange_coefficient,
+            verify_participant,
         },
     };
     use futures::SinkExt;
@@ -456,14 +468,27 @@ pub mod sign_client {
                 }
             }
 
+            // sort commitments
+            public_commitments.sort_by_key(|c| match c {
+                Message::PublicCommitment {
+                    participant_id,
+                    di: _,
+                    ei: _,
+                    public_share: _,
+                } => participant_id.clone(),
+                _ => 0u32,
+            });
+
             public_commitments
         };
 
+        let message = serde_json::to_string(&sign_input.message)?;
+
         // compute group commitment and challenge
-        let (_group_commitment, challenge) = compute_group_commitment_and_challenge(
+        let (group_commitment, challenge) = compute_group_commitment_and_challenge(
             &public_commitments,
-            &sign_input.message,
-            sign_input.public_aggregated_key.clone(),
+            &message,
+            sign_input.public_aggregated_key,
         )?;
 
         // compute the lagrange coefficient
@@ -473,11 +498,12 @@ pub mod sign_client {
         let own_response = compute_own_response(
             client.own_id,
             &own_public_commitment,
+            &public_commitments,
             &sign_input.own_private_share,
             &nonces_and_commitments.0,
             &lagrange_coefficient,
             &challenge,
-            &sign_input.message,
+            &message,
         )?;
 
         match client.own_id {
@@ -524,7 +550,8 @@ pub mod sign_client {
                                 let verify = verify_participant(
                                     &client.state,
                                     &participant_commitment,
-                                    &sign_input.message,
+                                    &public_commitments,
+                                    &message,
                                     &r,
                                     &challenge,
                                 )?;
@@ -536,8 +563,42 @@ pub mod sign_client {
                         }
                     })?;
 
-                // compute aggregated response
+                // compute aggregate response
                 let aggregate_response = compute_aggregate_response(&responses)?;
+
+                // start the blockchain signing process
+                {
+                    // convert signature to hexadecimal string
+                    let signature =
+                        computed_response_to_signature(aggregate_response, group_commitment);
+
+                    // load enviroment variables
+                    dotenv::dotenv().ok();
+
+                    // create the state for the rpc
+                    let state = RPCState::new(&std::env::var("URL")?);
+
+                    // create signed block
+                    let signed_block = create_signed_block(
+                        &state,
+                        sign_input.message,
+                        &hex::encode(&signature).to_uppercase(),
+                        &hex::encode(&sign_input.public_aggregated_key.as_bytes()),
+                    )
+                    .await?;
+
+                    // process signature
+                    let process =
+                        Process::sign_in_rpc(&state, &sign_input.subtype, &signed_block).await?;
+
+                    // print hash from the generated block in the blockchain
+                    logging::print(&format!(
+                        "The block was successfully created with the hash: {}{}{}",
+                        logging::YELLOW,
+                        process.hash,
+                        logging::RESET
+                    ));
+                }
 
                 // print aggregated response
                 logging::print(&format!(
@@ -549,7 +610,7 @@ pub mod sign_client {
                     aggregate_response.as_bytes(),
                     logging::RESET,
                     logging::YELLOW,
-                    sign_input.message,
+                    message,
                     logging::RESET,
                 ));
             }

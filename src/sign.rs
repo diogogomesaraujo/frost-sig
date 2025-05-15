@@ -76,21 +76,37 @@ use std::error::Error;
 /// It follows this format: *id::::message::::commitment*.
 pub fn compute_binding_value(
     participant_commitment: &Message,
+    all_commitments: &[Message],
     message: &str,
 ) -> Result<Scalar, Box<dyn Error>> {
     match participant_commitment {
         Message::PublicCommitment {
             participant_id,
-            di,
-            ei,
-            public_share,
+            di: _,
+            ei: _,
+            public_share: _,
         } => Ok({
             let mut buf = vec![];
             buf.extend_from_slice(&participant_id.to_le_bytes());
             buf.extend_from_slice(message.as_bytes());
-            buf.extend_from_slice(di.as_bytes());
-            buf.extend_from_slice(ei.as_bytes());
-            buf.extend_from_slice(public_share.as_bytes());
+
+            all_commitments
+                .iter()
+                .try_for_each(|c| -> Result<(), Box<dyn Error>> {
+                    Ok(match c {
+                        Message::PublicCommitment {
+                            participant_id: id,
+                            di,
+                            ei,
+                            public_share: _,
+                        } => {
+                            buf.extend_from_slice(&id.to_le_bytes());
+                            buf.extend_from_slice(di.as_bytes());
+                            buf.extend_from_slice(ei.as_bytes());
+                        }
+                        _ => return Err("Message was not a Public Commitment.".into()),
+                    })
+                })?;
 
             Scalar::hash_from_bytes::<Blake2b512>(&buf)
         }),
@@ -116,7 +132,8 @@ pub fn compute_group_commitment_and_challenge(
                         ei,
                         public_share: _,
                     } => Ok({
-                        let binding_value = compute_binding_value(&pc, &message)?;
+                        let binding_value =
+                            compute_binding_value(&pc, &participants_commitments, &message)?;
                         acc + (decompress(di)? + (decompress(ei)? * binding_value))
                     }),
                     _ => Err("Message was not of the desired type.".into()),
@@ -126,9 +143,9 @@ pub fn compute_group_commitment_and_challenge(
         .compress();
     let challenge = {
         let mut buf = vec![];
+        buf.extend_from_slice(message.as_bytes());
         buf.extend_from_slice(group_commitment.as_bytes());
         buf.extend_from_slice(group_public_key.as_bytes());
-        buf.extend_from_slice(message.as_bytes());
 
         Scalar::hash_from_bytes::<Blake2b512>(&buf)
     };
@@ -155,13 +172,14 @@ pub fn lagrange_coefficient(state: &FrostState, participant_id: &u32) -> Scalar 
 pub fn compute_own_response(
     participant_id: u32,
     participant_commitment: &Message,
+    all_commitments: &[Message],
     private_key: &Scalar,
     private_nonces: &(Scalar, Scalar),
     lagrange_coefficient: &Scalar,
     challenge: &Scalar,
     message: &str,
 ) -> Result<Message, Box<dyn Error>> {
-    let binding_value = compute_binding_value(&participant_commitment, &message)?;
+    let binding_value = compute_binding_value(&participant_commitment, &all_commitments, &message)?;
     let (di, ei) = private_nonces;
 
     Ok(Message::Response {
@@ -174,6 +192,7 @@ pub fn compute_own_response(
 pub fn verify_participant(
     state: &FrostState,
     participant_commitment: &Message,
+    all_commitments: &[Message],
     message: &str,
     response: &Message,
     challenge: &Scalar,
@@ -192,7 +211,8 @@ pub fn verify_participant(
             },
         ) => {
             let gz = value * ED25519_BASEPOINT_POINT;
-            let binding_value = compute_binding_value(participant_commitment, message)?;
+            let binding_value =
+                compute_binding_value(participant_commitment, &all_commitments, message)?;
             let ri = decompress(di)? + (decompress(ei)? * binding_value);
             let to_validate = {
                 let exponent = challenge * lagrange_coefficient(state, participant_id);
@@ -222,4 +242,16 @@ pub fn compute_aggregate_response(
             } => Ok(acc + value),
             _ => Err("Message was not of the desired type.".into()),
         })
+}
+
+pub fn computed_response_to_signature(
+    aggregate_response: Scalar,
+    group_commitment: CompressedEdwardsY,
+) -> [u8; 64] {
+    let mut signature = [0u8; 64];
+
+    signature[..32].copy_from_slice(group_commitment.as_bytes());
+    signature[32..].copy_from_slice(&aggregate_response.to_bytes());
+
+    signature
 }
