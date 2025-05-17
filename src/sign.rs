@@ -63,8 +63,8 @@
 //!
 //! See the [resources](https://eprint.iacr.org/2020/852.pdf) here.
 
-use crate::{decompress, message::Message, FrostState};
-use blake2::Blake2b512;
+use crate::{decompress, message::Message, FrostState, CONTEXT_STRING};
+use blake2::{Blake2b512, Digest};
 use curve25519_dalek::{
     constants::ED25519_BASEPOINT_POINT, edwards::CompressedEdwardsY, traits::Identity,
     EdwardsPoint, Scalar,
@@ -86,9 +86,12 @@ pub fn compute_binding_value(
             ei: _,
             public_share: _,
         } => Ok({
-            let mut buf = vec![];
-            buf.extend_from_slice(&participant_id.to_le_bytes());
-            buf.extend_from_slice(message.as_bytes());
+            let mut hasher = Blake2b512::new();
+
+            hasher.update(CONTEXT_STRING);
+            hasher.update(b"rho");
+            hasher.update(&participant_id.to_le_bytes());
+            hasher.update(message.as_bytes());
 
             all_commitments
                 .iter()
@@ -100,15 +103,16 @@ pub fn compute_binding_value(
                             ei,
                             public_share: _,
                         } => {
-                            buf.extend_from_slice(&id.to_le_bytes());
-                            buf.extend_from_slice(di.as_bytes());
-                            buf.extend_from_slice(ei.as_bytes());
+                            hasher.update(&id.to_le_bytes());
+                            hasher.update(di.as_bytes());
+                            hasher.update(ei.as_bytes());
                         }
                         _ => return Err("Message was not a Public Commitment.".into()),
                     })
                 })?;
 
-            Scalar::hash_from_bytes::<Blake2b512>(&buf)
+            let hash = hasher.finalize();
+            Scalar::hash_from_bytes::<Blake2b512>(&hash)
         }),
         _ => Err("Message was not of the desired type.".into()),
     }
@@ -142,12 +146,12 @@ pub fn compute_group_commitment_and_challenge(
         )?
         .compress();
     let challenge = {
-        let mut buf = vec![];
-        buf.extend_from_slice(message.as_bytes());
-        buf.extend_from_slice(group_commitment.as_bytes());
-        buf.extend_from_slice(group_public_key.as_bytes());
-
-        Scalar::hash_from_bytes::<Blake2b512>(&buf)
+        let mut hasher = Blake2b512::new();
+        hasher.update(message.as_bytes());
+        hasher.update(group_commitment.as_bytes());
+        hasher.update(group_public_key.as_bytes());
+        let hash = hasher.finalize();
+        Scalar::hash_from_bytes::<Blake2b512>(&hash)
     };
     Ok((group_commitment, challenge))
 }

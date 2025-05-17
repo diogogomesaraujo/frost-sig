@@ -55,7 +55,7 @@ impl Participant {
 pub mod round_1 {
     use super::*;
     use crate::*;
-    use blake2::Blake2b512;
+    use blake2::{Blake2b512, Digest};
     use curve25519_dalek::{constants::ED25519_BASEPOINT_POINT, edwards::CompressedEdwardsY};
     use message::Message;
     use rand::rngs::OsRng;
@@ -79,15 +79,16 @@ pub mod round_1 {
         let k = Scalar::random(rng);
         let ri = k * ED25519_BASEPOINT_POINT;
         let ci = {
-            let mut buf = vec![];
-            buf.extend_from_slice(&participant.id.to_le_bytes());
-            buf.extend_from_slice(
+            let mut hasher = Blake2b512::new();
+            hasher.update(&participant.id.to_le_bytes());
+            hasher.update(
                 (participant.polynomial[0] * ED25519_BASEPOINT_POINT)
                     .compress()
                     .as_bytes(),
             );
-            buf.extend_from_slice(ri.compress().as_bytes());
-            Scalar::hash_from_bytes::<Blake2b512>(&buf)
+            hasher.update(ri.compress().as_bytes());
+            let hash = hasher.finalize();
+            Scalar::hash_from_bytes::<Blake2b512>(&hash)
         };
         let wi = k + participant.polynomial[0] * ci;
         (wi, ci)
@@ -119,11 +120,12 @@ pub mod round_1 {
                             temp1 - temp2
                         };
                         let reconstructed_cp = {
-                            let mut buf = vec![];
-                            buf.extend_from_slice(&participant_id.to_le_bytes());
-                            buf.extend_from_slice(commitments[0].as_bytes());
-                            buf.extend_from_slice(rp.compress().as_bytes());
-                            Scalar::hash_from_bytes::<Blake2b512>(&buf)
+                            let mut hasher = Blake2b512::new();
+                            hasher.update(&participant_id.to_le_bytes());
+                            hasher.update(commitments[0].as_bytes());
+                            hasher.update(rp.compress().as_bytes());
+                            let hash = hasher.finalize();
+                            Scalar::hash_from_bytes::<Blake2b512>(&hash)
                         };
                         Ok(acc && (&reconstructed_cp == cp))
                     }

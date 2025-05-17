@@ -436,6 +436,8 @@ pub mod nano;
 #[cfg(test)]
 mod test;
 
+const CONTEXT_STRING: &[u8] = b"FROST-ED25519-BLAKE2B-v1";
+
 /// Struct that saves the constants needed for FROST. These values should be used by all participants throughout the signing session and discarted after.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FrostState {
