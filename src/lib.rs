@@ -436,6 +436,7 @@ pub mod nano;
 #[cfg(test)]
 mod test;
 
+/// Constant context string for the hashing operations.
 const CONTEXT_STRING: &[u8] = b"FROST-ED25519-BLAKE2B-v1";
 
 /// Struct that saves the constants needed for FROST. These values should be used by all participants throughout the signing session and discarted after.
@@ -470,6 +471,7 @@ impl FrostState {
     }
 }
 
+/// Function that simplifies the decompresson of an ed25519 point.
 pub fn decompress(compressed_point: &CompressedEdwardsY) -> Result<EdwardsPoint, Box<dyn Error>> {
     match compressed_point.decompress() {
         Some(point) => Ok(point),

@@ -1,9 +1,10 @@
+/// Module that handles the signature operations in the Nano blockchain.
 pub mod sign {
-    use std::error::Error;
-
     use super::rpc;
     use serde::{Deserialize, Serialize};
+    use std::error::Error;
 
+    /// Enum that represents the type of transactions that can be made with Nano.
     #[derive(Serialize, Deserialize, Debug)]
     pub enum Subtype {
         SEND,
@@ -12,6 +13,7 @@ pub mod sign {
     }
 
     impl Subtype {
+        /// Function that converts the `Subtype` enum to string format.
         pub fn as_str(&self) -> &str {
             match self {
                 Self::SEND => "send",
@@ -21,6 +23,7 @@ pub mod sign {
         }
     }
 
+    /// Struct that represents a block that has yet to be signed by the FROST signature squeme.
     #[derive(Serialize, Deserialize, Debug)]
     pub struct UnsignedBlock {
         pub r#type: String,
@@ -33,6 +36,7 @@ pub mod sign {
     }
 
     impl UnsignedBlock {
+        /// Function that creates a new `Unsigned Block`.
         pub fn new(
             account: String,
             previous: String,
@@ -52,6 +56,7 @@ pub mod sign {
             }
         }
 
+        /// Function that creates an empty `UnsignedBlock`.
         pub fn empty() -> Self {
             Self::new(
                 String::from("to fill"),
@@ -63,6 +68,7 @@ pub mod sign {
             )
         }
 
+        /// Function that signs an `UnsignedBlock` with a signature and a proof of work.
         pub fn to_signed_block(self, signature: &str, work: &str) -> SignedBlock {
             SignedBlock::new(
                 self.previous,
@@ -76,6 +82,7 @@ pub mod sign {
             )
         }
 
+        /// Function that creates a new block in the Nano blockchain that will open the account.
         pub async fn create_open(
             state: &rpc::RPCState,
             account_address: &str,
@@ -101,6 +108,7 @@ pub mod sign {
         }
     }
 
+    /// Struct that represents a `SignedBlock` that will be hashed and stored in the Nano blockchain.
     #[derive(Serialize, Deserialize)]
     pub struct SignedBlock {
         pub r#type: String,
@@ -115,6 +123,7 @@ pub mod sign {
     }
 
     impl SignedBlock {
+        /// Function that creates a new `SignedBlock`.
         pub fn new(
             previous: String,
             account: String,
@@ -139,6 +148,7 @@ pub mod sign {
         }
     }
 
+    /// Function that creates a new signed block with a valid signature and work.
     pub async fn create_signed_block(
         state: &rpc::RPCState,
         unsigned_block: UnsignedBlock,
@@ -165,15 +175,18 @@ pub mod account {
     };
     use primitive_types::U512;
 
+    /// Constant values to convert a public key into a Nano account address.
     const ACCOUNT_LOOKUP: &[char] = &[
         '1', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j',
         'k', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'w', 'x', 'y', 'z',
     ];
 
+    /// Function that maps the public key to values in the lookup table.
     fn account_encode(value: u8) -> char {
         ACCOUNT_LOOKUP[value as usize]
     }
 
+    /// Function that calculates the checksum that will be appended to the Nano account address.
     fn account_checksum(aggregate_public_key: &[u8; 32]) -> [u8; 5] {
         let mut check = [0u8; 5];
         let mut blake = Blake2bVar::new(check.len()).unwrap();
@@ -182,6 +195,7 @@ pub mod account {
         check
     }
 
+    /// Function that converts a 32 bytes public key into a Nano account address.
     pub fn public_key_to_nano_account(aggregate_public_key: &[u8; 32]) -> String {
         let mut number = U512::from_big_endian(aggregate_public_key);
         let check = U512::from_little_endian(&account_checksum(aggregate_public_key));
@@ -204,18 +218,22 @@ pub mod rpc {
     use serde_json::{json, Value};
     use std::error::Error;
 
+    /// Struct that represents the state of the rpc the client will communicate with.
     pub struct RPCState {
         pub url: String,
         pub client: Client,
     }
 
     impl RPCState {
+        /// Function that creates a new `RPCState`.
         pub fn new(url: &str) -> Self {
             Self {
                 client: Client::new(),
                 url: url.to_string(),
             }
         }
+
+        /// Function to handle requests to the RPC. All of them are POST requests with different bodies.
         pub async fn request<T: DeserializeOwned>(
             &self,
             data: &Value,
@@ -231,6 +249,7 @@ pub mod rpc {
         }
     }
 
+    /// Struct that represents the result of Nano's account_info action.
     #[derive(Serialize, Deserialize)]
     pub struct AccountInfo {
         pub frontier: String,
@@ -240,6 +259,7 @@ pub mod rpc {
     }
 
     impl AccountInfo {
+        /// Function that gets the `AccountInfo` from the rpc.
         pub async fn get_from_rpc(
             state: &RPCState,
             account_address: &str,
@@ -252,6 +272,7 @@ pub mod rpc {
         }
     }
 
+    /// Struct that represents the result of Nano's account_balance action.
     #[derive(Serialize, Deserialize)]
     pub struct AccountBalance {
         pub balance: String,
@@ -263,6 +284,7 @@ pub mod rpc {
     }
 
     impl AccountBalance {
+        /// Function that gets the `AccountBalance` from the rpc.
         pub async fn get_from_rpc(
             state: &RPCState,
             account_address: &str,
@@ -275,6 +297,7 @@ pub mod rpc {
         }
     }
 
+    /// Struct that represents the result of Nano's work_generate action.
     #[derive(Serialize, Deserialize)]
     pub struct WorkGenerate {
         pub work: String,
@@ -282,6 +305,7 @@ pub mod rpc {
     }
 
     impl WorkGenerate {
+        /// Function that gets the `WorkGenerate` from the rpc.
         pub async fn get_from_rpc(
             state: &RPCState,
             hash: &str,
@@ -296,12 +320,14 @@ pub mod rpc {
         }
     }
 
+    /// Struct that represents the result of Nano's receivable action.
     #[derive(Serialize, Deserialize, Debug)]
     pub struct Receivable {
         pub blocks: Vec<String>,
     }
 
     impl Receivable {
+        /// Function that gets the `Receivable` from the rpc.
         pub async fn get_from_rpc(
             state: &RPCState,
             account_address: &str,
@@ -316,6 +342,7 @@ pub mod rpc {
         }
     }
 
+    /// Struct that represents the result of Nano's `block_info` action.
     #[derive(Serialize, Deserialize)]
     pub struct BlockInfo {
         pub block_account: String,
@@ -332,6 +359,7 @@ pub mod rpc {
         }
     }
 
+    /// Struct that represents the result of Nano's `process` action.
     #[derive(Serialize, Deserialize)]
     pub struct Process {
         pub hash: String,

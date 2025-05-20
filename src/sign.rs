@@ -248,6 +248,7 @@ pub fn compute_aggregate_response(
         })
 }
 
+/// Function that converts the aggregate response and group commitment into a valid 64 bytes ed25519 signature.
 pub fn computed_response_to_signature(
     aggregate_response: Scalar,
     group_commitment: CompressedEdwardsY,
