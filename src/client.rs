@@ -489,6 +489,7 @@ pub mod sign_client {
             &public_commitments,
             &message,
             sign_input.public_aggregated_key,
+            &[],
         )?;
 
         // compute the lagrange coefficient
@@ -504,6 +505,8 @@ pub mod sign_client {
             &lagrange_coefficient,
             &challenge,
             &message,
+            &sign_input.own_public_share,
+            &[],
         )?;
 
         match client.own_id {
@@ -547,6 +550,20 @@ pub mod sign_client {
                                     })
                                     .expect("Couldn't get participant's id.");
 
+                                let participant_public_key = {
+                                    match participant_commitment {
+                                        Message::PublicCommitment {
+                                            participant_id: _,
+                                            di: _,
+                                            ei: _,
+                                            public_share,
+                                        } => public_share,
+                                        _ => {
+                                            return Err("Message was not a Public Commitment".into())
+                                        }
+                                    }
+                                };
+
                                 let verify = verify_participant(
                                     &client.state,
                                     &participant_commitment,
@@ -554,6 +571,8 @@ pub mod sign_client {
                                     &message,
                                     &r,
                                     &challenge,
+                                    &participant_public_key,
+                                    &[],
                                 )?;
 
                                 assert!(verify);
@@ -569,8 +588,9 @@ pub mod sign_client {
                 // start the blockchain signing process
                 {
                     // convert signature to hexadecimal string
-                    let signature =
-                        computed_response_to_signature(aggregate_response, group_commitment);
+                    let signature = ed25519_dalek::Signature::from_bytes(
+                        &computed_response_to_signature(&aggregate_response, &group_commitment),
+                    );
 
                     // load enviroment variables
                     dotenv::dotenv().ok();
@@ -582,7 +602,7 @@ pub mod sign_client {
                     let signed_block = create_signed_block(
                         &state,
                         sign_input.message,
-                        &hex::encode(&signature).to_uppercase(),
+                        &hex::encode(&signature.to_bytes()).to_uppercase(),
                         &hex::encode(&sign_input.public_aggregated_key.as_bytes()),
                     )
                     .await?;

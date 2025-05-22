@@ -3,6 +3,8 @@ use crate::message::*;
 use crate::nano::account::public_key_to_nano_account;
 use crate::preprocess::*;
 use crate::sign::*;
+use ed25519_dalek::Signature;
+use ed25519_dalek::VerifyingKey;
 use rand::rngs::OsRng;
 use std::error::Error;
 
@@ -232,13 +234,14 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
     ];
 
     // each participant computes the group commitment and challenge from the received commitments
-    let (_group_commitment, challenge) = compute_group_commitment_and_challenge(
+    let (group_commitment, challenge) = compute_group_commitment_and_challenge(
         &[
             skylar_commitments_message.clone(),
             walter_commitments_message.clone(),
         ],
         message,
         group_public_key,
+        &[],
     )?;
 
     // each participant calculates all the participants' lagrange coefficients
@@ -255,6 +258,8 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
         &walter_lagrange_coefficient,
         &challenge,
         &message,
+        &walter_public_key,
+        &[],
     )?;
     let skylar_response = compute_own_response(
         jessie.id.clone(),
@@ -265,6 +270,8 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
         &skylar_lagrange_coefficient,
         &challenge,
         &message,
+        &skylar_public_key,
+        &[],
     )?;
 
     // sa verifies others' responses
@@ -275,6 +282,8 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
         &message,
         &walter_response,
         &challenge,
+        &walter_public_key,
+        &[],
     )?;
     let verify_skylar = verify_participant(
         &state,
@@ -283,12 +292,25 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
         &message,
         &skylar_response,
         &challenge,
+        &skylar_public_key,
+        &[],
     )?;
     assert!(verify_walter);
     assert!(verify_skylar);
 
     // sa computes the aggregate response
-    let _aggregate_response = compute_aggregate_response(&[walter_response, skylar_response])?;
+    let aggregate_response = compute_aggregate_response(&[walter_response, skylar_response])?;
+
+    // sa computes signature
+    let signature = Signature::from_bytes(&computed_response_to_signature(
+        &aggregate_response,
+        &group_commitment,
+    ));
+
+    {
+        let verifying_key = VerifyingKey::from_bytes(group_public_key.as_bytes())?;
+        verifying_key.verify_strict(message.as_bytes(), &signature)?;
+    }
 
     Ok(())
 }

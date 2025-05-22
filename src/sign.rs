@@ -63,7 +63,7 @@
 //!
 //! See the [resources](https://eprint.iacr.org/2020/852.pdf) here.
 
-use crate::{decompress, message::Message, FrostState, CONTEXT_STRING};
+use crate::{decompress, message::Message, FrostState};
 use blake2::{Blake2b512, Digest};
 use curve25519_dalek::{
     constants::ED25519_BASEPOINT_POINT, edwards::CompressedEdwardsY, traits::Identity,
@@ -73,11 +73,12 @@ use std::error::Error;
 
 /// Function that computes the binding values for a participant.
 /// It receives the message that will be signed and creates a hashed value that will be used to verify the participants commitment.
-/// It follows this format: *id::::message::::commitment*.
 pub fn compute_binding_value(
     participant_commitment: &Message,
     all_commitments: &[Message],
     message: &str,
+    verifying_key: &CompressedEdwardsY,
+    additional_prefix: &[u8],
 ) -> Result<Scalar, Box<dyn Error>> {
     match participant_commitment {
         Message::PublicCommitment {
@@ -86,33 +87,39 @@ pub fn compute_binding_value(
             ei: _,
             public_share: _,
         } => Ok({
-            let mut hasher = Blake2b512::new();
-
-            hasher.update(CONTEXT_STRING);
-            hasher.update(b"rho");
-            hasher.update(&participant_id.to_le_bytes());
-            hasher.update(message.as_bytes());
-
-            all_commitments
-                .iter()
-                .try_for_each(|c| -> Result<(), Box<dyn Error>> {
-                    Ok(match c {
-                        Message::PublicCommitment {
-                            participant_id: id,
-                            di,
-                            ei,
-                            public_share: _,
-                        } => {
-                            hasher.update(&id.to_le_bytes());
-                            hasher.update(di.as_bytes());
-                            hasher.update(ei.as_bytes());
+            let mut binding_value = Vec::new();
+            binding_value.extend_from_slice(&verifying_key.to_bytes());
+            let message = {
+                let mut hasher = Blake2b512::new();
+                hasher.update(message.as_bytes());
+                hasher.finalize()
+            };
+            binding_value.extend_from_slice(&message);
+            let commitments_hash = {
+                let mut hasher = Blake2b512::new();
+                all_commitments
+                    .iter()
+                    .try_for_each(|c| -> Result<(), Box<dyn Error>> {
+                        match c {
+                            Message::PublicCommitment {
+                                participant_id: _,
+                                di,
+                                ei,
+                                public_share: _,
+                            } => {
+                                hasher.update(di.as_bytes());
+                                hasher.update(ei.as_bytes());
+                                Ok(())
+                            }
+                            _ => return Err("Message was not a Public Commitment.".into()),
                         }
-                        _ => return Err("Message was not a Public Commitment.".into()),
-                    })
-                })?;
-
-            let hash = hasher.finalize();
-            Scalar::hash_from_bytes::<Blake2b512>(&hash)
+                    })?;
+                hasher.finalize()
+            };
+            binding_value.extend_from_slice(&commitments_hash);
+            binding_value.extend_from_slice(&additional_prefix);
+            binding_value.extend_from_slice(&participant_id.to_le_bytes());
+            Scalar::hash_from_bytes::<Blake2b512>(&binding_value)
         }),
         _ => Err("Message was not of the desired type.".into()),
     }
@@ -123,6 +130,7 @@ pub fn compute_group_commitment_and_challenge(
     participants_commitments: &[Message],
     message: &str,
     group_public_key: CompressedEdwardsY,
+    additional_prefix: &[u8],
 ) -> Result<(CompressedEdwardsY, Scalar), Box<dyn Error>> {
     let group_commitment = participants_commitments
         .iter()
@@ -136,8 +144,13 @@ pub fn compute_group_commitment_and_challenge(
                         ei,
                         public_share: _,
                     } => Ok({
-                        let binding_value =
-                            compute_binding_value(&pc, &participants_commitments, &message)?;
+                        let binding_value = compute_binding_value(
+                            &pc,
+                            &participants_commitments,
+                            &message,
+                            &group_public_key,
+                            &additional_prefix,
+                        )?;
                         acc + (decompress(di)? + (decompress(ei)? * binding_value))
                     }),
                     _ => Err("Message was not of the desired type.".into()),
@@ -147,11 +160,10 @@ pub fn compute_group_commitment_and_challenge(
         .compress();
     let challenge = {
         let mut hasher = Blake2b512::new();
-        hasher.update(message.as_bytes());
         hasher.update(group_commitment.as_bytes());
         hasher.update(group_public_key.as_bytes());
-        let hash = hasher.finalize();
-        Scalar::hash_from_bytes::<Blake2b512>(&hash)
+        hasher.update(message.as_bytes());
+        Scalar::hash_from_bytes::<Blake2b512>(&hasher.finalize())
     };
     Ok((group_commitment, challenge))
 }
@@ -182,10 +194,17 @@ pub fn compute_own_response(
     lagrange_coefficient: &Scalar,
     challenge: &Scalar,
     message: &str,
+    verifying_key: &CompressedEdwardsY,
+    additional_prefix: &[u8],
 ) -> Result<Message, Box<dyn Error>> {
-    let binding_value = compute_binding_value(&participant_commitment, &all_commitments, &message)?;
+    let binding_value = compute_binding_value(
+        &participant_commitment,
+        &all_commitments,
+        &message,
+        &verifying_key,
+        &additional_prefix,
+    )?;
     let (di, ei) = private_nonces;
-
     Ok(Message::Response {
         sender_id: participant_id,
         value: di + (ei * binding_value) + (lagrange_coefficient * private_key * challenge),
@@ -200,6 +219,8 @@ pub fn verify_participant(
     message: &str,
     response: &Message,
     challenge: &Scalar,
+    verifying_key: &CompressedEdwardsY,
+    additional_prefix: &[u8],
 ) -> Result<bool, Box<dyn Error>> {
     match (participant_commitment, response) {
         (
@@ -215,8 +236,13 @@ pub fn verify_participant(
             },
         ) => {
             let gz = value * ED25519_BASEPOINT_POINT;
-            let binding_value =
-                compute_binding_value(participant_commitment, &all_commitments, message)?;
+            let binding_value = compute_binding_value(
+                participant_commitment,
+                &all_commitments,
+                message,
+                verifying_key,
+                additional_prefix,
+            )?;
             let ri = decompress(di)? + (decompress(ei)? * binding_value);
             let to_validate = {
                 let exponent = challenge * lagrange_coefficient(state, participant_id);
@@ -250,8 +276,8 @@ pub fn compute_aggregate_response(
 
 /// Function that converts the aggregate response and group commitment into a valid 64 bytes ed25519 signature.
 pub fn computed_response_to_signature(
-    aggregate_response: Scalar,
-    group_commitment: CompressedEdwardsY,
+    aggregate_response: &Scalar,
+    group_commitment: &CompressedEdwardsY,
 ) -> [u8; 64] {
     let mut signature = [0u8; 64];
 

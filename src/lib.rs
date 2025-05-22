@@ -437,7 +437,6 @@ pub mod nano;
 mod test;
 
 /// Constant context string for the hashing operations.
-const CONTEXT_STRING: &[u8] = b"FROST-ED25519-BLAKE2B-v1";
 
 /// Struct that saves the constants needed for FROST. These values should be used by all participants throughout the signing session and discarted after.
 #[derive(Clone, Debug, Serialize, Deserialize)]
