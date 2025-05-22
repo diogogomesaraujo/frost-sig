@@ -399,6 +399,7 @@ pub mod sign_client {
             verify_participant,
         },
     };
+    use ed25519_dalek::{Verifier, VerifyingKey};
     use futures::SinkExt;
     use rand::rngs::OsRng;
     use std::{collections::HashSet, error::Error};
@@ -448,7 +449,7 @@ pub mod sign_client {
         lines.send(own_public_commitment.to_json_string()?).await?;
 
         // receiving others commitments
-        let public_commitments = {
+        let (public_commitments, ids) = {
             let mut seen = HashSet::new();
             seen.insert((sign_input.own_public_share, client.own_id));
             let mut public_commitments = vec![own_public_commitment.clone()];
@@ -468,6 +469,8 @@ pub mod sign_client {
                 }
             }
 
+            let ids = seen.iter().map(|(_, i)| *i).collect::<Vec<u32>>();
+
             // sort commitments
             public_commitments.sort_by_key(|c| match c {
                 Message::PublicCommitment {
@@ -479,7 +482,7 @@ pub mod sign_client {
                 _ => 0u32,
             });
 
-            public_commitments
+            (public_commitments, ids)
         };
 
         let message = serde_json::to_string(&sign_input.message)?;
@@ -493,7 +496,7 @@ pub mod sign_client {
         )?;
 
         // compute the lagrange coefficient
-        let lagrange_coefficient = lagrange_coefficient(&client.state, &client.own_id);
+        let lagrange_coefficient = lagrange_coefficient(&ids, &client.own_id);
 
         // compute the response
         let own_response = compute_own_response(
@@ -565,7 +568,6 @@ pub mod sign_client {
                                 };
 
                                 let verify = verify_participant(
-                                    &client.state,
                                     &participant_commitment,
                                     &public_commitments,
                                     &message,
@@ -573,6 +575,7 @@ pub mod sign_client {
                                     &challenge,
                                     &participant_public_key,
                                     &[],
+                                    &ids,
                                 )?;
 
                                 assert!(verify);
@@ -591,6 +594,10 @@ pub mod sign_client {
                     let signature = ed25519_dalek::Signature::from_bytes(
                         &computed_response_to_signature(&aggregate_response, &group_commitment),
                     );
+
+                    let key =
+                        VerifyingKey::from_bytes(sign_input.public_aggregated_key.as_bytes())?;
+                    key.verify(message.as_bytes(), &signature)?;
 
                     // load enviroment variables
                     dotenv::dotenv().ok();

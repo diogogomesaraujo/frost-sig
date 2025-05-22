@@ -79,16 +79,15 @@ pub mod round_1 {
         let k = Scalar::random(rng);
         let ri = k * ED25519_BASEPOINT_POINT;
         let ci = {
-            let mut hasher = Blake2b512::new();
-            hasher.update(&participant.id.to_le_bytes());
-            hasher.update(
+            let mut hasher = vec![];
+            hasher.extend_from_slice(&participant.id.to_le_bytes());
+            hasher.extend_from_slice(
                 (participant.polynomial[0] * ED25519_BASEPOINT_POINT)
                     .compress()
                     .as_bytes(),
             );
-            hasher.update(ri.compress().as_bytes());
-            let hash = hasher.finalize();
-            Scalar::hash_from_bytes::<Blake2b512>(&hash)
+            hasher.extend_from_slice(ri.compress().as_bytes());
+            hash_to_scalar(&[&hasher[..]])
         };
         let wi = k + participant.polynomial[0] * ci;
         (wi, ci)
@@ -120,12 +119,11 @@ pub mod round_1 {
                             temp1 - temp2
                         };
                         let reconstructed_cp = {
-                            let mut hasher = Blake2b512::new();
-                            hasher.update(&participant_id.to_le_bytes());
-                            hasher.update(commitments[0].as_bytes());
-                            hasher.update(rp.compress().as_bytes());
-                            let hash = hasher.finalize();
-                            Scalar::hash_from_bytes::<Blake2b512>(&hash)
+                            let mut hasher = vec![];
+                            hasher.extend_from_slice(&participant_id.to_le_bytes());
+                            hasher.extend_from_slice(commitments[0].as_bytes());
+                            hasher.extend_from_slice(rp.compress().as_bytes());
+                            hash_to_scalar(&[&hasher[..]])
                         };
                         Ok(acc && (&reconstructed_cp == cp))
                     }

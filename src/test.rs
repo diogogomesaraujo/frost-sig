@@ -244,9 +244,11 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
         &[],
     )?;
 
+    let ids = vec![walter.id, skylar.id];
+
     // each participant calculates all the participants' lagrange coefficients
-    let walter_lagrange_coefficient = lagrange_coefficient(&state, &walter.id);
-    let skylar_lagrange_coefficient = lagrange_coefficient(&state, &jessie.id);
+    let walter_lagrange_coefficient = lagrange_coefficient(&ids, &walter.id);
+    let skylar_lagrange_coefficient = lagrange_coefficient(&ids, &jessie.id);
 
     // each participant computes their response and sends to the sa
     let walter_response = compute_own_response(
@@ -276,7 +278,6 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
 
     // sa verifies others' responses
     let verify_walter = verify_participant(
-        &state,
         &walter_commitments_message,
         &commitments,
         &message,
@@ -284,9 +285,9 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
         &challenge,
         &walter_public_key,
         &[],
+        &ids,
     )?;
     let verify_skylar = verify_participant(
-        &state,
         &skylar_commitments_message,
         &commitments,
         &message,
@@ -294,6 +295,7 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
         &challenge,
         &skylar_public_key,
         &[],
+        &ids,
     )?;
     assert!(verify_walter);
     assert!(verify_skylar);

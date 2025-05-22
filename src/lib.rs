@@ -417,7 +417,8 @@
 //!
 //! See the [resources](https://eprint.iacr.org/2020/852.pdf) here.
 
-use curve25519_dalek::{edwards::CompressedEdwardsY, EdwardsPoint};
+use blake2::{digest::consts::U64, Blake2b, Digest};
+use curve25519_dalek::{edwards::CompressedEdwardsY, EdwardsPoint, Scalar};
 use message::Message;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
@@ -476,4 +477,19 @@ pub fn decompress(compressed_point: &CompressedEdwardsY) -> Result<EdwardsPoint,
         Some(point) => Ok(point),
         None => return Err("Couldn't decompress the point.".into()),
     }
+}
+
+pub fn hash_to_array(inputs: &[&[u8]]) -> [u8; 64] {
+    let mut h: Blake2b<U64> = Blake2b::new();
+    for i in inputs {
+        h.update(i);
+    }
+    let mut output = [0u8; 64];
+    output.copy_from_slice(h.finalize().as_slice());
+    output
+}
+
+pub fn hash_to_scalar(inputs: &[&[u8]]) -> Scalar {
+    let output = hash_to_array(inputs);
+    Scalar::from_bytes_mod_order_wide(&output)
 }

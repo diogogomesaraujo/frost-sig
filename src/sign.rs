@@ -63,8 +63,7 @@
 //!
 //! See the [resources](https://eprint.iacr.org/2020/852.pdf) here.
 
-use crate::{decompress, message::Message, FrostState};
-use blake2::{Blake2b512, Digest};
+use crate::{decompress, hash_to_array, hash_to_scalar, message::Message};
 use curve25519_dalek::{
     constants::ED25519_BASEPOINT_POINT, edwards::CompressedEdwardsY, traits::Identity,
     EdwardsPoint, Scalar,
@@ -87,16 +86,11 @@ pub fn compute_binding_value(
             ei: _,
             public_share: _,
         } => Ok({
-            let mut binding_value = Vec::new();
+            let mut binding_value = vec![];
             binding_value.extend_from_slice(&verifying_key.to_bytes());
-            let message = {
-                let mut hasher = Blake2b512::new();
-                hasher.update(message.as_bytes());
-                hasher.finalize()
-            };
-            binding_value.extend_from_slice(&message);
+            binding_value.extend_from_slice(&hash_to_array(&[message.as_bytes()]));
             let commitments_hash = {
-                let mut hasher = Blake2b512::new();
+                let mut hasher = vec![];
                 all_commitments
                     .iter()
                     .try_for_each(|c| -> Result<(), Box<dyn Error>> {
@@ -107,19 +101,19 @@ pub fn compute_binding_value(
                                 ei,
                                 public_share: _,
                             } => {
-                                hasher.update(di.as_bytes());
-                                hasher.update(ei.as_bytes());
+                                hasher.extend_from_slice(di.as_bytes());
+                                hasher.extend_from_slice(ei.as_bytes());
                                 Ok(())
                             }
                             _ => return Err("Message was not a Public Commitment.".into()),
                         }
                     })?;
-                hasher.finalize()
+                hasher
             };
             binding_value.extend_from_slice(&commitments_hash);
             binding_value.extend_from_slice(&additional_prefix);
             binding_value.extend_from_slice(&participant_id.to_le_bytes());
-            Scalar::hash_from_bytes::<Blake2b512>(&binding_value)
+            hash_to_scalar(&[&binding_value[..]])
         }),
         _ => Err("Message was not of the desired type.".into()),
     }
@@ -159,27 +153,23 @@ pub fn compute_group_commitment_and_challenge(
         )?
         .compress();
     let challenge = {
-        let mut hasher = Blake2b512::new();
-        hasher.update(group_commitment.as_bytes());
-        hasher.update(group_public_key.as_bytes());
-        hasher.update(message.as_bytes());
-        Scalar::hash_from_bytes::<Blake2b512>(&hasher.finalize())
+        let mut hasher = vec![];
+        hasher.extend_from_slice(group_commitment.as_bytes());
+        hasher.extend_from_slice(group_public_key.as_bytes());
+        hasher.extend_from_slice(message.as_bytes());
+        hash_to_scalar(&[&hasher[..]])
     };
     Ok((group_commitment, challenge))
 }
 
 /// Function that calculates the lagrange_coefficient of a participant.
-pub fn lagrange_coefficient(state: &FrostState, participant_id: &u32) -> Scalar {
-    let id = Scalar::from(*participant_id);
-    (1..=state.threshold)
-        .into_iter()
-        .fold(Scalar::ONE, |acc, j| {
-            if &j == participant_id {
-                acc
-            } else {
-                let j = Scalar::from(j);
-                acc * (j * (j - id).invert())
-            }
+pub fn lagrange_coefficient(ids: &[u32], target_id: &u32) -> Scalar {
+    let id = Scalar::from(target_id.clone());
+    ids.iter()
+        .filter(|&&j| &j != target_id)
+        .fold(Scalar::ONE, |acc, &j| {
+            let j = Scalar::from(j);
+            acc * (j * (j - id).invert())
         })
 }
 
@@ -213,7 +203,6 @@ pub fn compute_own_response(
 
 /// Function that verifies if a participant is malicious or not by analysing the commitments other's sent.
 pub fn verify_participant(
-    state: &FrostState,
     participant_commitment: &Message,
     all_commitments: &[Message],
     message: &str,
@@ -221,6 +210,7 @@ pub fn verify_participant(
     challenge: &Scalar,
     verifying_key: &CompressedEdwardsY,
     additional_prefix: &[u8],
+    ids: &[u32],
 ) -> Result<bool, Box<dyn Error>> {
     match (participant_commitment, response) {
         (
@@ -245,7 +235,7 @@ pub fn verify_participant(
             )?;
             let ri = decompress(di)? + (decompress(ei)? * binding_value);
             let to_validate = {
-                let exponent = challenge * lagrange_coefficient(state, participant_id);
+                let exponent = challenge * lagrange_coefficient(&ids, &participant_id);
                 ri + (decompress(public_share)? * exponent)
             };
             assert_eq!(

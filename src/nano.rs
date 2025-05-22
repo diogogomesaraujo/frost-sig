@@ -387,7 +387,7 @@ pub mod rpc {
     async fn test_rpc() -> Result<(), Box<dyn Error>> {
         dotenv::dotenv().ok();
 
-        let account = "nano_1kiowqqj8kfhx1xmg7rucwrj41y14fpmqj4ez8jg78bubmhqhtzj9nxt13oa";
+        let account = "nano_3axw9eo9paufn4ecqemr7z3p66khncb6f8kchaknicqyp9kw5by11y617abt";
 
         let state = RPCState::new(&std::env::var("URL")?);
 
