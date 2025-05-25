@@ -55,7 +55,6 @@ impl Participant {
 pub mod round_1 {
     use super::*;
     use crate::*;
-    use blake2::{Blake2b512, Digest};
     use curve25519_dalek::{constants::ED25519_BASEPOINT_POINT, edwards::CompressedEdwardsY};
     use message::Message;
     use rand::rngs::OsRng;

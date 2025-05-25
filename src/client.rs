@@ -399,7 +399,7 @@ pub mod sign_client {
             verify_participant,
         },
     };
-    use ed25519_dalek::{Verifier, VerifyingKey};
+    use ed25519_dalek_blake2b::{PublicKey, Signature, Verifier};
     use futures::SinkExt;
     use rand::rngs::OsRng;
     use std::{collections::HashSet, error::Error};
@@ -508,7 +508,7 @@ pub mod sign_client {
             &lagrange_coefficient,
             &challenge,
             &message,
-            &sign_input.own_public_share,
+            &sign_input.public_aggregated_key,
             &[],
         )?;
 
@@ -553,27 +553,13 @@ pub mod sign_client {
                                     })
                                     .expect("Couldn't get participant's id.");
 
-                                let participant_public_key = {
-                                    match participant_commitment {
-                                        Message::PublicCommitment {
-                                            participant_id: _,
-                                            di: _,
-                                            ei: _,
-                                            public_share,
-                                        } => public_share,
-                                        _ => {
-                                            return Err("Message was not a Public Commitment".into())
-                                        }
-                                    }
-                                };
-
                                 let verify = verify_participant(
                                     &participant_commitment,
                                     &public_commitments,
                                     &message,
                                     &r,
                                     &challenge,
-                                    &participant_public_key,
+                                    &sign_input.public_aggregated_key,
                                     &[],
                                     &ids,
                                 )?;
@@ -590,14 +576,20 @@ pub mod sign_client {
 
                 // start the blockchain signing process
                 {
-                    // convert signature to hexadecimal string
-                    let signature = ed25519_dalek::Signature::from_bytes(
-                        &computed_response_to_signature(&aggregate_response, &group_commitment),
-                    );
+                    let signature = Signature::from_bytes(&computed_response_to_signature(
+                        &aggregate_response,
+                        &group_commitment,
+                    ))
+                    .expect("Couldn't create the signature!");
 
-                    let key =
-                        VerifyingKey::from_bytes(sign_input.public_aggregated_key.as_bytes())?;
-                    key.verify(message.as_bytes(), &signature)?;
+                    {
+                        let verifying_key =
+                            PublicKey::from_bytes(sign_input.public_aggregated_key.as_bytes())
+                                .expect("Couldn't create the public key!");
+                        verifying_key
+                            .verify(message.as_bytes(), &signature)
+                            .expect("Couldn't verify the signature with the public key!");
+                    }
 
                     // load enviroment variables
                     dotenv::dotenv().ok();
