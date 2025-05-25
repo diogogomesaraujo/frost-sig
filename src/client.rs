@@ -98,7 +98,7 @@ impl SignInput {
     /// Function that writes a Sign Input to a file.
     pub async fn to_file(&self, path: &str) -> Result<(), Box<dyn Error>> {
         let mut file = File::create(path).await?;
-        file.write_all(serde_json::to_string(&self)?.as_bytes())
+        file.write_all(serde_json::to_string_pretty(&self)?.as_bytes())
             .await?;
         Ok(())
     }
@@ -485,7 +485,7 @@ pub mod sign_client {
             (public_commitments, ids)
         };
 
-        let message = serde_json::to_string(&sign_input.message)?;
+        let message = serde_json::to_string_pretty(&sign_input.message)?;
 
         // compute group commitment and challenge
         let (group_commitment, challenge) = compute_group_commitment_and_challenge(
