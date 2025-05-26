@@ -92,7 +92,7 @@ pub mod sign {
 
             let account = account_address.to_string();
             let previous = "0".to_string();
-            let representative = std::env::var("REPRESENTATIVE")?;
+            let representative = account_address.to_string();
             let balance = block.amount;
             let link = receivable.blocks[0].clone();
             let link_as_account = block.block_account;
@@ -387,7 +387,7 @@ pub mod rpc {
     async fn test_rpc() -> Result<(), Box<dyn Error>> {
         dotenv::dotenv().ok();
 
-        let account = "nano_3wmif96df6xsb31zrubnq57wfpbpb6t7q8rapee8k1pcjyhtbbpd8s1cyn5z";
+        let account = "nano_1168zjjur34xrh6y5fzym46i9bwzguxquq5aw3kzdhqmdhkxo3n96oxts7ox";
 
         let state = RPCState::new(&std::env::var("URL")?);
 

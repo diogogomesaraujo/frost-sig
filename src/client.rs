@@ -67,6 +67,7 @@ pub mod logging {
 /// It is created during the keygen phase but you need to update the message before signing.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SignInput {
+    id: u32,
     /// State that holds all the constants needed for the FROST computations.
     state: FrostState,
     /// Aggregated public key shared by the group.
@@ -369,6 +370,7 @@ pub mod keygen_client {
         // write the shared and private information to a file
         {
             let sign_input = SignInput {
+                id: client.own_id,
                 state: client.state,
                 own_public_share: own_public_key,
                 own_private_share: private_key_share,
@@ -402,10 +404,7 @@ pub mod sign_client {
     use ed25519_dalek_blake2b::{PublicKey, Signature, Verifier};
     use futures::SinkExt;
     use rand::rngs::OsRng;
-    use std::{
-        collections::{HashMap, HashSet},
-        error::Error,
-    };
+    use std::{collections::HashSet, error::Error};
     use tokio_util::codec::{Framed, LinesCodec};
 
     /// Function that runs the sign client.
@@ -422,16 +421,16 @@ pub mod sign_client {
         let mut lines = Framed::new(stream, LinesCodec::new());
 
         // init client
-        let client = {
+        let (client, sign_id) = {
             // get id from the server
-            let id = {
+            let sign_id = {
                 match receive_message(&mut lines).await? {
                     Message::Id(id) => id,
                     _ => return Err("Couldn't parse the message.".into()),
                 }
             };
 
-            FrostClient::new(sign_input.state, id)
+            (FrostClient::new(sign_input.state, sign_input.id), sign_id)
         };
 
         // init random state
@@ -488,14 +487,7 @@ pub mod sign_client {
             (public_commitments, ids)
         };
 
-        let message = {
-            serde_json::to_string(&HashMap::from([
-                ("previous", &sign_input.message.previous),
-                ("representative", &sign_input.message.representative),
-                ("balance", &sign_input.message.balance),
-                ("link", &sign_input.message.link),
-            ]))?
-        };
+        let message = serde_json::to_string(&sign_input.message)?;
 
         // compute group commitment and challenge
         let (group_commitment, challenge) = compute_group_commitment_and_challenge(
@@ -522,7 +514,7 @@ pub mod sign_client {
             &[],
         )?;
 
-        match client.own_id {
+        match sign_id {
             // if the participant is the SA
             1 => {
                 // collect other participants' responses
