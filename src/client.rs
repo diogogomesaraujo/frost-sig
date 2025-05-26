@@ -402,7 +402,10 @@ pub mod sign_client {
     use ed25519_dalek_blake2b::{PublicKey, Signature, Verifier};
     use futures::SinkExt;
     use rand::rngs::OsRng;
-    use std::{collections::HashSet, error::Error};
+    use std::{
+        collections::{HashMap, HashSet},
+        error::Error,
+    };
     use tokio_util::codec::{Framed, LinesCodec};
 
     /// Function that runs the sign client.
@@ -485,7 +488,14 @@ pub mod sign_client {
             (public_commitments, ids)
         };
 
-        let message = serde_json::to_string_pretty(&sign_input.message)?;
+        let message = {
+            serde_json::to_string(&HashMap::from([
+                ("previous", &sign_input.message.previous),
+                ("representative", &sign_input.message.representative),
+                ("balance", &sign_input.message.balance),
+                ("link", &sign_input.message.link),
+            ]))?
+        };
 
         // compute group commitment and challenge
         let (group_commitment, challenge) = compute_group_commitment_and_challenge(
