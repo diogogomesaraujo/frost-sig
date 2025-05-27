@@ -487,7 +487,14 @@ pub mod sign_client {
             (public_commitments, ids)
         };
 
-        let message = serde_json::to_string(&sign_input.message)?;
+        // load enviroment variables
+        dotenv::dotenv().ok();
+
+        // create the state for the rpc
+        let state = RPCState::new(&std::env::var("URL")?);
+
+        // hash the message
+        let message = sign_input.message.clone().to_hash(&state).await?;
 
         // compute group commitment and challenge
         let (group_commitment, challenge) = compute_group_commitment_and_challenge(
@@ -592,12 +599,6 @@ pub mod sign_client {
                             .verify(message.as_bytes(), &signature)
                             .expect("Couldn't verify the signature with the public key!");
                     }
-
-                    // load enviroment variables
-                    dotenv::dotenv().ok();
-
-                    // create the state for the rpc
-                    let state = RPCState::new(&std::env::var("URL")?);
 
                     // create signed block
                     let signed_block = create_signed_block(

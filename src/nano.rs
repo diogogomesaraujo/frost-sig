@@ -1,6 +1,8 @@
 /// Module that handles the signature operations in the Nano blockchain.
 pub mod sign {
-    use super::rpc;
+    use crate::hash_to_array;
+
+    use super::rpc::{self, AccountKey};
     use serde::{Deserialize, Serialize};
     use std::error::Error;
 
@@ -24,7 +26,7 @@ pub mod sign {
     }
 
     /// Struct that represents a block that has yet to be signed by the FROST signature squeme.
-    #[derive(Serialize, Deserialize, Debug)]
+    #[derive(Serialize, Deserialize, Debug, Clone)]
     pub struct UnsignedBlock {
         pub r#type: String,
         pub account: String,
@@ -59,13 +61,34 @@ pub mod sign {
         /// Function that creates an empty `UnsignedBlock`.
         pub fn empty() -> Self {
             Self::new(
-                String::from("to fill"),
-                String::from("to fill"),
-                String::from("to fill"),
-                String::from("to fill"),
-                String::from("to fill"),
-                String::from("to fill"),
+                String::new(),
+                String::new(),
+                String::new(),
+                String::new(),
+                String::new(),
+                String::new(),
             )
+        }
+
+        pub async fn to_hash(self, state: &rpc::RPCState) -> Result<String, Box<dyn Error>> {
+            let account = hex::decode(AccountKey::get_from_rpc(state, &self.account).await?.key)?;
+            let representative = hex::decode(
+                AccountKey::get_from_rpc(state, &self.representative)
+                    .await?
+                    .key,
+            )?;
+            let previous = hex::decode(self.previous)?;
+            let link = hex::decode(self.link)?;
+            let balance = self.balance.parse::<u128>()?.to_le_bytes();
+
+            let mut bytes = vec![];
+            bytes.extend_from_slice(&account);
+            bytes.extend_from_slice(&previous);
+            bytes.extend_from_slice(&representative);
+            bytes.extend_from_slice(&balance);
+            bytes.extend_from_slice(&link);
+
+            Ok(hex::encode(hash_to_array(&[&bytes])).to_uppercase())
         }
 
         /// Function that signs an `UnsignedBlock` with a signature and a proof of work.
@@ -91,7 +114,8 @@ pub mod sign {
             let block = rpc::BlockInfo::get_from_rpc(&state, &receivable.blocks[0]).await?;
 
             let account = account_address.to_string();
-            let previous = "0".to_string();
+            let previous =
+                "0000000000000000000000000000000000000000000000000000000000000000".to_string(); // 32bytes
             let representative = account_address.to_string();
             let balance = block.amount;
             let link = receivable.blocks[0].clone();
@@ -158,7 +182,9 @@ pub mod sign {
         let work = super::rpc::WorkGenerate::get_from_rpc(
             &state,
             match unsigned_block.previous.as_str() {
-                "0" => aggregate_public_key,
+                "0000000000000000000000000000000000000000000000000000000000000000" => {
+                    aggregate_public_key
+                }
                 previous => previous,
             },
             &std::env::var("KEY")?,
@@ -169,6 +195,7 @@ pub mod sign {
 }
 
 pub mod account {
+
     use blake2::{
         digest::{Update, VariableOutput},
         Blake2bVar,
@@ -297,6 +324,26 @@ pub mod rpc {
         }
     }
 
+    /// Struct that represents the result of Nano's account_key action.
+    #[derive(Serialize, Deserialize)]
+    pub struct AccountKey {
+        pub key: String,
+    }
+
+    impl AccountKey {
+        /// Function that gets the `AccountKey` from the rpc.
+        pub async fn get_from_rpc(
+            state: &RPCState,
+            nano_account: &str,
+        ) -> Result<Self, Box<dyn Error>> {
+            let data = json!({
+                "action": "account_key",
+                "account": nano_account
+            });
+            state.request::<Self>(&data).await
+        }
+    }
+
     /// Struct that represents the result of Nano's work_generate action.
     #[derive(Serialize, Deserialize)]
     pub struct WorkGenerate {
@@ -387,9 +434,12 @@ pub mod rpc {
     async fn test_rpc() -> Result<(), Box<dyn Error>> {
         dotenv::dotenv().ok();
 
-        let account = "nano_1168zjjur34xrh6y5fzym46i9bwzguxquq5aw3kzdhqmdhkxo3n96oxts7ox";
+        let account = "nano_1pdy5dhdd5czsocubd989e6w8hnnzyxxsyyetk39ktd98bbmxn76knpeybwq";
 
         let state = RPCState::new(&std::env::var("URL")?);
+
+        let public_key = AccountKey::get_from_rpc(&state, account).await?.key;
+        println!("{public_key}");
 
         let recievable = Receivable::get_from_rpc(&state, account, 1).await?;
         println!("{:?}", recievable);
@@ -397,7 +447,11 @@ pub mod rpc {
         let unsigned_block =
             crate::nano::sign::UnsignedBlock::create_open(&state, &account).await?;
 
+        let message = unsigned_block.clone().to_hash(&state).await?;
+
         println!("{}", serde_json::to_string(&unsigned_block)?);
+
+        println!("{}", message);
 
         assert!(true);
 
