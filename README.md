@@ -2,8 +2,6 @@
 
 `frost-sig` is a threshold signature library that implements the FROST protocol.
 
-It uses [Risttretto](https://ristretto.group/) elliptic curve cryptography and the [Blake2](https://www.blake2.net/) hashing algorythm for computations.
-
 ## Features
 
 - Key Generation.
