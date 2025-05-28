@@ -34,7 +34,6 @@ pub mod sign {
         pub representative: String,
         pub balance: String,
         pub link: String,
-        pub link_as_account: String,
     }
 
     impl UnsignedBlock {
@@ -45,7 +44,6 @@ pub mod sign {
             representative: String,
             balance: String,
             link: String,
-            link_as_account: String,
         ) -> Self {
             Self {
                 r#type: "state".to_string(),
@@ -54,7 +52,6 @@ pub mod sign {
                 representative,
                 balance,
                 link,
-                link_as_account,
             }
         }
 
@@ -66,11 +63,12 @@ pub mod sign {
                 String::new(),
                 String::new(),
                 String::new(),
-                String::new(),
             )
         }
 
         pub async fn to_hash(self, state: &rpc::RPCState) -> Result<String, Box<dyn Error>> {
+            let mut preamble = [0u8; 32];
+            preamble[31] = 6 as u8; // represents state
             let account = hex::decode(AccountKey::get_from_rpc(state, &self.account).await?.key)?;
             let representative = hex::decode(
                 AccountKey::get_from_rpc(state, &self.representative)
@@ -79,16 +77,18 @@ pub mod sign {
             )?;
             let previous = hex::decode(self.previous)?;
             let link = hex::decode(self.link)?;
-            let balance = self.balance.parse::<u128>()?.to_le_bytes();
+            let balance = self.balance.parse::<u128>()?.to_be_bytes();
 
-            let mut bytes = vec![];
-            bytes.extend_from_slice(&account);
-            bytes.extend_from_slice(&previous);
-            bytes.extend_from_slice(&representative);
-            bytes.extend_from_slice(&balance);
-            bytes.extend_from_slice(&link);
+            let bytes = hash_to_array(&[
+                &preamble,
+                &account,
+                &previous,
+                &representative,
+                &balance,
+                &link,
+            ]);
 
-            Ok(hex::encode(hash_to_array(&[&bytes])).to_uppercase())
+            Ok(hex::encode(&bytes).to_uppercase())
         }
 
         /// Function that signs an `UnsignedBlock` with a signature and a proof of work.
@@ -99,7 +99,6 @@ pub mod sign {
                 self.representative,
                 self.balance,
                 self.link,
-                self.link_as_account,
                 signature.to_string(),
                 work.to_string(),
             )
@@ -119,7 +118,6 @@ pub mod sign {
             let representative = account_address.to_string();
             let balance = block.amount;
             let link = receivable.blocks[0].clone();
-            let link_as_account = block.block_account;
 
             Ok(UnsignedBlock::new(
                 account,
@@ -127,7 +125,6 @@ pub mod sign {
                 representative,
                 balance,
                 link,
-                link_as_account,
             ))
         }
     }
@@ -141,7 +138,6 @@ pub mod sign {
         pub representative: String,
         pub balance: String,
         pub link: String,
-        pub link_as_account: String,
         pub signature: String,
         pub work: String,
     }
@@ -154,7 +150,6 @@ pub mod sign {
             representative: String,
             balance: String,
             link: String,
-            link_as_account: String,
             signature: String,
             work: String,
         ) -> Self {
@@ -165,7 +160,6 @@ pub mod sign {
                 representative,
                 balance,
                 link,
-                link_as_account,
                 signature,
                 work,
             }
@@ -434,7 +428,7 @@ pub mod rpc {
     async fn test_rpc() -> Result<(), Box<dyn Error>> {
         dotenv::dotenv().ok();
 
-        let account = "nano_1pdy5dhdd5czsocubd989e6w8hnnzyxxsyyetk39ktd98bbmxn76knpeybwq";
+        let account = "nano_1ycjy9g3y9qyiecsj1e1oiji788qugorwwkz3f7wu5mmbu7fhw5ufrqjxxog";
 
         let state = RPCState::new(&std::env::var("URL")?);
 
