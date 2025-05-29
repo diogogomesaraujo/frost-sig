@@ -1,7 +1,5 @@
 /// Module that handles the signature operations in the Nano blockchain.
 pub mod sign {
-    use crate::hash_to_array;
-
     use super::rpc::{self, AccountKey};
     use blake2::{
         digest::{Update, VariableOutput},
@@ -456,5 +454,53 @@ pub mod rpc {
         assert!(true);
 
         Ok(())
+    }
+    #[tokio::test]
+    async fn test_block_hash() {
+        let unsigned_block = crate::nano::sign::UnsignedBlock::new(
+            "nano_1ycjy9g3y9qyiecsj1e1oiji788qugorwwkz3f7wu5mmbu7fhw5ufrqjxxog".to_string(),
+            "0000000000000000000000000000000000000000000000000000000000000000".to_string(),
+            "nano_1ycjy9g3y9qyiecsj1e1oiji788qugorwwkz3f7wu5mmbu7fhw5ufrqjxxog".to_string(),
+            "2000000000000000000000000000".to_string(),
+            "EA711B769FF613198406F62E03E6E53F9FC3E3F66596EDEB9B83AF5EB2078833".to_string(),
+        );
+        let state = RPCState::new("https://rpc.nano.to/");
+        let hash = unsigned_block.to_hash(&state).await.unwrap();
+
+        let mut preamble = [0u8; 32];
+        preamble[31] = 6 as u8; // represents state
+        let account = hex::decode(
+            AccountKey::get_from_rpc(
+                &state,
+                "nano_1ycjy9g3y9qyiecsj1e1oiji788qugorwwkz3f7wu5mmbu7fhw5ufrqjxxog",
+            )
+            .await
+            .unwrap()
+            .key,
+        )
+        .unwrap();
+        let representative = hex::decode(
+            AccountKey::get_from_rpc(
+                &state,
+                "nano_1ycjy9g3y9qyiecsj1e1oiji788qugorwwkz3f7wu5mmbu7fhw5ufrqjxxog",
+            )
+            .await
+            .unwrap()
+            .key,
+        )
+        .unwrap();
+        let previous =
+            hex::decode("0000000000000000000000000000000000000000000000000000000000000000")
+                .unwrap();
+        let link = hex::decode("EA711B769FF613198406F62E03E6E53F9FC3E3F66596EDEB9B83AF5EB2078833")
+            .unwrap();
+        let balance = 2000000000000000000000000000u128.to_be_bytes();
+
+        println!("block hash: {}", hash);
+        println!("account: {:?}", account);
+        println!("representative: {:?}", representative);
+        println!("previous: {:?}", previous);
+        println!("link: {:?}", link);
+        println!("balance: {:?}", balance);
     }
 }
