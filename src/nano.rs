@@ -3,6 +3,10 @@ pub mod sign {
     use crate::hash_to_array;
 
     use super::rpc::{self, AccountKey};
+    use blake2::{
+        digest::{Update, VariableOutput},
+        Blake2bVar,
+    };
     use serde::{Deserialize, Serialize};
     use std::error::Error;
 
@@ -79,16 +83,18 @@ pub mod sign {
             let link = hex::decode(self.link)?;
             let balance = self.balance.parse::<u128>()?.to_be_bytes();
 
-            let bytes = hash_to_array(&[
-                &preamble,
-                &account,
-                &previous,
-                &representative,
-                &balance,
-                &link,
-            ]);
+            let mut hasher = Blake2bVar::new(32).unwrap();
+            hasher.update(&preamble);
+            hasher.update(&account);
+            hasher.update(&previous);
+            hasher.update(&representative);
+            hasher.update(&balance);
+            hasher.update(&link);
 
-            Ok(hex::encode(&bytes).to_uppercase())
+            let mut bytes = [0u8; 32];
+            hasher.finalize_variable(&mut bytes).unwrap();
+
+            Ok(hex::encode(&bytes))
         }
 
         /// Function that signs an `UnsignedBlock` with a signature and a proof of work.
