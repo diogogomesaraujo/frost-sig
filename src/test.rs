@@ -208,7 +208,7 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
     // sign
 
     // the message that will be signed
-    let message = "Send Gustavo 10 bucks.";
+    let message = "2b8a35596a7666b54e9d33a886770facfede4f16d054a47765d35226e1caad4f";
 
     // For signing, we'll use Walter (ID=1) and Skylar (ID=3) as signers
     // each participant generates nonces and commitments for the signature
@@ -307,6 +307,8 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
         &group_commitment,
     ))
     .expect("Couldn't create the signature!");
+
+    println!("Signature: {}", hex::encode(signature.to_bytes()));
 
     // Verify the signature
     {

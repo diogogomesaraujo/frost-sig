@@ -605,7 +605,6 @@ pub mod sign_client {
                         &state,
                         sign_input.message,
                         &hex::encode(&signature.to_bytes()).to_uppercase(),
-                        &hex::encode(&sign_input.public_aggregated_key.as_bytes()),
                     )
                     .await?;
 

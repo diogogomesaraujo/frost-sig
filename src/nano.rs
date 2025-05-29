@@ -1,8 +1,11 @@
 /// Module that handles the signature operations in the Nano blockchain.
 pub mod sign {
-    use crate::hash_to_array;
 
     use super::rpc::{self, AccountKey};
+    use blake2::{
+        digest::{Update, VariableOutput},
+        Blake2bVar,
+    };
     use serde::{Deserialize, Serialize};
     use std::error::Error;
 
@@ -79,26 +82,34 @@ pub mod sign {
             let link = hex::decode(self.link)?;
             let balance = self.balance.parse::<u128>()?.to_be_bytes();
 
-            let bytes = hash_to_array(&[
-                &preamble,
-                &account,
-                &previous,
-                &representative,
-                &balance,
-                &link,
-            ]);
+            let mut hasher = Blake2bVar::new(32).unwrap();
+            hasher.update(&preamble);
+            hasher.update(&account);
+            hasher.update(&previous);
+            hasher.update(&representative);
+            hasher.update(&balance);
+            hasher.update(&link);
 
-            Ok(hex::encode(&bytes).to_uppercase())
+            let mut bytes = [0u8; 32];
+            hasher.finalize_variable(&mut bytes).unwrap();
+
+            Ok(hex::encode(&bytes))
         }
 
         /// Function that signs an `UnsignedBlock` with a signature and a proof of work.
-        pub fn to_signed_block(self, signature: &str, work: &str) -> SignedBlock {
+        pub fn to_signed_block(
+            self,
+            signature: &str,
+            work: &str,
+            link_as_account: &str,
+        ) -> SignedBlock {
             SignedBlock::new(
                 self.previous,
                 self.account,
                 self.representative,
                 self.balance,
                 self.link,
+                link_as_account.to_string(),
                 signature.to_string(),
                 work.to_string(),
             )
@@ -138,6 +149,7 @@ pub mod sign {
         pub representative: String,
         pub balance: String,
         pub link: String,
+        pub link_as_account: String,
         pub signature: String,
         pub work: String,
     }
@@ -150,6 +162,7 @@ pub mod sign {
             representative: String,
             balance: String,
             link: String,
+            link_as_account: String,
             signature: String,
             work: String,
         ) -> Self {
@@ -160,6 +173,7 @@ pub mod sign {
                 representative,
                 balance,
                 link,
+                link_as_account,
                 signature,
                 work,
             }
@@ -171,8 +185,9 @@ pub mod sign {
         state: &rpc::RPCState,
         unsigned_block: UnsignedBlock,
         signature: &str,
-        aggregate_public_key: &str,
     ) -> Result<SignedBlock, Box<dyn Error>> {
+        let block = rpc::BlockInfo::get_from_rpc(&state, &unsigned_block.link).await?;
+        let link_as_account = block.block_account;
         let work = super::rpc::WorkGenerate::get_from_rpc(
             &state,
             match unsigned_block.previous.as_str() {
@@ -184,7 +199,7 @@ pub mod sign {
             &std::env::var("KEY")?,
         )
         .await?;
-        Ok(unsigned_block.to_signed_block(&signature, &work.work))
+        Ok(unsigned_block.to_signed_block(&signature, &work.work, &link_as_account))
     }
 }
 
@@ -238,6 +253,8 @@ pub mod rpc {
     use serde::{de::DeserializeOwned, Deserialize, Serialize};
     use serde_json::{json, Value};
     use std::error::Error;
+
+    use crate::nano::sign::UnsignedBlock;
 
     /// Struct that represents the state of the rpc the client will communicate with.
     pub struct RPCState {
@@ -415,7 +432,7 @@ pub mod rpc {
             let data = json!({
                 "action": "process",
                 "subtype": subtype.as_str(),
-                "json_block": "true",
+                "json_block": "false",
                 "block": &signed_block
             });
 
@@ -428,7 +445,7 @@ pub mod rpc {
     async fn test_rpc() -> Result<(), Box<dyn Error>> {
         dotenv::dotenv().ok();
 
-        let account = "nano_1ycjy9g3y9qyiecsj1e1oiji788qugorwwkz3f7wu5mmbu7fhw5ufrqjxxog";
+        let account = "nano_1to3geotuwsem4w95fqetsa4zxwxwia9f41wdx3iqke8zqmhk7jpkzf65eyf";
 
         let state = RPCState::new(&std::env::var("URL")?);
 
@@ -450,5 +467,54 @@ pub mod rpc {
         assert!(true);
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_block_hash() {
+        let unsigned_block = UnsignedBlock::new(
+            "nano_1ycjy9g3y9qyiecsj1e1oiji788qugorwwkz3f7wu5mmbu7fhw5ufrqjxxog".to_string(),
+            "0000000000000000000000000000000000000000000000000000000000000000".to_string(),
+            "nano_1ycjy9g3y9qyiecsj1e1oiji788qugorwwkz3f7wu5mmbu7fhw5ufrqjxxog".to_string(),
+            "2000000000000000000000000000".to_string(),
+            "EA711B769FF613198406F62E03E6E53F9FC3E3F66596EDEB9B83AF5EB2078833".to_string(),
+        );
+        let state = RPCState::new("https://rpc.nano.to/");
+        let hash = unsigned_block.to_hash(&state).await.unwrap();
+
+        let mut preamble = [0u8; 32];
+        preamble[31] = 6 as u8; // represents state
+        let account = hex::decode(
+            AccountKey::get_from_rpc(
+                &state,
+                "nano_1ycjy9g3y9qyiecsj1e1oiji788qugorwwkz3f7wu5mmbu7fhw5ufrqjxxog",
+            )
+            .await
+            .unwrap()
+            .key,
+        )
+        .unwrap();
+        let representative = hex::decode(
+            AccountKey::get_from_rpc(
+                &state,
+                "nano_1ycjy9g3y9qyiecsj1e1oiji788qugorwwkz3f7wu5mmbu7fhw5ufrqjxxog",
+            )
+            .await
+            .unwrap()
+            .key,
+        )
+        .unwrap();
+        let previous =
+            hex::decode("0000000000000000000000000000000000000000000000000000000000000000")
+                .unwrap();
+        let link = hex::decode("EA711B769FF613198406F62E03E6E53F9FC3E3F66596EDEB9B83AF5EB2078833")
+            .unwrap();
+        let balance = 2000000000000000000000000000u128.to_be_bytes();
+
+        println!("block hash: {}", hash);
+        println!("account: {:?}", account);
+        println!("representative: {:?}", representative);
+        println!("previous: {:?}", previous);
+        println!("link: {:?}", link);
+        println!("balance: {:?}", balance);
     }
 }
