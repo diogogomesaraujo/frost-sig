@@ -69,8 +69,8 @@ pub mod sign {
         }
 
         pub async fn to_hash(self, state: &rpc::RPCState) -> Result<String, Box<dyn Error>> {
-            let mut preamble = [0u8; 32];
-            preamble[31] = 6 as u8; // represents state
+            let mut block_state = [0u8; 32];
+            block_state[31] = 6 as u8;
             let account = hex::decode(AccountKey::get_from_rpc(state, &self.account).await?.key)?;
             let representative = hex::decode(
                 AccountKey::get_from_rpc(state, &self.representative)
@@ -82,7 +82,7 @@ pub mod sign {
             let balance = self.balance.parse::<u128>()?.to_be_bytes();
 
             let mut hasher = Blake2bVar::new(32).unwrap();
-            hasher.update(&preamble);
+            hasher.update(&block_state);
             hasher.update(&account);
             hasher.update(&previous);
             hasher.update(&representative);

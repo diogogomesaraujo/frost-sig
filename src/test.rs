@@ -3,8 +3,8 @@ use crate::message::*;
 use crate::nano::account::public_key_to_nano_account;
 use crate::preprocess::*;
 use crate::sign::*;
+use ed25519_dalek_blake2b::PublicKey;
 use ed25519_dalek_blake2b::Signature;
-use ed25519_dalek_blake2b::{PublicKey, Verifier};
 use rand::rngs::OsRng;
 use std::error::Error;
 
@@ -302,18 +302,14 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
     let aggregate_response = compute_aggregate_response(&[walter_response, skylar_response])?;
 
     // sa computes signature
-    let signature = Signature::from_bytes(&computed_response_to_signature(
-        &aggregate_response,
-        &group_commitment,
-    ))
-    .expect("Couldn't create the signature!");
+    let (signature, _) = computed_response_to_signature(&aggregate_response, &group_commitment)?;
 
     // Verify the signature
     {
         let verifying_key = PublicKey::from_bytes(group_public_key.as_bytes())
             .expect("Couldn't create the public key!");
         verifying_key
-            .verify(message.as_bytes(), &signature)
+            .verify_strict(message.as_bytes(), &signature)
             .expect("Couldn't verify the signature with the public key!");
     }
 

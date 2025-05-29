@@ -68,6 +68,7 @@ use curve25519_dalek::{
     constants::ED25519_BASEPOINT_POINT, edwards::CompressedEdwardsY, traits::Identity,
     EdwardsPoint, Scalar,
 };
+use ed25519_dalek_blake2b::Signature;
 use std::error::Error;
 
 /// Function that computes the binding values for a participant.
@@ -268,11 +269,13 @@ pub fn compute_aggregate_response(
 pub fn computed_response_to_signature(
     aggregate_response: &Scalar,
     group_commitment: &CompressedEdwardsY,
-) -> [u8; 64] {
-    let mut signature = [0u8; 64];
+) -> Result<(Signature, String), Box<dyn Error>> {
+    let mut bytes = [0; 64];
+    bytes[0..32].copy_from_slice(group_commitment.as_bytes());
+    bytes[32..].copy_from_slice(&aggregate_response.to_bytes());
 
-    signature[..32].copy_from_slice(group_commitment.as_bytes());
-    signature[32..].copy_from_slice(&aggregate_response.to_bytes());
-
-    signature
+    match Signature::from_bytes(&bytes) {
+        Ok(sig) => Ok((sig, hex::encode(&bytes))),
+        Err(_) => Err("Couldn't compute signature.".into()),
+    }
 }

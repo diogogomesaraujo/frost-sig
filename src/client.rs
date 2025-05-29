@@ -47,8 +47,13 @@ impl FrostClient {
 pub async fn receive_message(
     lines: &mut Framed<TcpStream, LinesCodec>,
 ) -> Result<Message, Box<dyn Error>> {
-    let line = lines.next().await.expect("Couldn't receive the message.")?;
-    Ok(Message::from_json_string(line.as_str()).expect("Couldn't receive the message."))
+    let line = match lines.next().await {
+        Some(Ok(line)) => line,
+        Some(Err(e)) => return Err(Box::new(e)),
+        None => return Err("Couldn't receive the message: connection closed".into()),
+    };
+    Ok(Message::from_json_string(line.as_str())
+        .expect(&format!("Couldn't receive the message {}.", line)))
 }
 
 /// Module that handles the client side logging.
@@ -401,7 +406,7 @@ pub mod sign_client {
             verify_participant,
         },
     };
-    use ed25519_dalek_blake2b::{PublicKey, Signature, Verifier};
+    use ed25519_dalek_blake2b::{PublicKey, Verifier};
     use futures::SinkExt;
     use rand::rngs::OsRng;
     use std::{collections::HashSet, error::Error};
@@ -585,11 +590,8 @@ pub mod sign_client {
 
                 // start the blockchain signing process
                 {
-                    let signature = Signature::from_bytes(&computed_response_to_signature(
-                        &aggregate_response,
-                        &group_commitment,
-                    ))
-                    .expect("Couldn't create the signature!");
+                    let (signature, signature_string) =
+                        computed_response_to_signature(&aggregate_response, &group_commitment)?;
 
                     {
                         let verifying_key =
@@ -604,7 +606,7 @@ pub mod sign_client {
                     let signed_block = create_signed_block(
                         &state,
                         sign_input.message,
-                        &hex::encode(&signature.to_bytes()).to_uppercase(),
+                        &signature_string,
                         &hex::encode(&sign_input.public_aggregated_key.as_bytes()),
                     )
                     .await?;
