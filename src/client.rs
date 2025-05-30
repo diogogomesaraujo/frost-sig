@@ -598,7 +598,7 @@ pub mod sign_client {
                             PublicKey::from_bytes(sign_input.public_aggregated_key.as_bytes())
                                 .expect("Couldn't create the public key!");
                         verifying_key
-                            .verify(message.as_bytes(), &signature)
+                            .verify(&hex::decode(message)?, &signature)
                             .expect("Couldn't verify the signature with the public key!");
                     }
 
@@ -606,37 +606,18 @@ pub mod sign_client {
                     let signed_block = create_signed_block(
                         &state,
                         sign_input.message,
-                        &signature_string,
+                        &signature_string.to_uppercase(),
                         &hex::encode(&sign_input.public_aggregated_key.as_bytes()),
                     )
                     .await?;
 
                     // process signature
-                    let process =
+                    let _process =
                         Process::sign_in_rpc(&state, &sign_input.subtype, &signed_block).await?;
 
                     // print hash from the generated block in the blockchain
-                    logging::print(&format!(
-                        "The block was successfully created with the hash: {}{}{}",
-                        logging::YELLOW,
-                        process.hash,
-                        logging::RESET
-                    ));
+                    logging::print("OH MY GOD OH MY GOD THIS IS IT");
                 }
-
-                // print aggregated response
-                logging::print(&format!(
-                    "The group {}{:?}{} computed this response {}{:?}{} with this message {}\"{}\"{}.",
-                    logging::YELLOW,
-                    sign_input.public_aggregated_key.as_bytes(),
-                    logging::RESET,
-                    logging::YELLOW,
-                    aggregate_response.as_bytes(),
-                    logging::RESET,
-                    logging::YELLOW,
-                    message,
-                    logging::RESET,
-                ));
             }
             // if the participant is not the SA
             _ => {

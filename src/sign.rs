@@ -89,7 +89,7 @@ pub fn compute_binding_value(
         } => Ok({
             let mut binding_value = vec![];
             binding_value.extend_from_slice(&verifying_key.to_bytes());
-            binding_value.extend_from_slice(&hash_to_array(&[message.as_bytes()]));
+            binding_value.extend_from_slice(&hash_to_array(&[&hex::decode(message)?]));
             let commitments_hash = {
                 let mut hasher = vec![];
                 all_commitments
@@ -157,7 +157,7 @@ pub fn compute_group_commitment_and_challenge(
         let mut hasher = vec![];
         hasher.extend_from_slice(group_commitment.as_bytes());
         hasher.extend_from_slice(group_public_key.as_bytes());
-        hasher.extend_from_slice(message.as_bytes());
+        hasher.extend_from_slice(&hex::decode(&message)?);
         hash_to_scalar(&[&hasher[..]])
     };
     Ok((group_commitment, challenge))

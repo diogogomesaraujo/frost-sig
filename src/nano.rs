@@ -503,6 +503,9 @@ pub mod rpc {
         println!("representative: {:?}", representative);
         println!("previous: {:?}", previous);
         println!("link: {:?}", link);
-        println!("balance: {:?}", balance);
+        println!(
+            "balance: {} {:?}",
+            2000000000000000000000000000u128, balance
+        );
     }
 }
