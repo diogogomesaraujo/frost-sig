@@ -109,7 +109,7 @@
   "message": {
     "type": "state",
     "account": "nano_1ycjy9g3y9qyiecsj1e1oiji788qugorwwkz3f7wu5mmbu7fhw5ufrqjxxog",
-    "previous": "0000000000000000000000000000000000000000000000000000000000000000",
+    "previous": "0",
     "representative": "nano_1ycjy9g3y9qyiecsj1e1oiji788qugorwwkz3f7wu5mmbu7fhw5ufrqjxxog",
     "balance": "2000000000000000000000000000",
     "link": "EA711B769FF613198406F62E03E6E53F9FC3E3F66596EDEB9B83AF5EB2078833"

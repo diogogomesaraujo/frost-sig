@@ -77,7 +77,12 @@ pub mod sign {
                     .await?
                     .key,
             )?;
-            let previous = hex::decode(self.previous)?;
+            let previous = match self.previous.as_str() {
+                "0" => {
+                    hex::decode("0000000000000000000000000000000000000000000000000000000000000000")?
+                }
+                _ => hex::decode(self.previous)?,
+            };
             let link = hex::decode(self.link)?;
             let balance = self.balance.parse::<u128>()?.to_be_bytes();
 
@@ -117,8 +122,7 @@ pub mod sign {
             let block = rpc::BlockInfo::get_from_rpc(&state, &receivable.blocks[0]).await?;
 
             let account = account_address.to_string();
-            let previous =
-                "0000000000000000000000000000000000000000000000000000000000000000".to_string(); // 32bytes
+            let previous = "0".to_string();
             let representative = account_address.to_string();
             let balance = block.amount;
             let link = receivable.blocks[0].clone();
@@ -180,9 +184,7 @@ pub mod sign {
         let work = super::rpc::WorkGenerate::get_from_rpc(
             &state,
             match unsigned_block.previous.as_str() {
-                "0000000000000000000000000000000000000000000000000000000000000000" => {
-                    aggregate_public_key
-                }
+                "0" => aggregate_public_key,
                 previous => previous,
             },
             &std::env::var("KEY")?,
