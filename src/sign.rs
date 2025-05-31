@@ -273,7 +273,6 @@ pub fn computed_response_to_signature(
     let mut bytes = [0; 64];
     bytes[0..32].copy_from_slice(group_commitment.as_bytes());
     bytes[32..].copy_from_slice(&aggregate_response.to_bytes());
-
     match Signature::from_bytes(&bytes) {
         Ok(sig) => Ok((sig, hex::encode(&bytes))),
         Err(_) => Err("Couldn't compute signature.".into()),

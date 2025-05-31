@@ -3,8 +3,7 @@ use crate::message::*;
 use crate::nano::account::public_key_to_nano_account;
 use crate::preprocess::*;
 use crate::sign::*;
-use ed25519_dalek_blake2b::PublicKey;
-use ed25519_dalek_blake2b::Signature;
+use ed25519_dalek_blake2b::{PublicKey, Verifier};
 use rand::rngs::OsRng;
 use std::error::Error;
 
@@ -208,22 +207,20 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
     // sign
 
     // the message that will be signed
-    let message = "Send Gustavo 10 bucks.";
+    let message = "0000";
 
-    // For signing, we'll use Walter (ID=1) and Skylar (ID=3) as signers
     // each participant generates nonces and commitments for the signature
     let walter_commitments = generate_nonces_and_commitments(&mut rng);
     let skylar_commitments = generate_nonces_and_commitments(&mut rng);
 
-    // each participant sends the commitments to others - FIXED PARTICIPANT IDs
     let walter_commitments_message = Message::PublicCommitment {
-        participant_id: walter.id.clone(), // Use walter.id (1)
+        participant_id: walter.id.clone(),
         di: walter_commitments.1 .0.clone(),
         ei: walter_commitments.1 .1.clone(),
         public_share: walter_public_key,
     };
     let skylar_commitments_message = Message::PublicCommitment {
-        participant_id: skylar.id.clone(), // Use skylar.id (3), not jessie.id
+        participant_id: skylar.id.clone(),
         di: skylar_commitments.1 .0.clone(),
         ei: skylar_commitments.1 .1.clone(),
         public_share: skylar_public_key,
@@ -235,18 +232,14 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
     ];
 
     // each participant computes the group commitment and challenge from the received commitments
-    let (group_commitment, challenge) = compute_group_commitment_and_challenge(
-        &commitments, // Use the commitments vector consistently
-        message,
-        group_public_key,
-        &[],
-    )?;
+    let (group_commitment, challenge) =
+        compute_group_commitment_and_challenge(&commitments, message, group_public_key, &[])?;
 
-    let ids = vec![walter.id, skylar.id]; // IDs of actual signers: [1, 3]
+    let ids = vec![walter.id, skylar.id];
 
     // each participant calculates all the participants' lagrange coefficients
     let walter_lagrange_coefficient = lagrange_coefficient(&ids, &walter.id);
-    let skylar_lagrange_coefficient = lagrange_coefficient(&ids, &skylar.id); // Use skylar.id, not jessie.id
+    let skylar_lagrange_coefficient = lagrange_coefficient(&ids, &skylar.id);
 
     // each participant computes their response and sends to the sa
     let walter_response = compute_own_response(
@@ -258,11 +251,11 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
         &walter_lagrange_coefficient,
         &challenge,
         &message,
-        &group_public_key, // Use group public key for verifying key
+        &group_public_key,
         &[],
     )?;
     let skylar_response = compute_own_response(
-        skylar.id.clone(), // Use skylar.id
+        skylar.id.clone(),
         &skylar_commitments_message,
         &commitments,
         &skylar_private_key,
@@ -270,7 +263,7 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
         &skylar_lagrange_coefficient,
         &challenge,
         &message,
-        &group_public_key, // Use group public key for verifying key
+        &group_public_key,
         &[],
     )?;
 
@@ -281,7 +274,7 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
         &message,
         &walter_response,
         &challenge,
-        &group_public_key, // Use group public key for verifying key
+        &group_public_key,
         &[],
         &ids,
     )?;
@@ -291,7 +284,7 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
         &message,
         &skylar_response,
         &challenge,
-        &group_public_key, // Use group public key for verifying key
+        &group_public_key,
         &[],
         &ids,
     )?;
@@ -309,7 +302,7 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
         let verifying_key = PublicKey::from_bytes(group_public_key.as_bytes())
             .expect("Couldn't create the public key!");
         verifying_key
-            .verify_strict(message.as_bytes(), &signature)
+            .verify(&hex::decode(&message)?, &signature)
             .expect("Couldn't verify the signature with the public key!");
     }
 

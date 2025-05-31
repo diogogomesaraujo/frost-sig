@@ -1,4 +1,18 @@
-/// Module that handles the signature operations in the Nano blockchain.
+//! Implementation of the Nano Node RPC communication.
+//!
+//! # Dependencies
+//!
+//! - `blake2` is an implementation of the BLAKE2 hash functions.
+//! - `reqwest` is a crate that provides a convenient, higher-level HTTP Client.
+//!
+//! # Features
+//!
+//! - Sign transactions in Nano.
+//! - See nano's account information.
+//!
+//! # Support
+//!
+//! See the [resources](https://docs.nano.org/integration-guides/) here.
 pub mod sign {
     use super::rpc::{self, AccountKey};
     use blake2::{
@@ -68,6 +82,7 @@ pub mod sign {
             )
         }
 
+        /// Function that hashes an `UnsignedBlock` before signing.
         pub async fn to_hash(self, state: &rpc::RPCState) -> Result<String, Box<dyn Error>> {
             let mut block_state = [0u8; 32];
             block_state[31] = 6 as u8;
@@ -85,7 +100,6 @@ pub mod sign {
             };
             let link = hex::decode(self.link)?;
             let balance = self.balance.parse::<u128>()?.to_be_bytes();
-
             let mut hasher = Blake2bVar::new(32).unwrap();
             hasher.update(&block_state);
             hasher.update(&account);
@@ -93,10 +107,8 @@ pub mod sign {
             hasher.update(&representative);
             hasher.update(&balance);
             hasher.update(&link);
-
             let mut bytes = [0u8; 32];
             hasher.finalize_variable(&mut bytes).unwrap();
-
             Ok(hex::encode(&bytes))
         }
 
@@ -397,6 +409,7 @@ pub mod rpc {
     }
 
     impl BlockInfo {
+        /// Function that gets the `BlockInfo` from the rpc.
         pub async fn get_from_rpc(state: &RPCState, hash: &str) -> Result<Self, Box<dyn Error>> {
             let data = json!({
                 "action": "block_info",
@@ -413,6 +426,7 @@ pub mod rpc {
     }
 
     impl Process {
+        /// Function that processes a `SignedBlock` in the rpc.
         pub async fn sign_in_rpc(
             state: &RPCState,
             subtype: &super::sign::Subtype,
@@ -424,7 +438,6 @@ pub mod rpc {
                 "json_block": "true",
                 "block": &signed_block
             });
-
             println!("{data}");
             state.request::<Self>(&data).await
         }
@@ -434,7 +447,7 @@ pub mod rpc {
     async fn test_rpc() -> Result<(), Box<dyn Error>> {
         dotenv::dotenv().ok();
 
-        let account = "nano_1ycjy9g3y9qyiecsj1e1oiji788qugorwwkz3f7wu5mmbu7fhw5ufrqjxxog";
+        let account = "nano_18wg1hwnbk659ahii4p4h9n87hanbbogekmuuznjnc58pos79kjexcif4rbr";
 
         let state = RPCState::new(&std::env::var("URL")?);
 
@@ -456,56 +469,5 @@ pub mod rpc {
         assert!(true);
 
         Ok(())
-    }
-    #[tokio::test]
-    async fn test_block_hash() {
-        let unsigned_block = crate::nano::sign::UnsignedBlock::new(
-            "nano_1ycjy9g3y9qyiecsj1e1oiji788qugorwwkz3f7wu5mmbu7fhw5ufrqjxxog".to_string(),
-            "0000000000000000000000000000000000000000000000000000000000000000".to_string(),
-            "nano_1ycjy9g3y9qyiecsj1e1oiji788qugorwwkz3f7wu5mmbu7fhw5ufrqjxxog".to_string(),
-            "2000000000000000000000000000".to_string(),
-            "EA711B769FF613198406F62E03E6E53F9FC3E3F66596EDEB9B83AF5EB2078833".to_string(),
-        );
-        let state = RPCState::new("https://rpc.nano.to/");
-        let hash = unsigned_block.to_hash(&state).await.unwrap();
-
-        let mut preamble = [0u8; 32];
-        preamble[31] = 6 as u8; // represents state
-        let account = hex::decode(
-            AccountKey::get_from_rpc(
-                &state,
-                "nano_1ycjy9g3y9qyiecsj1e1oiji788qugorwwkz3f7wu5mmbu7fhw5ufrqjxxog",
-            )
-            .await
-            .unwrap()
-            .key,
-        )
-        .unwrap();
-        let representative = hex::decode(
-            AccountKey::get_from_rpc(
-                &state,
-                "nano_1ycjy9g3y9qyiecsj1e1oiji788qugorwwkz3f7wu5mmbu7fhw5ufrqjxxog",
-            )
-            .await
-            .unwrap()
-            .key,
-        )
-        .unwrap();
-        let previous =
-            hex::decode("0000000000000000000000000000000000000000000000000000000000000000")
-                .unwrap();
-        let link = hex::decode("EA711B769FF613198406F62E03E6E53F9FC3E3F66596EDEB9B83AF5EB2078833")
-            .unwrap();
-        let balance = 2000000000000000000000000000u128.to_be_bytes();
-
-        println!("block hash: {}", hash);
-        println!("account: {:?}", account);
-        println!("representative: {:?}", representative);
-        println!("previous: {:?}", previous);
-        println!("link: {:?}", link);
-        println!(
-            "balance: {} {:?}",
-            2000000000000000000000000000u128, balance
-        );
     }
 }

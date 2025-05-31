@@ -1,12 +1,11 @@
 # frost-sig
 
-`frost-sig` is a threshold signature library that implements the FROST protocol.
+`frost-sig` is a threshold signature crate that implements the FROST protocol for Nano Currency transactions.
 
 ## Features
 
-- Key Generation.
-- Preprocessing.
-- Signing Transactions.
+- FROST Keygen, Preprocess and Sign implementation for ed25519-blake2b variant.
+- Nano implementation to create shared account's and sign group transactions.
 - Servers/Clients to use the protocol in a pratical setting.
 
 ## Usage Flow
@@ -15,10 +14,13 @@
 
 ## Dependencies
 
-- `curve25519_dalek` is a crate for elliptic curve cryptography.
-- `rand` is a random number generation crate and it is used to generate a random seed for the 256bit numbers generation.
-- `serde` is a framework for serializing and deserializing Rust data structures efficiently and generically.
-- `tokio` is a runtime for writting reliable async Rust code.
+- `curve25519_dalek` for elliptic curve cryptography.
+- `ed25519-dalek-blake2b` for signature validation.
+- `rand` for random number generation.
+- `serde` for json serialization and deserialization.
+- `hex` for hexadecimal serialization and deserialization.
+- `tokio` for the TCP sockets implementation (multithreaded and async).
+- `reqwest` for HTTP requests.
 
 ## Requirements
 
@@ -30,7 +32,7 @@
 
 This example shows how to use the `client` and `server` modules to create a socket for participants to generate keys and sign transactions in a real-time CLI enviroment.
 
-```Rust
+```rust
 use frost_sig::{client, server};
 use std::error::Error;
 
@@ -114,26 +116,26 @@ cargo run -- client sign frost.json
 ### No Socket
 
 First we initialize the random generator from the OS and the state with the correct number of participants and threshold.
-```Rust
+```rust
 let mut rng = OsRng;
 let state = crate::FrostState::new(3, 2);
 ```
 
 Then we can start the keygen protocol's round 1. Each participant generates their own secret polynomial.
-```Rust
+```rust
 let walter_polynomial = round_1::generate_polynomial(&state, &mut rng);
 let jessie_polynomial = round_1::generate_polynomial(&state, &mut rng);
 let skylar_polynomial = round_1::generate_polynomial(&state, &mut rng);
 ```
 Each participant initializes their state.
-```Rust
+```rust
 let walter = Participant::new(1, walter_polynomial);
 let jessie = Participant::new(2, jessie_polynomial);
 let skylar = Participant::new(3, skylar_polynomial);
 ```
 
 Each participant computes their signature and commitment.
-```Rust
+```rust
 let walter_signature = round_1::compute_proof_of_knowlodge(&mut rng, &walter);
 let jessie_signature = round_1::compute_proof_of_knowlodge(&mut rng, &jessie);
 let skylar_signature = round_1::compute_proof_of_knowlodge(&mut rng, &skylar);
@@ -144,7 +146,7 @@ let skylar_commitments = round_1::compute_public_commitments(&skylar);
 ```
 
 Each participant sends the computed commitments and signature in a broadcast message.
-```Rust
+```rust
 let walter_broadcast = Message::Broadcast {
     participant_id: walter.id.clone(),
     commitments: walter_commitments,
@@ -163,7 +165,7 @@ let skylar_broadcast = Message::Broadcast {
 ```
 
 Each participant verifies the broadcasts recieved from others, and we finishing round 1.
-```Rust
+```rust
 assert!(round_1::verify_proofs(&[
     jessie_broadcast.clone(),
     skylar_broadcast.clone(),
@@ -179,14 +181,14 @@ assert!(round_1::verify_proofs(&[
 ```
 
 Then we begin round 2 by having each participant compute their secret share.
-```Rust
+```rust
 let walter_own_share = round_2::create_own_secret_share(&walter);
 let jessie_own_share = round_2::create_own_secret_share(&jessie);
 let skylar_own_share = round_2::create_own_secret_share(&skylar);
 ```
 
 Also each participant computes one for each other participant and send it to them (send through private channel).
-```Rust
+```rust
 let share_from_skylar_to_walter = round_2::create_share_for(&skylar, &walter.id);
 let share_from_jessie_to_walter = round_2::create_share_for(&jessie, &walter.id);
 
@@ -198,7 +200,7 @@ let share_from_walter_to_skylar = round_2::create_share_for(&walter, &skylar.id)
 ```
 
 Each participant verifies the recieved secret shares.
-```Rust
+```rust
 {
     assert!(round_2::verify_share_validity(
         &walter,
@@ -238,7 +240,7 @@ Each participant verifies the recieved secret shares.
 ```
 
 Each participant computes their private key.
-```Rust
+```rust
 let walter_private_key = round_2::compute_private_key(
     &walter_own_share,
     &[
@@ -260,14 +262,14 @@ let skylar_private_key = round_2::compute_private_key(
 ```
 
 Each participant computes their public key.
-```Rust
+```rust
 let walter_public_key = round_2::compute_own_public_share(&walter_private_key);
 let jessie_public_key = round_2::compute_own_public_share(&jessie_private_key);
 let skylar_public_key = round_2::compute_own_public_share(&skylar_private_key);
 ```
 
 Each participant computes their verification share and one for each broadcast recieved.
-```Rust
+```rust
 let walter_own_verification_share =
     round_2::compute_participant_verification_share(&walter, &walter_broadcast)?;
 let walter_jessie_verification_share =
@@ -291,7 +293,7 @@ let skylar_walter_verification_share =
 ```
 
 Each participant computes the aggregate verification share from the recieved secret shares.
-```Rust
+```rust
 let walter_aggregate_verification_share = round_2::compute_others_verification_share(&[
     walter_own_verification_share,
     walter_jessie_verification_share,
@@ -310,20 +312,20 @@ let skylar_aggregate_verification_share = round_2::compute_others_verification_s
 ```
 
 Each participant verifies if the public key matches the aggregate verification share.
-```Rust
+```rust
 assert_eq!(walter_public_key, walter_aggregate_verification_share);
 assert_eq!(jessie_public_key, jessie_aggregate_verification_share);
 assert_eq!(skylar_public_key, skylar_aggregate_verification_share);
 ```
 
 Each participant computes the group public key from the commitments and we finish the keygen protocol.
-```Rust
+```rust
 let group_public_key =
     round_2::compute_group_public_key(&[walter_broadcast, jessie_broadcast, skylar_broadcast])?;
 ```
 
 We begin the sign process by defining the message that will be signed and having each participant generate their one-time use nonces and commitments (because the threshold is 2 we will only use Walter and Skylar).
-```Rust
+```rust
 let message = "Send Gustavo 10 bucks.";
 
 let walter_commitments = generate_nonces_and_commitments(&mut rng);
@@ -331,7 +333,7 @@ let skylar_commitments = generate_nonces_and_commitments(&mut rng);
 ```
 
 Each participant sends the commitments to others.
-```Rust
+```rust
 let walter_commitments_message = Message::PublicCommitment {
     participant_id: walter.id.clone(),
     di: walter_commitments.1 .0.clone(),
@@ -339,7 +341,7 @@ let walter_commitments_message = Message::PublicCommitment {
     public_share: walter_public_key,
 };
 let skylar_commitments_message = Message::PublicCommitment {
-    participant_id: jessie.id.clone(),
+    participant_id: skylar.id.clone(),
     di: skylar_commitments.1 .0.clone(),
     ei: skylar_commitments.1 .1.clone(),
     public_share: skylar_public_key,
@@ -347,70 +349,93 @@ let skylar_commitments_message = Message::PublicCommitment {
 ```
 
 Each participant computes the group commitment and challenge from the recieved commitments.
-```Rust
-let (_group_commitment, challenge) = compute_group_commitment_and_challenge(
-    &[
-        skylar_commitments_message.clone(),
-        walter_commitments_message.clone(),
-    ],
-    message,
-    group_public_key.clone(),
-)?;
+```rust
+let commitments = vec![
+     walter_commitments_message.clone(),
+    skylar_commitments_message.clone(),
+];
+
+let (group_commitment, challenge) =
+    compute_group_commitment_and_challenge(&commitments, message, group_public_key, &[])?;
+
+let ids = vec![walter.id, skylar.id];
 ```
 
 Each participant calculates all the participants' lagrange coefficients.
-```Rust
+```rust
 let walter_lagrange_coefficient = lagrange_coefficient(&state, &walter.id);
 let skylar_lagrange_coefficient = lagrange_coefficient(&state, &jessie.id);
 ```
 
 Each participant computes their response and sends to the SA.
-```Rust
+```rust
 let walter_response = compute_own_response(
     walter.id.clone(),
     &walter_commitments_message,
+    &commitments,
     &walter_private_key,
     &walter_commitments.0,
     &walter_lagrange_coefficient,
     &challenge,
     &message,
+    &group_public_key,
+    &[],
 )?;
 let skylar_response = compute_own_response(
-    jessie.id.clone(),
+    skylar.id.clone(),
     &skylar_commitments_message,
+    &commitments,
     &skylar_private_key,
     &skylar_commitments.0,
     &skylar_lagrange_coefficient,
     &challenge,
     &message,
+    &group_public_key,
+    &[],
 )?;
 ```
 
 SA verifies others' responses.
-```Rust
+```rust
 let verify_walter = verify_participant(
-    &state,
     &walter_commitments_message,
-    message,
+    &commitments,
+    &message,
     &walter_response,
     &challenge,
+    &group_public_key,
+    &[],
+    &ids,
 )?;
 let verify_skylar = verify_participant(
-    &state,
     &skylar_commitments_message,
-    message,
+    &commitments,
+    &message,
     &skylar_response,
     &challenge,
+    &group_public_key,
+    &[],
+    &ids,
 )?;
 assert!(verify_walter);
 assert!(verify_skylar);
 ```
 
 SA computes the aggregate response finishing the sign protocol.
-```Rust
-let _aggregate_response = compute_aggregate_response(&[walter_response, skylar_response])?;
+```rust
+let aggregate_response = compute_aggregate_response(&[walter_response, skylar_response])?;
+```
+
+SA computes the signature.
+```rust
+let (signature, _) = computed_response_to_signature(&aggregate_response, &group_commitment)?;
+```
+SA verifies the signature.
+```rust
+let verifying_key = PublicKey::from_bytes(group_public_key.as_bytes()).expect("Couldn't create the public key!");
+verifying_key.verify(&hex::decode(&message)?, &signature).expect("Couldn't verify the signature with the public key!");
 ```
 
 ## Support
 
-See the [resources](https://eprint.iacr.org/2020/852.pdf) here.
+The resources used for this project are [FROST's official paper](https://eprint.iacr.org/2020/852.pdf) and [Nano Node documentation](https://docs.nano.org/integration-guides/key-management/) here.
