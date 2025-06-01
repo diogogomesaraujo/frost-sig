@@ -14,7 +14,7 @@
 //!
 //! See the [resources](https://docs.nano.org/integration-guides/) here.
 pub mod sign {
-    use super::rpc::{self, AccountKey};
+    use super::rpc::{self, AccountBalance, AccountKey};
     use blake2::{
         digest::{Update, VariableOutput},
         Blake2bVar,
@@ -144,6 +144,33 @@ pub mod sign {
                 previous,
                 representative,
                 balance,
+                link,
+            ))
+        }
+
+        pub async fn create_receive(
+            state: &rpc::RPCState,
+            account_address: &str,
+        ) -> Result<Self, Box<dyn std::error::Error>> {
+            let receivable = rpc::Receivable::get_from_rpc(&state, account_address, 1).await?;
+            let block = rpc::BlockInfo::get_from_rpc(&state, &receivable.blocks[0]).await?;
+            let previous = rpc::AccountInfo::get_from_rpc(&state, account_address)
+                .await?
+                .frontier;
+            let account = account_address.to_string();
+            let representative = account_address.to_string();
+            let balance = rpc::AccountBalance::get_from_rpc(&state, &account_address)
+                .await?
+                .balance
+                .parse::<u128>()?
+                + block.amount.parse::<u128>()?;
+            let link = receivable.blocks[0].clone();
+
+            Ok(UnsignedBlock::new(
+                account,
+                previous,
+                representative,
+                balance.to_string(),
                 link,
             ))
         }
@@ -447,7 +474,7 @@ pub mod rpc {
     async fn test_rpc() -> Result<(), Box<dyn Error>> {
         dotenv::dotenv().ok();
 
-        let account = "nano_18wg1hwnbk659ahii4p4h9n87hanbbogekmuuznjnc58pos79kjexcif4rbr";
+        let account = "nano_39joybm7wdpg8ikc1g3wb9x1mt8w6jyxedhytdphw5jrho6z11ugqijaoey6";
 
         let state = RPCState::new(&std::env::var("URL")?);
 
@@ -458,7 +485,7 @@ pub mod rpc {
         println!("{:?}", recievable);
 
         let unsigned_block =
-            crate::nano::sign::UnsignedBlock::create_open(&state, &account).await?;
+            crate::nano::sign::UnsignedBlock::create_receive(&state, &account).await?;
 
         let message = unsigned_block.clone().to_hash(&state).await?;
 
