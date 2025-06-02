@@ -617,11 +617,17 @@ pub mod sign_client {
                     .await?;
 
                     // process signature
-                    let _process =
+                    let process =
                         Process::sign_in_rpc(&state, &sign_input.subtype, &signed_block).await?;
 
                     // print hash from the generated block in the blockchain
-                    logging::print("OH MY GOD OH MY GOD THIS IS IT");
+                    logging::print("Successfully signed the block and processed the transaction!");
+                    logging::print(&format!(
+                        "Block: {}{}{}",
+                        logging::YELLOW,
+                        process.hash,
+                        logging::RESET,
+                    ));
                 }
             }
             // if the participant is not the SA

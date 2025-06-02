@@ -174,6 +174,37 @@ pub mod sign {
                 link,
             ))
         }
+        pub async fn create_send(
+            state: &rpc::RPCState,
+            own_account_address: &str,
+            receiver_account_address: &str,
+            amount_nano: &f64,
+        ) -> Result<Self, Box<dyn std::error::Error>> {
+            let ammount_raw = rpc::NanoToRaw::get_from_rpc(&state, &amount_nano)
+                .await?
+                .raw;
+            let previous = rpc::AccountInfo::get_from_rpc(&state, own_account_address)
+                .await?
+                .frontier;
+            let account = own_account_address.to_string();
+            let representative = own_account_address.to_string();
+            let balance = rpc::AccountBalance::get_from_rpc(&state, &own_account_address)
+                .await?
+                .balance
+                .parse::<u128>()?
+                - ammount_raw.parse::<u128>()?;
+            let link = AccountKey::get_from_rpc(&state, receiver_account_address)
+                .await?
+                .key;
+
+            Ok(UnsignedBlock::new(
+                account,
+                previous,
+                representative,
+                balance.to_string(),
+                link,
+            ))
+        }
     }
 
     /// Struct that represents a `SignedBlock` that will be hashed and stored in the Nano blockchain.
@@ -312,6 +343,25 @@ pub mod rpc {
                 .await?
                 .json::<T>()
                 .await?)
+        }
+    }
+
+    /// Struct that represents the result of Nano's nano_to_raw action.
+    #[derive(Serialize, Deserialize)]
+    pub struct NanoToRaw {
+        pub raw: String,
+    }
+
+    impl NanoToRaw {
+        pub async fn get_from_rpc(
+            state: &RPCState,
+            amount_nano: &f64,
+        ) -> Result<Self, Box<dyn Error>> {
+            let data = json!({
+                "action": "nano_to_raw",
+                "amount": amount_nano.to_string()
+            });
+            state.request::<Self>(&data).await
         }
     }
 
@@ -471,28 +521,46 @@ pub mod rpc {
     }
 
     #[tokio::test]
-    async fn test_rpc() -> Result<(), Box<dyn Error>> {
+    async fn test_rpc_receive() -> Result<(), Box<dyn Error>> {
+        // load the enviroment variables
         dotenv::dotenv().ok();
 
-        let account = "nano_3wcihctbgdnoe7qksq9kahouyp3nk6h93d9sxok9nt3r56q5htxsueicsfin";
+        // the account to create the open/receive block
+        let account = "nano_1smubapuampnxtq14taxt8c9rc5f97hj7e8kqer4u6p94cre5g6qq3yxa4f3";
 
+        // the state of the RPC with the Nano node chosen
         let state = RPCState::new(&std::env::var("URL")?);
 
-        let public_key = AccountKey::get_from_rpc(&state, account).await?.key;
-        println!("{public_key}");
-
-        let recievable = Receivable::get_from_rpc(&state, account, 1).await?;
-        println!("{:?}", recievable);
-
+        // the unsigned block created and that will be signed
         let unsigned_block =
             crate::nano::sign::UnsignedBlock::create_open(&state, &account).await?;
 
-        let message = unsigned_block.clone().to_hash(&state).await?;
+        println!("{}", serde_json::to_string(&unsigned_block)?);
+        assert!(true);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_rpc_send() -> Result<(), Box<dyn Error>> {
+        // load the enviroment variables
+        dotenv::dotenv().ok();
+
+        // the account to create the send block
+        let sender = "nano_1smubapuampnxtq14taxt8c9rc5f97hj7e8kqer4u6p94cre5g6qq3yxa4f3";
+
+        // the account that will receive
+        let receiver = "nano_19kqrk7taqnprmy1hcchpkdcpfqnpm7knwdhn9qafhd7b94s99ofngf5ent1";
+
+        // the state of the RPC with the Nano node chosen
+        let state = RPCState::new(&std::env::var("URL")?);
+
+        // the unsigned block created and that will be signed
+        let unsigned_block =
+            crate::nano::sign::UnsignedBlock::create_send(&state, &sender, &receiver, &0.00005)
+                .await?;
 
         println!("{}", serde_json::to_string(&unsigned_block)?);
-
-        println!("{}", message);
-
         assert!(true);
 
         Ok(())
