@@ -14,7 +14,7 @@
 //!
 //! See the [resources](https://docs.nano.org/integration-guides/) here.
 pub mod sign {
-    use super::rpc::{self, AccountBalance, AccountKey};
+    use super::rpc::{self, AccountKey};
     use blake2::{
         digest::{Update, VariableOutput},
         Blake2bVar,
@@ -474,7 +474,7 @@ pub mod rpc {
     async fn test_rpc() -> Result<(), Box<dyn Error>> {
         dotenv::dotenv().ok();
 
-        let account = "nano_39joybm7wdpg8ikc1g3wb9x1mt8w6jyxedhytdphw5jrho6z11ugqijaoey6";
+        let account = "nano_3wcihctbgdnoe7qksq9kahouyp3nk6h93d9sxok9nt3r56q5htxsueicsfin";
 
         let state = RPCState::new(&std::env::var("URL")?);
 
@@ -485,7 +485,7 @@ pub mod rpc {
         println!("{:?}", recievable);
 
         let unsigned_block =
-            crate::nano::sign::UnsignedBlock::create_receive(&state, &account).await?;
+            crate::nano::sign::UnsignedBlock::create_open(&state, &account).await?;
 
         let message = unsigned_block.clone().to_hash(&state).await?;
 

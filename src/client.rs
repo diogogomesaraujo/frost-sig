@@ -47,13 +47,18 @@ impl FrostClient {
 pub async fn receive_message(
     lines: &mut Framed<TcpStream, LinesCodec>,
 ) -> Result<Message, Box<dyn Error>> {
-    let line = match lines.next().await {
-        Some(Ok(line)) => line,
-        Some(Err(e)) => return Err(Box::new(e)),
-        None => return Err("Couldn't receive the message: connection closed".into()),
-    };
-    Ok(Message::from_json_string(line.as_str())
-        .expect(&format!("Couldn't receive the message {}.", line)))
+    for _ in 0..2 {
+        // Number of retries to account for missing messages.
+        match lines.next().await {
+            Some(Ok(line)) => {
+                return Ok(Message::from_json_string(line.as_str())
+                    .expect(&format!("Failed to send message: {}.", line)))
+            }
+            Some(Err(e)) => return Err(format!("Network Error: {e}").into()),
+            None => return Err("Connection closed suddently.".into()),
+        }
+    }
+    return Err("Couldn't receive the message".into());
 }
 
 /// Module that handles the client side logging.
