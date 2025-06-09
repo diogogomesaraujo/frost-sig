@@ -422,7 +422,7 @@ pub mod sign_client {
     use ed25519_dalek_blake2b::{PublicKey, Verifier};
     use futures::SinkExt;
     use rand::rngs::OsRng;
-    use std::{collections::HashSet, error::Error, time::Duration};
+    use std::{collections::HashSet, error::Error};
     use tokio_util::codec::{Framed, LinesCodec};
 
     /// Function that runs the sign client.
@@ -483,7 +483,13 @@ pub mod sign_client {
                         public_share,
                     } => match seen.insert((*public_share, *participant_id)) {
                         true => public_commitments.push(message.clone()),
-                        false => return Err("Multiple instances of the same participant tried to sign the operation.".into())
+                        false => {
+                            lines.send(
+                                Message::Error("Multiple instances of the same participant tried to sign the operation.".to_string()
+                                ).to_json_string()?
+                            ).await?;
+                            return Err("Multiple instances of the same participant tried to sign the operation.".into());
+                        }
                     },
                     _ => return Err("Couldn't parse the message.".into()),
                 }
@@ -601,16 +607,6 @@ pub mod sign_client {
                 // compute aggregate response
                 let aggregate_response = compute_aggregate_response(&responses)?;
 
-                lines
-                    .send(
-                        &Message::Completed(
-                            "Successfully received everything to compute the signature!"
-                                .to_string(),
-                        )
-                        .to_json_string()?,
-                    )
-                    .await?;
-
                 // start the blockchain signing process
                 {
                     let (signature, signature_string) =
@@ -620,9 +616,20 @@ pub mod sign_client {
                         let verifying_key =
                             PublicKey::from_bytes(sign_input.public_aggregated_key.as_bytes())
                                 .expect("Couldn't create the public key!");
-                        verifying_key
-                            .verify(&hex::decode(message)?, &signature)
-                            .expect("Couldn't verify the signature with the public key!");
+                        match verifying_key.verify(&hex::decode(message)?, &signature) {
+                            Ok(_) => {}
+                            Err(_) => {
+                                lines
+                                    .send(
+                                        &Message::Error(
+                                            "Couldn't verify the signature computed.".to_string(),
+                                        )
+                                        .to_json_string()?,
+                                    )
+                                    .await?;
+                                return Err("Couldn't verify the signature computed.".into());
+                            }
+                        };
                     }
 
                     // create signed block
@@ -635,23 +642,57 @@ pub mod sign_client {
                     .await?;
 
                     // process signature
-                    let process =
-                        Process::sign_in_rpc(&state, &sign_input.subtype, &signed_block).await?;
+                    let process = match Process::sign_in_rpc(
+                        &state,
+                        &sign_input.subtype,
+                        &signed_block,
+                    )
+                    .await
+                    {
+                        Ok(ok) => ok,
+                        Err(_) => {
+                            lines
+                                .send(
+                                    &Message::Error(
+                                        "Couldn't process the transaction in the blockchain."
+                                            .to_string(),
+                                    )
+                                    .to_json_string()?,
+                                )
+                                .await?;
+                            return Err(
+                                "Couldn't process the transaction in the blockchain.".into()
+                            );
+                        }
+                    };
 
                     // print hash from the generated block in the blockchain
-                    logging::print("Successfully signed the block and processed the transaction!");
+                    logging::print("Successfully signed the block and processed the transaction.");
                     logging::print(&format!(
                         "Block: {}{}{}",
                         logging::YELLOW,
                         process.hash,
                         logging::RESET,
                     ));
+
+                    // sending a message for the server to know it should close the socket
+                    lines
+                        .send(
+                            &Message::Completed(
+                                "Successfully sent the information to the main participant computing the transaction."
+                                    .to_string(),
+                            )
+                            .to_json_string()?,
+                        )
+                        .await?;
                 }
             }
             // if the participant is not the SA
             _ => {
                 // send response to the SA
                 lines.send(&own_response.to_json_string()?).await?;
+
+                // sending a message for the server to know it should close the socket
                 lines
                     .send(
                         &Message::Completed(

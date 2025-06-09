@@ -176,6 +176,11 @@ pub async fn handle(
             Some(Ok(msg_json)) = reader.next() => {
                 match Message::from_json_string(msg_json.as_str()) {
                     Some(msg) if matches!(msg, Message::Completed(_)) => break Ok(()),
+                    Some(msg) if matches!(msg, Message::Error(_)) => {
+                        if let Message::Error(e) = msg {
+                            break Err(e.as_str().into());
+                        }
+                    }
                     Some(msg) => server.lock().await.send_message(&participant, msg).await?,
                     None => return Err("Tried to send invalid message.".into()),
                 }

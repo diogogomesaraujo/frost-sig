@@ -63,6 +63,8 @@ pub enum Message {
     Id(u32),
 
     Completed(String),
+
+    Error(String),
 }
 
 impl Message {
