@@ -175,6 +175,7 @@ pub async fn handle(
             }
             Some(Ok(msg_json)) = reader.next() => {
                 match Message::from_json_string(msg_json.as_str()) {
+                    Some(msg) if matches!(msg, Message::Completed(_)) => break Ok(()),
                     Some(msg) => server.lock().await.send_message(&participant, msg).await?,
                     None => return Err("Tried to send invalid message.".into()),
                 }
@@ -186,8 +187,7 @@ pub async fn handle(
 /// Module that handles server operations in relation to the FROST keygen process.
 pub mod keygen_server {
     use super::*;
-    use std::time::Duration;
-    use tokio::{sync::Barrier, time::sleep};
+    use tokio::sync::Barrier;
 
     /// Function that runs the keygen process server.
     pub async fn run(
@@ -217,6 +217,8 @@ pub mod keygen_server {
         let mut count: u32 = 0;
         let barrier = Arc::new(Barrier::new((participants + 1) as usize));
 
+        let mut handles = vec![];
+
         while count < participants {
             // accept the participant's connection
             let (stream, addr) = listener.accept().await?;
@@ -226,12 +228,14 @@ pub mod keygen_server {
             let barrier = barrier.clone();
 
             // handle the participant in an isolated async thread
-            tokio::spawn(async move {
+            let handle = tokio::spawn(async move {
                 logging::print("Accepted a connection.");
                 if let Err(e) = handle(count, barrier, server, stream, addr).await {
                     eprintln!("{e}");
                 }
             });
+
+            handles.push(handle);
         }
 
         // Send the frost state.
@@ -251,7 +255,9 @@ pub mod keygen_server {
         }
 
         // wait before closing the socket for messages that may be left unsent
-        sleep(Duration::from_secs(1)).await;
+        for handle in handles {
+            _ = handle.await;
+        }
         logging::print("Successfully generated the key.");
         Ok(())
     }
@@ -260,8 +266,7 @@ pub mod keygen_server {
 /// Module that handles server operations in relation to the FROST sign process.
 pub mod sign_server {
     use super::*;
-    use std::time::Duration;
-    use tokio::{sync::Barrier, time::sleep};
+    use tokio::sync::Barrier;
 
     /// Function that runs the sign process server.
     pub async fn run(
@@ -291,6 +296,8 @@ pub mod sign_server {
         let mut count: u32 = 0;
         let barrier = Arc::new(Barrier::new(threshold as usize));
 
+        let mut handles = vec![];
+
         while count < threshold {
             // accept participant connection
             let (stream, addr) = listener.accept().await?;
@@ -300,16 +307,20 @@ pub mod sign_server {
             let barrier = barrier.clone();
 
             // handle participant's messages in an isolated async thread
-            tokio::spawn(async move {
+            let handle = tokio::spawn(async move {
                 logging::print("Accepted a connection.");
                 if let Err(e) = handle(count, barrier, server, stream, addr).await {
                     eprintln!("{e}");
                 }
             });
+
+            handles.push(handle);
         }
 
         // wait before closing the socket for messages that may be left unsent
-        sleep(Duration::from_secs(1)).await;
+        for handle in handles {
+            _ = handle.await;
+        }
         logging::print("Shutting down server.");
         Ok(())
     }

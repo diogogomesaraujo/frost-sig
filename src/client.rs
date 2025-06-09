@@ -23,6 +23,7 @@ use tokio::{
     fs::File,
     io::{AsyncReadExt, AsyncWriteExt, BufReader},
     net::TcpStream,
+    time::sleep,
 };
 use tokio_stream::StreamExt;
 use tokio_util::codec::{Framed, LinesCodec};
@@ -47,7 +48,7 @@ impl FrostClient {
 pub async fn receive_message(
     lines: &mut Framed<TcpStream, LinesCodec>,
 ) -> Result<Message, Box<dyn Error>> {
-    for _ in 0..2 {
+    for _ in 0..5 {
         // Number of retries to account for missing messages.
         match lines.next().await {
             Some(Ok(line)) => {
@@ -392,6 +393,13 @@ pub mod keygen_client {
             sign_input.to_file(path).await?;
         }
 
+        lines
+            .send(
+                &Message::Completed("Successfully created the shared account!".to_string())
+                    .to_json_string()?,
+            )
+            .await?;
+
         Ok(())
     }
 }
@@ -414,7 +422,7 @@ pub mod sign_client {
     use ed25519_dalek_blake2b::{PublicKey, Verifier};
     use futures::SinkExt;
     use rand::rngs::OsRng;
-    use std::{collections::HashSet, error::Error};
+    use std::{collections::HashSet, error::Error, time::Duration};
     use tokio_util::codec::{Framed, LinesCodec};
 
     /// Function that runs the sign client.
@@ -593,6 +601,16 @@ pub mod sign_client {
                 // compute aggregate response
                 let aggregate_response = compute_aggregate_response(&responses)?;
 
+                lines
+                    .send(
+                        &Message::Completed(
+                            "Successfully received everything to compute the signature!"
+                                .to_string(),
+                        )
+                        .to_json_string()?,
+                    )
+                    .await?;
+
                 // start the blockchain signing process
                 {
                     let (signature, signature_string) =
@@ -634,6 +652,15 @@ pub mod sign_client {
             _ => {
                 // send response to the SA
                 lines.send(&own_response.to_json_string()?).await?;
+                lines
+                    .send(
+                        &Message::Completed(
+                            "Successfully signed the block and processed the transaction!"
+                                .to_string(),
+                        )
+                        .to_json_string()?,
+                    )
+                    .await?;
             }
         }
 

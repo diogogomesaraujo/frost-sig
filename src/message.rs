@@ -46,15 +46,23 @@ pub enum Message {
 
     /// Message that is sent during the signature phase.
     /// It is used to compute the aggregate response and is sent by every participant to the SA.
-    Response { sender_id: u32, value: Scalar },
+    Response {
+        sender_id: u32,
+        value: Scalar,
+    },
 
     /// Message that is sent at the beginning of a FROST operation.
     /// It is used to do all the calculations needed for all the FROST operations.
-    FrostState { participants: u32, threshold: u32 },
+    FrostState {
+        participants: u32,
+        threshold: u32,
+    },
 
     /// Message that is sent at the begging of the Frost sign operation.
     /// It is used to atribute a temporary id to identify the participant as the operation is happening.
     Id(u32),
+
+    Completed(String),
 }
 
 impl Message {
