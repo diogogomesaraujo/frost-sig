@@ -102,10 +102,12 @@ pub mod round_1 {
     }
 
     /// Function that is used by a participant to verify if other participants are valid or not.
-    pub fn verify_proofs(participants_broadcasts: &[Message]) -> Result<bool, Box<dyn Error>> {
+    pub fn verify_proofs(
+        participants_broadcasts: &[Message],
+    ) -> Result<bool, Box<dyn Error + Send + Sync>> {
         Ok(participants_broadcasts.iter().try_fold(
             true,
-            |acc, pb| -> Result<bool, Box<dyn Error>> {
+            |acc, pb| -> Result<bool, Box<dyn Error + Send + Sync>> {
                 match pb {
                     Message::Broadcast {
                         signature: (wp, cp),
@@ -174,7 +176,7 @@ pub mod round_2 {
         participant: &Participant,
         secret_share: &Message,
         participant_broadcast: &Message,
-    ) -> Result<bool, Box<dyn Error>> {
+    ) -> Result<bool, Box<dyn Error + Send + Sync>> {
         match (secret_share, participant_broadcast) {
             (
                 Message::SecretShare {
@@ -191,7 +193,7 @@ pub mod round_2 {
                 let own = secret * ED25519_BASEPOINT_POINT;
                 let others = commitments.iter().enumerate().try_fold(
                     EdwardsPoint::identity(),
-                    |acc, (k, apk)| -> Result<EdwardsPoint, Box<dyn Error>> {
+                    |acc, (k, apk)| -> Result<EdwardsPoint, Box<dyn Error + Send + Sync>> {
                         Ok(acc + (decompress(apk)? * Scalar::from(participant.id.pow(k as u32))))
                     },
                 )?;
@@ -205,7 +207,7 @@ pub mod round_2 {
     pub fn compute_private_key(
         own_secret_share: &Message,
         others_secret_shares: &[Message],
-    ) -> Result<Scalar, Box<dyn Error>> {
+    ) -> Result<Scalar, Box<dyn Error + Send + Sync>> {
         match own_secret_share {
             Message::SecretShare {
                 sender_id: _,
@@ -214,7 +216,7 @@ pub mod round_2 {
             } => Ok(secret
                 + others_secret_shares.iter().try_fold(
                     Scalar::ZERO,
-                    |acc, pc| -> Result<_, Box<dyn Error>> {
+                    |acc, pc| -> Result<_, Box<dyn Error + Send + Sync>> {
                         match pc {
                             Message::SecretShare {
                                 sender_id: _,
@@ -237,12 +239,12 @@ pub mod round_2 {
     /// Function that computes the group public key used to sign transactions and identify the group.
     pub fn compute_group_public_key(
         participants_broadcasts: &[Message],
-    ) -> Result<CompressedEdwardsY, Box<dyn Error>> {
+    ) -> Result<CompressedEdwardsY, Box<dyn Error + Send + Sync>> {
         Ok(participants_broadcasts
             .iter()
             .try_fold(
                 EdwardsPoint::identity(),
-                |acc, pb| -> Result<EdwardsPoint, Box<dyn Error>> {
+                |acc, pb| -> Result<EdwardsPoint, Box<dyn Error + Send + Sync>> {
                     match pb {
                         Message::Broadcast {
                             participant_id: _,
@@ -260,7 +262,7 @@ pub mod round_2 {
     pub fn compute_participant_verification_share(
         participant: &Participant,
         participant_broadcast: &Message,
-    ) -> Result<CompressedEdwardsY, Box<dyn Error>> {
+    ) -> Result<CompressedEdwardsY, Box<dyn Error + Send + Sync>> {
         match participant_broadcast {
             Message::Broadcast {
                 participant_id: _,
@@ -271,7 +273,7 @@ pub mod round_2 {
                 .enumerate()
                 .try_fold(
                     EdwardsPoint::identity(),
-                    |acc, (k, apk)| -> Result<EdwardsPoint, Box<dyn Error>> {
+                    |acc, (k, apk)| -> Result<EdwardsPoint, Box<dyn Error + Send + Sync>> {
                         Ok(acc + (decompress(apk)? * Scalar::from(participant.id.pow(k as u32))))
                     },
                 )?
@@ -283,12 +285,12 @@ pub mod round_2 {
     /// Function that computes other participants' verification share.
     pub fn compute_others_verification_share(
         verifying_shares: &[CompressedEdwardsY],
-    ) -> Result<CompressedEdwardsY, Box<dyn Error>> {
+    ) -> Result<CompressedEdwardsY, Box<dyn Error + Send + Sync>> {
         Ok(verifying_shares
             .iter()
             .try_fold(
                 EdwardsPoint::identity(),
-                |acc, share| -> Result<EdwardsPoint, Box<dyn Error>> {
+                |acc, share| -> Result<EdwardsPoint, Box<dyn Error + Send + Sync>> {
                     Ok(acc + decompress(share)?)
                 },
             )?

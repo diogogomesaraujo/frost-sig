@@ -66,7 +66,7 @@ impl FrostServer {
         &mut self,
         participant: &Participant,
         msg: Message,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
         match &msg {
             Message::Broadcast {
                 signature: _,
@@ -144,7 +144,7 @@ pub async fn handle(
     server: Arc<Mutex<FrostServer>>,
     stream: TcpStream,
     addr: SocketAddr,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<(), Box<dyn Error + Send + Sync>> {
     // init message channel
     let lines = Framed::new(stream, LinesCodec::new());
     let (mut writer, mut reader) = lines.split();
@@ -169,18 +169,23 @@ pub async fn handle(
     // handle all incoming and and outgoing messages
     loop {
         tokio::select! {
+            // if a message is recieved from the server send to client
             Some(msg) = participant.receiver.recv() => {
                 let msg_json = msg.to_json_string()?;
                 writer.send(msg_json).await?;
             }
+            // if a message is received from the client send to server
             Some(Ok(msg_json)) = reader.next() => {
                 match Message::from_json_string(msg_json.as_str()) {
+                    // if completed close the socket
                     Some(msg) if matches!(msg, Message::Completed(_)) => break Ok(()),
+                    // if some error happens close the socket
                     Some(msg) if matches!(msg, Message::Error(_)) => {
                         if let Message::Error(e) = msg {
                             break Err(e.as_str().into());
                         }
                     }
+                    // usual cases
                     Some(msg) => server.lock().await.send_message(&participant, msg).await?,
                     None => return Err("Tried to send invalid message.".into()),
                 }
@@ -200,7 +205,7 @@ pub mod keygen_server {
         port: u32,
         participants: u32,
         threshold: u32,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
         // init the socket
         let address = format!("{}:{}", ip, port);
         let listener = TcpListener::bind(&address).await?;
@@ -252,7 +257,7 @@ pub mod keygen_server {
 
             // send the shared `FrostState` to the participant
             server.by_addr.values().into_iter().try_for_each(
-                |tx| -> Result<(), Box<dyn Error>> {
+                |tx| -> Result<(), Box<dyn Error + Send + Sync>> {
                     tx.send(server.state.clone().to_message())?;
                     Ok(())
                 },
@@ -279,7 +284,7 @@ pub mod sign_server {
         port: u32,
         participants: u32,
         threshold: u32,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
         // init the socket
         let address = format!("{}:{}", ip, port);
         let listener = TcpListener::bind(&address).await?;
@@ -322,10 +327,11 @@ pub mod sign_server {
             handles.push(handle);
         }
 
-        // wait before closing the socket for messages that may be left unsent
+        // wait for every thread to finish before closing the socket
         for handle in handles {
             _ = handle.await;
         }
+
         logging::print("Shutting down server.");
         Ok(())
     }

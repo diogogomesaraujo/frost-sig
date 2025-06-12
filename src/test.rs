@@ -8,7 +8,7 @@ use rand::rngs::OsRng;
 use std::error::Error;
 
 #[test]
-pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error>> {
+pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error + Send + Sync>> {
     // This example shows the FROST keygen, preprocess and signature flow for 3 participants with a threshold of 2.
 
     // get the os generator

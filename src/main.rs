@@ -2,7 +2,7 @@ use frost_sig::{client, server};
 use std::error::Error;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mode = std::env::args()
         .nth(1)
         .expect("Failed to give enough arguments.");
@@ -22,13 +22,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 .expect("Failed to give enough arguments.")
                 .parse::<u32>()
                 .expect("Invalid arguments.");
-            server::keygen_server::run("localhost", 3333, p, t).await?;
+            server::keygen_server::run("localhost", 6705, p, t).await?;
         }
         ("client", "keygen") => {
             let path = std::env::args()
                 .nth(3)
                 .expect("Failed to give enough arguments.");
-            client::keygen_client::run("localhost", 3333, &path).await?;
+            client::keygen_client::run("localhost", 6705, &path).await?;
         }
         ("server", "sign") => {
             let p = std::env::args()
@@ -41,7 +41,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 .expect("Failed to give enough arguments.")
                 .parse::<u32>()
                 .expect("Invalid arguments.");
-            server::sign_server::run("localhost", 3333, p, t)
+            server::sign_server::run("localhost", 6705, p, t)
                 .await
                 .unwrap();
         }
@@ -49,7 +49,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             let path = std::env::args()
                 .nth(3)
                 .expect("Failed to give enough arguments.");
-            client::sign_client::run("localhost", 3333, &path).await?;
+            client::sign_client::run("localhost", 6705, &path).await?;
         }
         _ => {
             eprintln!("Invalid arguments.");

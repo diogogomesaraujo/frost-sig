@@ -83,7 +83,10 @@ pub mod sign {
         }
 
         /// Function that hashes an `UnsignedBlock` before signing.
-        pub async fn to_hash(self, state: &rpc::RPCState) -> Result<String, Box<dyn Error>> {
+        pub async fn to_hash(
+            self,
+            state: &rpc::RPCState,
+        ) -> Result<String, Box<dyn Error + Send + Sync>> {
             let mut block_state = [0u8; 32];
             block_state[31] = 6 as u8;
             let account = hex::decode(AccountKey::get_from_rpc(state, &self.account).await?.key)?;
@@ -129,7 +132,7 @@ pub mod sign {
         pub async fn create_open(
             state: &rpc::RPCState,
             account_address: &str,
-        ) -> Result<Self, Box<dyn std::error::Error>> {
+        ) -> Result<Self, Box<dyn Error + Send + Sync>> {
             let receivable = rpc::Receivable::get_from_rpc(&state, account_address, 1).await?;
             let block = rpc::BlockInfo::get_from_rpc(&state, &receivable.blocks[0]).await?;
 
@@ -151,7 +154,7 @@ pub mod sign {
         pub async fn create_receive(
             state: &rpc::RPCState,
             account_address: &str,
-        ) -> Result<Self, Box<dyn std::error::Error>> {
+        ) -> Result<Self, Box<dyn Error + Send + Sync>> {
             let receivable = rpc::Receivable::get_from_rpc(&state, account_address, 1).await?;
             let block = rpc::BlockInfo::get_from_rpc(&state, &receivable.blocks[0]).await?;
             let previous = rpc::AccountInfo::get_from_rpc(&state, account_address)
@@ -179,7 +182,7 @@ pub mod sign {
             own_account_address: &str,
             receiver_account_address: &str,
             amount_nano: &f64,
-        ) -> Result<Self, Box<dyn std::error::Error>> {
+        ) -> Result<Self, Box<dyn Error + Send + Sync>> {
             let ammount_raw = rpc::NanoToRaw::get_from_rpc(&state, &amount_nano)
                 .await?
                 .raw;
@@ -250,7 +253,7 @@ pub mod sign {
         unsigned_block: UnsignedBlock,
         signature: &str,
         aggregate_public_key: &str,
-    ) -> Result<SignedBlock, Box<dyn Error>> {
+    ) -> Result<SignedBlock, Box<dyn Error + Send + Sync>> {
         let work = super::rpc::WorkGenerate::get_from_rpc(
             &state,
             match unsigned_block.previous.as_str() {
@@ -334,7 +337,7 @@ pub mod rpc {
         pub async fn request<T: DeserializeOwned>(
             &self,
             data: &Value,
-        ) -> Result<T, Box<dyn Error>> {
+        ) -> Result<T, Box<dyn Error + Send + Sync>> {
             Ok(self
                 .client
                 .post(&self.url)
@@ -356,7 +359,7 @@ pub mod rpc {
         pub async fn get_from_rpc(
             state: &RPCState,
             amount_nano: &f64,
-        ) -> Result<Self, Box<dyn Error>> {
+        ) -> Result<Self, Box<dyn Error + Send + Sync>> {
             let data = json!({
                 "action": "nano_to_raw",
                 "amount": amount_nano.to_string()
@@ -379,7 +382,7 @@ pub mod rpc {
         pub async fn get_from_rpc(
             state: &RPCState,
             account_address: &str,
-        ) -> Result<Self, Box<dyn Error>> {
+        ) -> Result<Self, Box<dyn Error + Send + Sync>> {
             let data = json!({
                 "action": "account_info",
                 "account": account_address
@@ -404,7 +407,7 @@ pub mod rpc {
         pub async fn get_from_rpc(
             state: &RPCState,
             account_address: &str,
-        ) -> Result<Self, Box<dyn Error>> {
+        ) -> Result<Self, Box<dyn Error + Send + Sync>> {
             let data = json!({
                 "action": "account_balance",
                 "account": account_address
@@ -424,7 +427,7 @@ pub mod rpc {
         pub async fn get_from_rpc(
             state: &RPCState,
             nano_account: &str,
-        ) -> Result<Self, Box<dyn Error>> {
+        ) -> Result<Self, Box<dyn Error + Send + Sync>> {
             let data = json!({
                 "action": "account_key",
                 "account": nano_account
@@ -446,7 +449,7 @@ pub mod rpc {
             state: &RPCState,
             hash: &str,
             key: &str,
-        ) -> Result<Self, Box<dyn Error>> {
+        ) -> Result<Self, Box<dyn Error + Send + Sync>> {
             let data = json!({
                 "action": "work_generate",
                 "hash": hash,
@@ -468,7 +471,7 @@ pub mod rpc {
             state: &RPCState,
             account_address: &str,
             count: u32,
-        ) -> Result<Self, Box<dyn Error>> {
+        ) -> Result<Self, Box<dyn Error + Send + Sync>> {
             let data = json!({
                 "action": "receivable",
                 "account": account_address,
@@ -487,7 +490,10 @@ pub mod rpc {
 
     impl BlockInfo {
         /// Function that gets the `BlockInfo` from the rpc.
-        pub async fn get_from_rpc(state: &RPCState, hash: &str) -> Result<Self, Box<dyn Error>> {
+        pub async fn get_from_rpc(
+            state: &RPCState,
+            hash: &str,
+        ) -> Result<Self, Box<dyn Error + Send + Sync>> {
             let data = json!({
                 "action": "block_info",
                 "hash": hash,
@@ -508,7 +514,7 @@ pub mod rpc {
             state: &RPCState,
             subtype: &super::sign::Subtype,
             signed_block: &super::sign::SignedBlock,
-        ) -> Result<Self, Box<dyn Error>> {
+        ) -> Result<Self, Box<dyn Error + Send + Sync>> {
             let data = json!({
                 "action": "process",
                 "subtype": subtype.as_str(),
@@ -521,7 +527,7 @@ pub mod rpc {
     }
 
     #[tokio::test]
-    async fn test_rpc_receive() -> Result<(), Box<dyn Error>> {
+    async fn test_rpc_receive() -> Result<(), Box<dyn Error + Send + Sync>> {
         // load the enviroment variables
         dotenv::dotenv().ok();
 
@@ -542,7 +548,7 @@ pub mod rpc {
     }
 
     #[tokio::test]
-    async fn test_rpc_send() -> Result<(), Box<dyn Error>> {
+    async fn test_rpc_send() -> Result<(), Box<dyn Error + Send + Sync>> {
         // load the enviroment variables
         dotenv::dotenv().ok();
 

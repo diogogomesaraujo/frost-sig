@@ -79,7 +79,7 @@ pub fn compute_binding_value(
     message: &str,
     verifying_key: &CompressedEdwardsY,
     additional_prefix: &[u8],
-) -> Result<Scalar, Box<dyn Error>> {
+) -> Result<Scalar, Box<dyn Error + Send + Sync>> {
     match participant_commitment {
         Message::PublicCommitment {
             participant_id,
@@ -92,9 +92,8 @@ pub fn compute_binding_value(
             binding_value.extend_from_slice(&hash_to_array(&[&hex::decode(message)?]));
             let commitments_hash = {
                 let mut hasher = vec![];
-                all_commitments
-                    .iter()
-                    .try_for_each(|c| -> Result<(), Box<dyn Error>> {
+                all_commitments.iter().try_for_each(
+                    |c| -> Result<(), Box<dyn Error + Send + Sync>> {
                         match c {
                             Message::PublicCommitment {
                                 participant_id: _,
@@ -108,7 +107,8 @@ pub fn compute_binding_value(
                             }
                             _ => return Err("Message was not a Public Commitment.".into()),
                         }
-                    })?;
+                    },
+                )?;
                 hasher
             };
             binding_value.extend_from_slice(&commitments_hash);
@@ -126,12 +126,12 @@ pub fn compute_group_commitment_and_challenge(
     message: &str,
     group_public_key: CompressedEdwardsY,
     additional_prefix: &[u8],
-) -> Result<(CompressedEdwardsY, Scalar), Box<dyn Error>> {
+) -> Result<(CompressedEdwardsY, Scalar), Box<dyn Error + Send + Sync>> {
     let group_commitment = participants_commitments
         .iter()
         .try_fold(
             EdwardsPoint::identity(),
-            |acc, pc| -> Result<EdwardsPoint, Box<dyn Error>> {
+            |acc, pc| -> Result<EdwardsPoint, Box<dyn Error + Send + Sync>> {
                 match pc {
                     Message::PublicCommitment {
                         participant_id: _,
@@ -187,7 +187,7 @@ pub fn compute_own_response(
     message: &str,
     verifying_key: &CompressedEdwardsY,
     additional_prefix: &[u8],
-) -> Result<Message, Box<dyn Error>> {
+) -> Result<Message, Box<dyn Error + Send + Sync>> {
     let binding_value = compute_binding_value(
         &participant_commitment,
         &all_commitments,
@@ -212,7 +212,7 @@ pub fn verify_participant(
     verifying_key: &CompressedEdwardsY,
     additional_prefix: &[u8],
     ids: &[u32],
-) -> Result<bool, Box<dyn Error>> {
+) -> Result<bool, Box<dyn Error + Send + Sync>> {
     match (participant_commitment, response) {
         (
             Message::PublicCommitment {
@@ -253,7 +253,7 @@ pub fn verify_participant(
 /// Function that computes the aggregate response created from all responses.
 pub fn compute_aggregate_response(
     participants_responses: &[Message],
-) -> Result<Scalar, Box<dyn Error>> {
+) -> Result<Scalar, Box<dyn Error + Send + Sync>> {
     participants_responses
         .iter()
         .try_fold(Scalar::ZERO, |acc, pr| match pr {
@@ -269,7 +269,7 @@ pub fn compute_aggregate_response(
 pub fn computed_response_to_signature(
     aggregate_response: &Scalar,
     group_commitment: &CompressedEdwardsY,
-) -> Result<(Signature, String), Box<dyn Error>> {
+) -> Result<(Signature, String), Box<dyn Error + Send + Sync>> {
     let mut bytes = [0; 64];
     bytes[0..32].copy_from_slice(group_commitment.as_bytes());
     bytes[32..].copy_from_slice(&aggregate_response.to_bytes());

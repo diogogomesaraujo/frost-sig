@@ -23,7 +23,6 @@ use tokio::{
     fs::File,
     io::{AsyncReadExt, AsyncWriteExt, BufReader},
     net::TcpStream,
-    time::sleep,
 };
 use tokio_stream::StreamExt;
 use tokio_util::codec::{Framed, LinesCodec};
@@ -47,7 +46,7 @@ impl FrostClient {
 /// Function that receives a `Message` of any type.
 pub async fn receive_message(
     lines: &mut Framed<TcpStream, LinesCodec>,
-) -> Result<Message, Box<dyn Error>> {
+) -> Result<Message, Box<dyn Error + Send + Sync>> {
     for _ in 0..5 {
         // Number of retries to account for missing messages.
         match lines.next().await {
@@ -97,7 +96,7 @@ pub struct SignInput {
 
 impl SignInput {
     /// Function that creates a `SignInput` from the file at the given path.
-    pub async fn from_file(path: &str) -> Result<SignInput, Box<dyn Error>> {
+    pub async fn from_file(path: &str) -> Result<SignInput, Box<dyn Error + Send + Sync>> {
         let file = File::open(path).await?;
 
         let mut buf_reader = BufReader::new(file);
@@ -108,7 +107,7 @@ impl SignInput {
     }
 
     /// Function that writes a Sign Input to a file.
-    pub async fn to_file(&self, path: &str) -> Result<(), Box<dyn Error>> {
+    pub async fn to_file(&self, path: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
         let mut file = File::create(path).await?;
         file.write_all(serde_json::to_string_pretty(&self)?.as_bytes())
             .await?;
@@ -117,7 +116,7 @@ impl SignInput {
 
     /// Function that verifies if the data retrieved from the `SignInput` is valid or if it was modified.
     /// It performs mathematically checks if the proofs make sense and also check if the number of people signing is valid as well.
-    pub fn verify(&self) -> Result<(), Box<dyn Error>> {
+    pub fn verify(&self) -> Result<(), Box<dyn Error + Send + Sync>> {
         {
             // verify if proofs were tampered with
             assert!(
@@ -172,7 +171,7 @@ pub mod keygen_client {
     use tokio_util::codec::{Framed, LinesCodec};
 
     /// Function that runs the keygen client.
-    pub async fn run(ip: &str, port: u32, path: &str) -> Result<(), Box<dyn Error>> {
+    pub async fn run(ip: &str, port: u32, path: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
         // connect
         let address = format!("{}:{}", ip, port);
         let stream = TcpStream::connect(address).await?;
@@ -289,7 +288,7 @@ pub mod keygen_client {
             // verify other participants' secret shares
             secret_shares
                 .iter()
-                .try_for_each(|s| -> Result<(), Box<dyn Error>> {
+                .try_for_each(|s| -> Result<(), Box<dyn Error + Send + Sync>> {
                     let broadcast = broadcasts
                         .iter()
                         .find(|&b| match (b, s) {
@@ -426,7 +425,7 @@ pub mod sign_client {
     use tokio_util::codec::{Framed, LinesCodec};
 
     /// Function that runs the sign client.
-    pub async fn run(ip: &str, port: u32, path: &str) -> Result<(), Box<dyn Error>> {
+    pub async fn run(ip: &str, port: u32, path: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
         // wallet and participant info needed from file
         let sign_input = SignInput::from_file(path).await?;
 
@@ -567,7 +566,7 @@ pub mod sign_client {
                 // verify responses
                 responses
                     .iter()
-                    .try_for_each(|r| -> Result<(), Box<dyn Error>> {
+                    .try_for_each(|r| -> Result<(), Box<dyn Error + Send + Sync>> {
                         match r {
                             Message::Response {
                                 sender_id,

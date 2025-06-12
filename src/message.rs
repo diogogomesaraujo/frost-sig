@@ -46,30 +46,26 @@ pub enum Message {
 
     /// Message that is sent during the signature phase.
     /// It is used to compute the aggregate response and is sent by every participant to the SA.
-    Response {
-        sender_id: u32,
-        value: Scalar,
-    },
+    Response { sender_id: u32, value: Scalar },
 
     /// Message that is sent at the beginning of a FROST operation.
     /// It is used to do all the calculations needed for all the FROST operations.
-    FrostState {
-        participants: u32,
-        threshold: u32,
-    },
+    FrostState { participants: u32, threshold: u32 },
 
     /// Message that is sent at the begging of the Frost sign operation.
     /// It is used to atribute a temporary id to identify the participant as the operation is happening.
     Id(u32),
 
+    /// Message that is sent at the end of an operation for the server to know when to close the socket.
     Completed(String),
 
+    /// Message that is sent when something unexpected happens during an operation and it is used to close the socket when a problem occurs.
     Error(String),
 }
 
 impl Message {
     /// Function that converts a `Message` into a JSON formated `String`.
-    pub fn to_json_string(&self) -> Result<String, Box<dyn Error>> {
+    pub fn to_json_string(&self) -> Result<String, Box<dyn Error + Send + Sync>> {
         Ok(serde_json::to_string(&self)?)
     }
 

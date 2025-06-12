@@ -55,7 +55,9 @@ impl FrostState {
 }
 
 /// Function that simplifies the decompresson of an ed25519 point.
-pub fn decompress(compressed_point: &CompressedEdwardsY) -> Result<EdwardsPoint, Box<dyn Error>> {
+pub fn decompress(
+    compressed_point: &CompressedEdwardsY,
+) -> Result<EdwardsPoint, Box<dyn Error + Send + Sync>> {
     match compressed_point.decompress() {
         Some(point) => Ok(point),
         None => return Err("Couldn't decompress the point.".into()),
