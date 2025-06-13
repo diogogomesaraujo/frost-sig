@@ -75,7 +75,7 @@ pub mod logging {
 
 /// Struct that has the information retrieved from the JSON file needed for the signing process.
 /// It is created during the keygen phase but you need to update the message before signing.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SignInput {
     id: u32,
     /// State that holds all the constants needed for the FROST computations.

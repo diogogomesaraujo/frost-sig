@@ -23,7 +23,7 @@ pub mod sign {
     use std::error::Error;
 
     /// Enum that represents the type of transactions that can be made with Nano.
-    #[derive(Serialize, Deserialize, Debug)]
+    #[derive(Clone, Serialize, Deserialize, Debug)]
     pub enum Subtype {
         SEND,
         RECEIVE,
@@ -532,14 +532,14 @@ pub mod rpc {
         dotenv::dotenv().ok();
 
         // the account to create the open/receive block
-        let account = "nano_1smubapuampnxtq14taxt8c9rc5f97hj7e8kqer4u6p94cre5g6qq3yxa4f3";
+        let account = "nano_3kmcthydfiju5ho8w3isiiayi6djhg4dbnn3q6i14cop4c8nck8hrqbxfxc8";
 
         // the state of the RPC with the Nano node chosen
         let state = RPCState::new(&std::env::var("URL")?);
 
         // the unsigned block created and that will be signed
         let unsigned_block =
-            crate::nano::sign::UnsignedBlock::create_receive(&state, &account).await?;
+            crate::nano::sign::UnsignedBlock::create_open(&state, &account).await?;
 
         println!("{}", serde_json::to_string(&unsigned_block)?);
         assert!(true);
