@@ -16,7 +16,7 @@ use crate::{
     nano::sign::{Subtype, UnsignedBlock},
     FrostState,
 };
-use curve25519_dalek::{edwards::CompressedEdwardsY, Scalar};
+use curve25519_dalek::{edwards::CompressedEdwardsY, traits::Identity, EdwardsPoint, Scalar};
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 use tokio::{
@@ -92,6 +92,24 @@ pub struct SignInput {
     subtype: Subtype,
     /// Message being signed.
     message: UnsignedBlock,
+}
+
+impl Default for SignInput {
+    fn default() -> Self {
+        Self {
+            id: 0,
+            state: FrostState {
+                participants: 0,
+                threshold: 0,
+            },
+            public_aggregated_key: EdwardsPoint::identity().compress(),
+            own_public_share: EdwardsPoint::identity().compress(),
+            own_private_share: Scalar::from(0u32),
+            participants_proofs: Vec::new(),
+            subtype: Subtype::OPEN,
+            message: UnsignedBlock::empty(),
+        }
+    }
 }
 
 impl SignInput {
