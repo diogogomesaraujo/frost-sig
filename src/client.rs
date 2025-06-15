@@ -77,21 +77,21 @@ pub mod logging {
 /// It is created during the keygen phase but you need to update the message before signing.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SignInput {
-    id: u32,
+    pub id: u32,
     /// State that holds all the constants needed for the FROST computations.
     pub state: FrostState,
     /// Aggregated public key shared by the group.
     pub public_aggregated_key: CompressedEdwardsY,
     /// Public key that identifies the participant within' the group.
-    own_public_share: CompressedEdwardsY,
+    pub own_public_share: CompressedEdwardsY,
     /// Private key that is needed for a participant to sign a transaction.
-    own_private_share: Scalar,
+    pub own_private_share: Scalar,
     /// Participants' broadcasts sent during keygen.
-    participants_proofs: Vec<Message>,
+    pub participants_proofs: Vec<Message>,
     /// Subtype of the transaction (if it is to receive, send or open a block).
-    subtype: Subtype,
+    pub subtype: Subtype,
     /// Message being signed.
-    message: UnsignedBlock,
+    pub message: UnsignedBlock,
 }
 
 impl Default for SignInput {
