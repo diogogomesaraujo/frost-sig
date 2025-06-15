@@ -79,9 +79,9 @@ pub mod logging {
 pub struct SignInput {
     id: u32,
     /// State that holds all the constants needed for the FROST computations.
-    state: FrostState,
+    pub state: FrostState,
     /// Aggregated public key shared by the group.
-    public_aggregated_key: CompressedEdwardsY,
+    pub public_aggregated_key: CompressedEdwardsY,
     /// Public key that identifies the participant within' the group.
     own_public_share: CompressedEdwardsY,
     /// Private key that is needed for a participant to sign a transaction.
