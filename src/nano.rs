@@ -402,6 +402,19 @@ pub mod rpc {
         pub receivable_nano: String,
     }
 
+    impl Default for AccountBalance {
+        fn default() -> Self {
+            Self {
+                balance: "".to_string(),
+                pending: "".to_string(),
+                receivable: "".to_string(),
+                balance_nano: "".to_string(),
+                pending_nano: "".to_string(),
+                receivable_nano: "".to_string(),
+            }
+        }
+    }
+
     impl AccountBalance {
         /// Function that gets the `AccountBalance` from the rpc.
         pub async fn get_from_rpc(
