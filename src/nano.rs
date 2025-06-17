@@ -392,7 +392,7 @@ pub mod rpc {
     }
 
     /// Struct that represents the result of Nano's account_balance action.
-    #[derive(Serialize, Deserialize)]
+    #[derive(Serialize, Deserialize, Clone)]
     pub struct AccountBalance {
         pub balance: String,
         pub pending: String,
