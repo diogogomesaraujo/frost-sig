@@ -434,15 +434,23 @@ pub mod rpc {
     /// Struct that represents the blocks of Nano's account_history action.
     #[derive(Serialize, Deserialize, Clone)]
     pub struct AccountHistoryBlock {
-        r#type: String,
-        account: String,
-        amount: String,
+        pub r#type: String,
+        pub account: String,
+        pub amount: String,
     }
 
     /// Struct that represents the result of Nano's account_history action.
     #[derive(Serialize, Deserialize, Clone)]
     pub struct AccountHistory {
-        history: Vec<AccountHistoryBlock>,
+        pub history: Vec<AccountHistoryBlock>,
+    }
+
+    impl Default for AccountHistory {
+        fn default() -> Self {
+            Self {
+                history: Vec::new(),
+            }
+        }
     }
 
     impl AccountHistory {
