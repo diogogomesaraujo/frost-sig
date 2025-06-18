@@ -462,7 +462,7 @@ pub mod rpc {
             count: u32,
         ) -> Result<Self, Box<dyn Error + Send + Sync>> {
             let data = json!({
-                "action": "account_key",
+                "action": "account_history",
                 "account": nano_account,
                 "count": count.to_string()
             });
