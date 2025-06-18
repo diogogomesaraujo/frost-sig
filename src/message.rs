@@ -11,10 +11,9 @@
 //! - `MessageJSON` Enum.
 //! - Conversions from `Message` into a JSON formated `String` and the other way arround.
 
-use std::error::Error;
-
 use curve25519_dalek::{edwards::CompressedEdwardsY, Scalar};
 use serde::{Deserialize, Serialize};
+use std::error::Error;
 
 /// Enum that represents all the messages that will be sent during the FROST protocol operations.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]

@@ -20,8 +20,6 @@ pub mod nano;
 #[cfg(test)]
 mod test;
 
-/// Constant context string for the hashing operations.
-
 /// Struct that saves the constants needed for FROST. These values should be used by all participants throughout the signing session and discarted after.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FrostState {

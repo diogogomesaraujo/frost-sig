@@ -13,6 +13,8 @@
 //! # Support
 //!
 //! See the [resources](https://docs.nano.org/integration-guides/) here.
+
+/// Module that has all the functions needed to sign transactions in the Nano blockchain.
 pub mod sign {
     use super::rpc::{self, AccountKey};
     use blake2::{
@@ -276,8 +278,8 @@ pub mod sign {
     }
 }
 
+/// Module that has all the functions needed to handle Nano account addresses.
 pub mod account {
-
     use blake2::{
         digest::{Update, VariableOutput},
         Blake2bVar,
@@ -321,6 +323,7 @@ pub mod account {
     }
 }
 
+/// Module that has all the functions needed to use the Nano RPC.
 pub mod rpc {
     use reqwest::Client;
     use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -365,6 +368,7 @@ pub mod rpc {
     }
 
     impl NanoToRaw {
+        /// Function that gets the `NanoToRaw` from the rpc.
         pub async fn get_from_rpc(
             state: &RPCState,
             amount_nano: &f64,
@@ -414,6 +418,7 @@ pub mod rpc {
     }
 
     impl Default for AccountBalance {
+        /// Function that gives a default construct of `AccountBalance`.
         fn default() -> Self {
             Self {
                 balance: "".to_string(),
@@ -456,6 +461,7 @@ pub mod rpc {
     }
 
     impl Default for AccountHistory {
+        /// Function that gives a default construct of `AccountHistory`.
         fn default() -> Self {
             Self {
                 history: Vec::new(),
