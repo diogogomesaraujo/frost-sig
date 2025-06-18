@@ -76,13 +76,13 @@
       }
     }
   ],
-  "subtype": "SEND",
+  "subtype": "RECEIVE",
   "message": {
     "type": "state",
     "account": "nano_37ig7sigk36k6ekoa55gu6hfxkb3fdujfr9qd5gf4gkuiezeys8cnmw9pcot",
-    "previous": "9950C5F29383107CA70C74A2A9CC02B03FB1AE3A6FC88A261A28B901D19B65C8",
+    "previous": "1457F06BD41CFBC311E0CE7951AE9D180B025621E38F73C58D327625DC96229B",
     "representative": "nano_37ig7sigk36k6ekoa55gu6hfxkb3fdujfr9qd5gf4gkuiezeys8cnmw9pcot",
-    "balance": "0",
-    "link": "1E57C48BA45E96C4FC07A94FB496AB36F4B4CB2A716FA1EE86BD6549C5939EAD"
+    "balance": "65000000000000000000000000",
+    "link": "4CF70C282AA3BC5EBB3EDD3C11BACA9CF81A44712A61744E4B31DB8511B1798A"
   }
 }

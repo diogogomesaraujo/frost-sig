@@ -134,7 +134,11 @@ pub mod sign {
             account_address: &str,
         ) -> Result<Self, Box<dyn Error + Send + Sync>> {
             let receivable = rpc::Receivable::get_from_rpc(&state, account_address, 1).await?;
-            let block = rpc::BlockInfo::get_from_rpc(&state, &receivable.blocks[0]).await?;
+            let first_receivable = match receivable.blocks.get(0) {
+                Some(block) => block,
+                None => return Err("Couldn't find any receivable blocks.".into()),
+            };
+            let block = rpc::BlockInfo::get_from_rpc(&state, &first_receivable).await?;
 
             let account = account_address.to_string();
             let previous = "0".to_string();
