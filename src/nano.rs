@@ -432,7 +432,7 @@ pub mod rpc {
     }
 
     /// Struct that represents the blocks of Nano's account_history action.
-    #[derive(Serialize, Deserialize, Clone)]
+    #[derive(Serialize, Deserialize, Clone, Debug)]
     pub struct AccountHistoryBlock {
         pub r#type: String,
         pub account: String,
