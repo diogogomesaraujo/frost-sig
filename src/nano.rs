@@ -203,7 +203,8 @@ pub mod sign {
                 .await?
                 .balance
                 .parse::<u128>()?
-                - ammount_raw.parse::<u128>()?;
+                .checked_sub(ammount_raw.parse::<u128>()?)
+                .ok_or("Balance underflow")?;
             let link = AccountKey::get_from_rpc(&state, receiver_account_address)
                 .await?
                 .key;
@@ -594,14 +595,14 @@ pub mod rpc {
         dotenv::dotenv().ok();
 
         // the account to create the open/receive block
-        let account = "nano_3kmcthydfiju5ho8w3isiiayi6djhg4dbnn3q6i14cop4c8nck8hrqbxfxc8";
+        let account = "nano_37ig7sigk36k6ekoa55gu6hfxkb3fdujfr9qd5gf4gkuiezeys8cnmw9pcot";
 
         // the state of the RPC with the Nano node chosen
         let state = RPCState::new(&std::env::var("URL")?);
 
         // the unsigned block created and that will be signed
         let unsigned_block =
-            crate::nano::sign::UnsignedBlock::create_open(&state, &account).await?;
+            crate::nano::sign::UnsignedBlock::create_receive(&state, &account).await?;
 
         println!("{}", serde_json::to_string(&unsigned_block)?);
         assert!(true);
