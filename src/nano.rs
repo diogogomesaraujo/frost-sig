@@ -373,8 +373,9 @@ pub mod rpc {
     pub struct AccountInfo {
         pub frontier: String,
         pub open_block: String,
-        pub representative_block: String,
+        pub representative: String,
         pub balance: String,
+        pub block_count: String,
     }
 
     impl AccountInfo {
@@ -385,7 +386,8 @@ pub mod rpc {
         ) -> Result<Self, Box<dyn Error + Send + Sync>> {
             let data = json!({
                 "action": "account_info",
-                "account": account_address
+                "account": account_address,
+                "representative": "true"
             });
             state.request::<Self>(&data).await
         }
@@ -424,6 +426,36 @@ pub mod rpc {
             let data = json!({
                 "action": "account_balance",
                 "account": account_address
+            });
+            state.request::<Self>(&data).await
+        }
+    }
+
+    /// Struct that represents the blocks of Nano's account_history action.
+    #[derive(Serialize, Deserialize, Clone)]
+    pub struct AccountHistoryBlock {
+        r#type: String,
+        account: String,
+        amount: String,
+    }
+
+    /// Struct that represents the result of Nano's account_history action.
+    #[derive(Serialize, Deserialize, Clone)]
+    pub struct AccountHistory {
+        history: Vec<AccountHistoryBlock>,
+    }
+
+    impl AccountHistory {
+        /// Function that gets the `AccountHistory` from the rpc.
+        pub async fn get_from_rpc(
+            state: &RPCState,
+            nano_account: &str,
+            count: u32,
+        ) -> Result<Self, Box<dyn Error + Send + Sync>> {
+            let data = json!({
+                "action": "account_key",
+                "account": nano_account,
+                "count": count.to_string()
             });
             state.request::<Self>(&data).await
         }
