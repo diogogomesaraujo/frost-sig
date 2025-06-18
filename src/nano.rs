@@ -437,6 +437,7 @@ pub mod rpc {
         pub r#type: String,
         pub account: String,
         pub amount: String,
+        pub hash: String,
     }
 
     /// Struct that represents the result of Nano's account_history action.
