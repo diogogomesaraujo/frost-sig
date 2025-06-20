@@ -193,8 +193,8 @@ impl ConfigFile {
         Ok(serde_json::from_str::<Self>(&contents)?)
     }
 
-    pub async fn to_file(&self, path: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
-        let mut file = File::create(path).await?;
+    pub async fn to_file(&self) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let mut file = File::create("config.json").await?;
         file.write_all(serde_json::to_string_pretty(&self)?.as_bytes())
             .await?;
         Ok(())
