@@ -264,6 +264,7 @@ pub mod sign {
         unsigned_block: UnsignedBlock,
         signature: &str,
         aggregate_public_key: &str,
+        key: &str,
     ) -> Result<SignedBlock, Box<dyn Error + Send + Sync>> {
         let work = super::rpc::WorkGenerate::get_from_rpc(
             &state,
@@ -271,7 +272,7 @@ pub mod sign {
                 "0" => aggregate_public_key,
                 previous => previous,
             },
-            &std::env::var("KEY")?,
+            &key,
         )
         .await?;
         Ok(unsigned_block.to_signed_block(&signature, &work.work))

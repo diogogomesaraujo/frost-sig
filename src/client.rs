@@ -649,12 +649,15 @@ pub mod sign_client {
                         };
                     }
 
+                    let key = std::env::var("KEY")?;
+
                     // create signed block
                     let signed_block = create_signed_block(
                         &state,
                         sign_input.message,
                         &signature_string.to_uppercase(),
                         &hex::encode(&sign_input.public_aggregated_key.as_bytes()),
+                        &key,
                     )
                     .await?;
 
