@@ -18,7 +18,10 @@ use crate::{
 };
 use curve25519_dalek::{edwards::CompressedEdwardsY, traits::Identity, EdwardsPoint, Scalar};
 use serde::{Deserialize, Serialize};
-use std::error::Error;
+use std::{
+    error::Error,
+    io::{Read, Write},
+};
 use tokio::{
     fs::File,
     io::{AsyncReadExt, AsyncWriteExt, BufReader},
@@ -197,6 +200,22 @@ impl ConfigFile {
         let mut file = File::create(path).await?;
         file.write_all(serde_json::to_string_pretty(&self)?.as_bytes())
             .await?;
+        Ok(())
+    }
+
+    pub fn from_file_sync(path: &str) -> Result<Self, Box<dyn Error>> {
+        let file = std::fs::File::open(path)?;
+
+        let mut buf_reader = std::io::BufReader::new(file);
+        let mut contents = String::new();
+        buf_reader.read_to_string(&mut contents)?;
+
+        Ok(serde_json::from_str::<Self>(&contents)?)
+    }
+
+    pub fn to_file_sync(&self, path: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let mut file = std::fs::File::create(path)?;
+        file.write_all(serde_json::to_string_pretty(&self)?.as_bytes())?;
         Ok(())
     }
 }
