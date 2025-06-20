@@ -598,9 +598,6 @@ pub mod rpc {
 
     #[tokio::test]
     async fn test_rpc_receive() -> Result<(), Box<dyn Error + Send + Sync>> {
-        // load the enviroment variables
-        dotenv::dotenv().ok();
-
         // the account to create the open/receive block
         let account = "nano_37ig7sigk36k6ekoa55gu6hfxkb3fdujfr9qd5gf4gkuiezeys8cnmw9pcot";
 
