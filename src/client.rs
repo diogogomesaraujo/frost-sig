@@ -183,8 +183,8 @@ impl ConfigFile {
         }
     }
 
-    pub async fn from_file() -> Result<Self, Box<dyn Error + Send + Sync>> {
-        let file = File::open("config.json").await?;
+    pub async fn from_file(path: &str) -> Result<Self, Box<dyn Error + Send + Sync>> {
+        let file = File::open(path).await?;
 
         let mut buf_reader = BufReader::new(file);
         let mut contents = String::new();
@@ -193,8 +193,8 @@ impl ConfigFile {
         Ok(serde_json::from_str::<Self>(&contents)?)
     }
 
-    pub async fn to_file(&self) -> Result<(), Box<dyn Error + Send + Sync>> {
-        let mut file = File::create("config.json").await?;
+    pub async fn to_file(&self, path: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let mut file = File::create(path).await?;
         file.write_all(serde_json::to_string_pretty(&self)?.as_bytes())
             .await?;
         Ok(())
@@ -467,6 +467,7 @@ pub mod sign_client {
             compute_own_response, computed_response_to_signature, lagrange_coefficient,
             verify_participant,
         },
+        CONFIG_FILE,
     };
     use ed25519_dalek_blake2b::{PublicKey, Verifier};
     use futures::SinkExt;
@@ -561,7 +562,7 @@ pub mod sign_client {
         };
 
         // load config variables
-        let config = ConfigFile::from_file().await?;
+        let config = ConfigFile::from_file(CONFIG_FILE).await?;
 
         // create the state for the rpc
         let state = RPCState::new(&config.url);

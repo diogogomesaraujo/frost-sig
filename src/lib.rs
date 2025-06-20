@@ -20,6 +20,8 @@ pub mod nano;
 #[cfg(test)]
 mod test;
 
+const CONFIG_FILE: &str = "config.json";
+
 /// Struct that saves the constants needed for FROST. These values should be used by all participants throughout the signing session and discarted after.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FrostState {
