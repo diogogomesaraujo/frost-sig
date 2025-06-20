@@ -169,6 +169,38 @@ impl SignInput {
     }
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ConfigFile {
+    pub key: String,
+    pub url: String,
+}
+
+impl ConfigFile {
+    pub fn new() -> Self {
+        Self {
+            key: "".to_string(),
+            url: "".to_string(),
+        }
+    }
+
+    pub async fn from_file() -> Result<Self, Box<dyn Error + Send + Sync>> {
+        let file = File::open("config.json").await?;
+
+        let mut buf_reader = BufReader::new(file);
+        let mut contents = String::new();
+        buf_reader.read_to_string(&mut contents).await?;
+
+        Ok(serde_json::from_str::<Self>(&contents)?)
+    }
+
+    pub async fn to_file(&self, path: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let mut file = File::create(path).await?;
+        file.write_all(serde_json::to_string_pretty(&self)?.as_bytes())
+            .await?;
+        Ok(())
+    }
+}
+
 /// Module that has the functions needed to run the client used for key generation.
 pub mod keygen_client {
     use super::{logging, receive_message, FrostClient, SignInput};
@@ -528,11 +560,11 @@ pub mod sign_client {
             (public_commitments, ids)
         };
 
-        // load enviroment variables
-        dotenv::dotenv().ok();
+        // load config variables
+        let config = ConfigFile::from_file().await?;
 
         // create the state for the rpc
-        let state = RPCState::new(&std::env::var("URL")?);
+        let state = RPCState::new(&config.url);
 
         // hash the message
         let message = sign_input.message.clone().to_hash(&state).await?;
@@ -649,15 +681,13 @@ pub mod sign_client {
                         };
                     }
 
-                    let key = std::env::var("KEY")?;
-
                     // create signed block
                     let signed_block = create_signed_block(
                         &state,
                         sign_input.message,
                         &signature_string.to_uppercase(),
                         &hex::encode(&sign_input.public_aggregated_key.as_bytes()),
-                        &key,
+                        &config.key,
                     )
                     .await?;
 

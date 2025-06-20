@@ -604,8 +604,11 @@ pub mod rpc {
         // the account to create the open/receive block
         let account = "nano_37ig7sigk36k6ekoa55gu6hfxkb3fdujfr9qd5gf4gkuiezeys8cnmw9pcot";
 
+        // get the config file
+        let config = crate::client::ConfigFile::from_file().await?;
+
         // the state of the RPC with the Nano node chosen
-        let state = RPCState::new(&std::env::var("URL")?);
+        let state = RPCState::new(&config.url);
 
         // the unsigned block created and that will be signed
         let unsigned_block =
@@ -619,17 +622,17 @@ pub mod rpc {
 
     #[tokio::test]
     async fn test_rpc_send() -> Result<(), Box<dyn Error + Send + Sync>> {
-        // load the enviroment variables
-        dotenv::dotenv().ok();
-
         // the account to create the send block
         let sender = "nano_1smubapuampnxtq14taxt8c9rc5f97hj7e8kqer4u6p94cre5g6qq3yxa4f3";
 
         // the account that will receive
         let receiver = "nano_19kqrk7taqnprmy1hcchpkdcpfqnpm7knwdhn9qafhd7b94s99ofngf5ent1";
 
+        // get the config file
+        let config = crate::client::ConfigFile::from_file().await?;
+
         // the state of the RPC with the Nano node chosen
-        let state = RPCState::new(&std::env::var("URL")?);
+        let state = RPCState::new(&config.url);
 
         // the unsigned block created and that will be signed
         let unsigned_block =
