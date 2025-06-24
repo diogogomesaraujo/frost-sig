@@ -2,6 +2,8 @@
 
 `frost-sig` is a threshold signature crate that implements the FROST protocol for Nano Currency transactions.
 
+It was developed as my Final Project for my Computer Science degree in Universidade da Beira Interior and it was used to build [Aokiji](https://github.com/diogogomesaraujo/aokiji), a Rust wallet for Nano group transactions that uses FROST.
+
 ## Features
 
 - FROST Keygen, Preprocess and Sign implementation for ed25519-blake2b variant.
