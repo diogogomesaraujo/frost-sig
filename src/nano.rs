@@ -602,7 +602,7 @@ pub mod rpc {
         let account = "nano_37ig7sigk36k6ekoa55gu6hfxkb3fdujfr9qd5gf4gkuiezeys8cnmw9pcot";
 
         // get the config file
-        let config = crate::client::ConfigFile::from_file(crate::CONFIG_FILE).await?;
+        let config = crate::client::ConfigFile::from_file("config.json").await?;
 
         // the state of the RPC with the Nano node chosen
         let state = RPCState::new(&config.url);
@@ -626,7 +626,7 @@ pub mod rpc {
         let receiver = "nano_19kqrk7taqnprmy1hcchpkdcpfqnpm7knwdhn9qafhd7b94s99ofngf5ent1";
 
         // get the config file
-        let config = crate::client::ConfigFile::from_file(crate::CONFIG_FILE).await?;
+        let config = crate::client::ConfigFile::from_file("config.json").await?;
 
         // the state of the RPC with the Nano node chosen
         let state = RPCState::new(&config.url);

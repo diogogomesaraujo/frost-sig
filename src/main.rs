@@ -49,7 +49,7 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             let path = std::env::args()
                 .nth(3)
                 .expect("Failed to give enough arguments.");
-            client::sign_client::run("localhost", 6705, &path).await?;
+            client::sign_client::run("localhost", 6705, &path, "config.json").await?;
         }
         _ => {
             eprintln!("Invalid arguments.");

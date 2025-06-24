@@ -98,6 +98,7 @@ pub struct SignInput {
 }
 
 impl Default for SignInput {
+    /// Function that creates a default `SignInput`.
     fn default() -> Self {
         Self {
             id: 0,
@@ -172,13 +173,17 @@ impl SignInput {
     }
 }
 
+/// Struct that represents the data stored in the configuration file.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ConfigFile {
+    /// The API-KEY provided by the node.
     pub key: String,
+    /// The url of the node.
     pub url: String,
 }
 
 impl ConfigFile {
+    /// Function that creates a new configuration file.
     pub fn new() -> Self {
         Self {
             key: "".to_string(),
@@ -186,6 +191,7 @@ impl ConfigFile {
         }
     }
 
+    /// Function that gets the configuration from the configuration file (async).
     pub async fn from_file(path: &str) -> Result<Self, Box<dyn Error + Send + Sync>> {
         let file = File::open(path).await?;
 
@@ -196,6 +202,7 @@ impl ConfigFile {
         Ok(serde_json::from_str::<Self>(&contents)?)
     }
 
+    /// Function that writes the configuration to the configuration file (async).
     pub async fn to_file(&self, path: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
         let mut file = File::create(path).await?;
         file.write_all(serde_json::to_string_pretty(&self)?.as_bytes())
@@ -203,6 +210,7 @@ impl ConfigFile {
         Ok(())
     }
 
+    /// Function that gets the configuration from the configuration file.
     pub fn from_file_sync(path: &str) -> Result<Self, Box<dyn Error>> {
         let file = std::fs::File::open(path)?;
 
@@ -213,6 +221,7 @@ impl ConfigFile {
         Ok(serde_json::from_str::<Self>(&contents)?)
     }
 
+    /// Function that writes the configuration to the configuration file.
     pub fn to_file_sync(&self, path: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
         let mut file = std::fs::File::create(path)?;
         file.write_all(serde_json::to_string_pretty(&self)?.as_bytes())?;
@@ -486,7 +495,6 @@ pub mod sign_client {
             compute_own_response, computed_response_to_signature, lagrange_coefficient,
             verify_participant,
         },
-        CONFIG_FILE,
     };
     use ed25519_dalek_blake2b::{PublicKey, Verifier};
     use futures::SinkExt;
@@ -495,7 +503,12 @@ pub mod sign_client {
     use tokio_util::codec::{Framed, LinesCodec};
 
     /// Function that runs the sign client.
-    pub async fn run(ip: &str, port: u32, path: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
+    pub async fn run(
+        ip: &str,
+        port: u32,
+        path: &str,
+        config_file_path: &str,
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
         // wallet and participant info needed from file
         let sign_input = SignInput::from_file(path).await?;
 
@@ -581,7 +594,7 @@ pub mod sign_client {
         };
 
         // load config variables
-        let config = ConfigFile::from_file(CONFIG_FILE).await?;
+        let config = ConfigFile::from_file(&config_file_path).await?;
 
         // create the state for the rpc
         let state = RPCState::new(&config.url);
