@@ -30,7 +30,7 @@ It was developed as my Final Project for my Computer Science degree in Universid
 
 ## Example
 
-### Socket
+### Socket implementation
 
 This example shows how to use the `client` and `server` modules to create a socket for participants to generate keys and sign transactions in a real-time CLI enviroment.
 
@@ -115,7 +115,7 @@ cargo run -- client keygen frost.json
 cargo run -- client sign frost.json
 ```
 
-### No Socket
+### Socketless Implementation
 
 First we initialize the random generator from the OS and the state with the correct number of participants and threshold.
 ```rust
