@@ -126,7 +126,7 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error + Send + Sync>> {
         )?);
     }
 
-    // each participant computes their own public key
+    // each participant computes their own private key
     let walter_private_key = round_2::compute_private_key(
         &walter_own_share,
         &[

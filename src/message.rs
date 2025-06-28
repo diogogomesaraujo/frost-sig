@@ -9,7 +9,7 @@
 //!
 //! - `Message` Enum.
 //! - `MessageJSON` Enum.
-//! - Conversions from `Message` into a JSON formated `String` and the other way arround.
+//! - Conversions from `Message` into a JSON formatted `String` and the other way arround.
 
 use curve25519_dalek::{edwards::CompressedEdwardsY, Scalar};
 use serde::{Deserialize, Serialize};
@@ -51,7 +51,7 @@ pub enum Message {
     /// It is used to do all the calculations needed for all the FROST operations.
     FrostState { participants: u32, threshold: u32 },
 
-    /// Message that is sent at the begging of the Frost sign operation.
+    /// Message that is sent at the begging of the FROST sign operation.
     /// It is used to atribute a temporary id to identify the participant as the operation is happening.
     Id(u32),
 
@@ -63,12 +63,12 @@ pub enum Message {
 }
 
 impl Message {
-    /// Function that converts a `Message` into a JSON formated `String`.
+    /// Function that converts a `Message` into a JSON formatted `String`.
     pub fn to_json_string(&self) -> Result<String, Box<dyn Error + Send + Sync>> {
         Ok(serde_json::to_string(&self)?)
     }
 
-    /// Function that convert a JSON formated `String` into a `Message`.
+    /// Function that converts a JSON formatted `String` into a `Message`.
     pub fn from_json_string(message: &str) -> Option<Message> {
         match serde_json::from_str::<Message>(&message) {
             Ok(message) => Some(message),

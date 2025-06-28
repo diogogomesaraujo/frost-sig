@@ -46,7 +46,7 @@ impl FrostState {
         }
     }
 
-    /// Function that converts the `FrostState` into a JSON formated `String`.
+    /// Function that converts the `FrostState` into a JSON formatted `String`.
     pub fn to_json_string(&self) -> String {
         serde_json::to_string(&self).unwrap()
     }

@@ -43,7 +43,7 @@ pub mod sign {
         }
     }
 
-    /// Struct that represents a block that has yet to be signed by the FROST signature squeme.
+    /// Struct that represents a block that has yet to be signed by the FROST signature scheme.
     #[derive(Serialize, Deserialize, Debug, Clone)]
     pub struct UnsignedBlock {
         pub r#type: String,
