@@ -57,7 +57,7 @@ pub async fn receive_message(
                 .expect(&format!("Failed to send message: {}.", line)))
         }
         Some(Err(e)) => return Err(format!("Network Error: {e}").into()),
-        None => return Err("Connection closed suddently.".into()),
+        None => return Err("Connection closed suddenly.".into()),
     }
 }
 
