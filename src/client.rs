@@ -599,7 +599,11 @@ pub mod sign_client {
         let state = RPCState::new(&config.url);
 
         // hash the message
-        let message = sign_input.message.clone().to_hash(&state).await?;
+        let message = sign_input
+            .message
+            .clone()
+            .to_hash(&state, &config.key)
+            .await?;
 
         // compute group commitment and challenge
         let (group_commitment, challenge) = compute_group_commitment_and_challenge(
@@ -728,6 +732,7 @@ pub mod sign_client {
                         &state,
                         &sign_input.subtype,
                         &signed_block,
+                        &config.key,
                     )
                     .await
                     {

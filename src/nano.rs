@@ -88,12 +88,17 @@ pub mod sign {
         pub async fn to_hash(
             self,
             state: &rpc::RPCState,
+            key: &str,
         ) -> Result<String, Box<dyn Error + Send + Sync>> {
             let mut block_state = [0u8; 32];
             block_state[31] = 6 as u8;
-            let account = hex::decode(AccountKey::get_from_rpc(state, &self.account).await?.key)?;
+            let account = hex::decode(
+                AccountKey::get_from_rpc(state, &self.account, key)
+                    .await?
+                    .key,
+            )?;
             let representative = hex::decode(
-                AccountKey::get_from_rpc(state, &self.representative)
+                AccountKey::get_from_rpc(state, &self.representative, key)
                     .await?
                     .key,
             )?;
@@ -134,13 +139,14 @@ pub mod sign {
         pub async fn create_open(
             state: &rpc::RPCState,
             account_address: &str,
+            key: &str,
         ) -> Result<Self, Box<dyn Error + Send + Sync>> {
-            let receivable = rpc::Receivable::get_from_rpc(&state, account_address, 1).await?;
+            let receivable = rpc::Receivable::get_from_rpc(&state, account_address, 1, key).await?;
             let first_receivable = match receivable.blocks.get(0) {
                 Some(block) => block,
                 None => return Err("Couldn't find any receivable blocks.".into()),
             };
-            let block = rpc::BlockInfo::get_from_rpc(&state, &first_receivable).await?;
+            let block = rpc::BlockInfo::get_from_rpc(&state, &first_receivable, key).await?;
 
             let account = account_address.to_string();
             let previous = "0".to_string();
@@ -160,19 +166,20 @@ pub mod sign {
         pub async fn create_receive(
             state: &rpc::RPCState,
             account_address: &str,
+            key: &str,
         ) -> Result<Self, Box<dyn Error + Send + Sync>> {
-            let receivable = rpc::Receivable::get_from_rpc(&state, account_address, 1).await?;
+            let receivable = rpc::Receivable::get_from_rpc(&state, account_address, 1, key).await?;
             let first_receivable = match receivable.blocks.get(0) {
                 Some(block) => block,
                 None => return Err("Couldn't find any receivable blocks.".into()),
             };
-            let block = rpc::BlockInfo::get_from_rpc(&state, &first_receivable).await?;
-            let previous = rpc::AccountInfo::get_from_rpc(&state, account_address)
+            let block = rpc::BlockInfo::get_from_rpc(&state, &first_receivable, key).await?;
+            let previous = rpc::AccountInfo::get_from_rpc(&state, account_address, key)
                 .await?
                 .frontier;
             let account = account_address.to_string();
             let representative = account_address.to_string();
-            let balance = rpc::AccountBalance::get_from_rpc(&state, &account_address)
+            let balance = rpc::AccountBalance::get_from_rpc(&state, &account_address, key)
                 .await?
                 .balance
                 .parse::<u128>()?
@@ -192,22 +199,23 @@ pub mod sign {
             own_account_address: &str,
             receiver_account_address: &str,
             amount_nano: &f64,
+            key: &str,
         ) -> Result<Self, Box<dyn Error + Send + Sync>> {
-            let ammount_raw = rpc::NanoToRaw::get_from_rpc(&state, &amount_nano)
+            let ammount_raw = rpc::NanoToRaw::get_from_rpc(&state, &amount_nano, key)
                 .await?
                 .raw;
-            let previous = rpc::AccountInfo::get_from_rpc(&state, own_account_address)
+            let previous = rpc::AccountInfo::get_from_rpc(&state, own_account_address, key)
                 .await?
                 .frontier;
             let account = own_account_address.to_string();
             let representative = own_account_address.to_string();
-            let balance = rpc::AccountBalance::get_from_rpc(&state, &own_account_address)
+            let balance = rpc::AccountBalance::get_from_rpc(&state, &own_account_address, key)
                 .await?
                 .balance
                 .parse::<u128>()?
                 .checked_sub(ammount_raw.parse::<u128>()?)
                 .ok_or("Balance underflow")?;
-            let link = AccountKey::get_from_rpc(&state, receiver_account_address)
+            let link = AccountKey::get_from_rpc(&state, receiver_account_address, key)
                 .await?
                 .key;
 
@@ -373,9 +381,11 @@ pub mod rpc {
         pub async fn get_from_rpc(
             state: &RPCState,
             amount_nano: &f64,
+            key: &str,
         ) -> Result<Self, Box<dyn Error + Send + Sync>> {
             let data = json!({
                 "action": "nano_to_raw",
+                "key": key,
                 "amount": amount_nano.to_string()
             });
             state.request::<Self>(&data).await
@@ -397,9 +407,11 @@ pub mod rpc {
         pub async fn get_from_rpc(
             state: &RPCState,
             account_address: &str,
+            key: &str,
         ) -> Result<Self, Box<dyn Error + Send + Sync>> {
             let data = json!({
                 "action": "account_info",
+                "key": key,
                 "account": account_address,
                 "representative": "true"
             });
@@ -437,9 +449,11 @@ pub mod rpc {
         pub async fn get_from_rpc(
             state: &RPCState,
             account_address: &str,
+            key: &str,
         ) -> Result<Self, Box<dyn Error + Send + Sync>> {
             let data = json!({
                 "action": "account_balance",
+                "key": key,
                 "account": account_address
             });
             state.request::<Self>(&data).await
@@ -476,9 +490,11 @@ pub mod rpc {
             state: &RPCState,
             nano_account: &str,
             count: u32,
+            key: &str,
         ) -> Result<Self, Box<dyn Error + Send + Sync>> {
             let data = json!({
                 "action": "account_history",
+                "key": key,
                 "account": nano_account,
                 "count": count.to_string()
             });
@@ -497,9 +513,11 @@ pub mod rpc {
         pub async fn get_from_rpc(
             state: &RPCState,
             nano_account: &str,
+            key: &str,
         ) -> Result<Self, Box<dyn Error + Send + Sync>> {
             let data = json!({
                 "action": "account_key",
+                "key": key,
                 "account": nano_account
             });
             state.request::<Self>(&data).await
@@ -541,9 +559,11 @@ pub mod rpc {
             state: &RPCState,
             account_address: &str,
             count: u32,
+            key: &str,
         ) -> Result<Self, Box<dyn Error + Send + Sync>> {
             let data = json!({
                 "action": "receivable",
+                "key": key,
                 "account": account_address,
                 "count": count.to_string()
             });
@@ -563,9 +583,11 @@ pub mod rpc {
         pub async fn get_from_rpc(
             state: &RPCState,
             hash: &str,
+            key: &str,
         ) -> Result<Self, Box<dyn Error + Send + Sync>> {
             let data = json!({
                 "action": "block_info",
+                "key": key,
                 "hash": hash,
             });
             state.request::<Self>(&data).await
@@ -584,9 +606,11 @@ pub mod rpc {
             state: &RPCState,
             subtype: &super::sign::Subtype,
             signed_block: &super::sign::SignedBlock,
+            key: &str,
         ) -> Result<Self, Box<dyn Error + Send + Sync>> {
             let data = json!({
                 "action": "process",
+                "key": key,
                 "subtype": subtype.as_str(),
                 "json_block": "true",
                 "block": &signed_block
@@ -609,7 +633,7 @@ pub mod rpc {
 
         // the unsigned block created and that will be signed
         let unsigned_block =
-            crate::nano::sign::UnsignedBlock::create_receive(&state, &account).await?;
+            crate::nano::sign::UnsignedBlock::create_receive(&state, &account, &config.key).await?;
 
         println!("{}", serde_json::to_string(&unsigned_block)?);
         assert!(true);
@@ -632,9 +656,14 @@ pub mod rpc {
         let state = RPCState::new(&config.url);
 
         // the unsigned block created and that will be signed
-        let unsigned_block =
-            crate::nano::sign::UnsignedBlock::create_send(&state, &sender, &receiver, &0.00005)
-                .await?;
+        let unsigned_block = crate::nano::sign::UnsignedBlock::create_send(
+            &state,
+            &sender,
+            &receiver,
+            &0.00005,
+            &config.key,
+        )
+        .await?;
 
         println!("{}", serde_json::to_string(&unsigned_block)?);
         assert!(true);
