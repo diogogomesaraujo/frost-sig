@@ -1,4 +1,6 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{
+    criterion_group, criterion_main, measurement::WallTime, BenchmarkGroup, Criterion,
+};
 use curve25519_dalek::{edwards::CompressedEdwardsY, Scalar};
 use frost_sig::{
     keygen::{round_1, round_2},
@@ -8,7 +10,11 @@ use frost_sig::{
 use rand::rngs::OsRng;
 use std::error::Error;
 
-pub fn generate_keygen_values(state: &FrostState) -> Result<(), Box<dyn Error + Sync + Send>> {
+/// Function used execute the keygeneration process for any number of participants.
+pub fn generate_keygen_values(
+    group: &mut BenchmarkGroup<'_, WallTime>,
+    state: &FrostState,
+) -> Result<(), Box<dyn Error + Sync + Send>> {
     // get the os generator
     let mut rng = OsRng;
 
@@ -115,6 +121,7 @@ pub fn generate_keygen_values(state: &FrostState) -> Result<(), Box<dyn Error + 
         .iter()
         .map(|pk| round_2::compute_own_public_share(&pk))
         .collect::<Vec<CompressedEdwardsY>>();
+
     // each participant computes verification shares for all participants
     let verification_shares: Vec<Vec<_>> = participants
         .iter()
@@ -135,51 +142,94 @@ pub fn generate_keygen_values(state: &FrostState) -> Result<(), Box<dyn Error + 
         .collect::<Result<Vec<_>, _>>()?;
 
     // each participant verifies if the public key matches the aggregate verification share
-    for (public_key, aggregate_verification_share) in own_public_shares
+    own_public_shares
         .iter()
         .zip(aggregate_verification_shares.iter())
-    {
-        assert_eq!(*public_key, *aggregate_verification_share);
-    }
+        .for_each(|(public_key, aggregate_verification_share)| {
+            assert_eq!(*public_key, *aggregate_verification_share)
+        });
 
     // compute the group public key from the commitments
     let _group_public_key = round_2::compute_group_public_key(&broadcasts)?;
+
+    group.bench_function(
+        &format!("({},{})", state.participants, state.threshold),
+        |b| {
+            b.iter(|| {
+                let _polynomial = round_1::generate_polynomial(state, &mut rng);
+                let participant =
+                    frost_sig::keygen::Participant::new(0, participants[0].polynomial.clone());
+                let signature = round_1::compute_proof_of_knowlodge(&mut rng, &participant);
+                let commitments = round_1::compute_public_commitments(&participant);
+                let _broadcast = Message::Broadcast {
+                    participant_id: participant.id,
+                    commitments,
+                    signature,
+                };
+
+                assert!(round_1::verify_proofs(&broadcasts[1..]).unwrap());
+
+                let own_share = round_2::create_own_secret_share(&participant);
+
+                let shares_for: Vec<Message> = participants[1..]
+                    .iter()
+                    .map(|p| round_2::create_share_for(&p, &participant.id))
+                    .collect();
+
+                shares_for
+                    .iter()
+                    .zip(broadcasts[1..].iter())
+                    .for_each(|(s, b)| {
+                        assert!(round_2::verify_share_validity(&participant, &s, &b,).unwrap());
+                    });
+
+                let private_key = round_2::compute_private_key(&own_share, &shares_for).unwrap();
+                let public_key = round_2::compute_own_public_share(&private_key);
+
+                let others_verification_shares: Vec<CompressedEdwardsY> = broadcasts
+                    .iter()
+                    .map(|b| {
+                        round_2::compute_participant_verification_share(&participant, b).unwrap()
+                    })
+                    .collect();
+
+                let aggregate_verification_share =
+                    round_2::compute_others_verification_share(&others_verification_shares)
+                        .unwrap();
+
+                assert_eq!(public_key, aggregate_verification_share);
+                let _group_public_key = round_2::compute_group_public_key(&broadcasts).unwrap();
+            })
+        },
+    );
 
     Ok(())
 }
 
 fn keygen_benchmark(c: &mut Criterion) {
-    let mut group = c.benchmark_group("FROST Key Generation Changing Participants");
+    let mut group = c.benchmark_group("FROST Key Generation (Changing Participants)");
 
-    group.bench_function("(2,2)", |b| {
-        b.iter(|| generate_keygen_values(&FrostState::new(2, 2)))
-    });
-    group.bench_function("(3,2)", |b| {
-        b.iter(|| generate_keygen_values(&FrostState::new(3, 2)))
-    });
-    group.bench_function("(4,2)", |b| {
-        b.iter(|| generate_keygen_values(&FrostState::new(4, 2)))
-    });
-    group.bench_function("(5,2)", |b| {
-        b.iter(|| generate_keygen_values(&FrostState::new(5, 2)))
-    });
+    generate_keygen_values(&mut group, &FrostState::new(2, 2)).unwrap();
+    generate_keygen_values(&mut group, &FrostState::new(3, 2)).unwrap();
+    generate_keygen_values(&mut group, &FrostState::new(4, 2)).unwrap();
+    generate_keygen_values(&mut group, &FrostState::new(5, 2)).unwrap();
+    generate_keygen_values(&mut group, &FrostState::new(6, 2)).unwrap();
+    generate_keygen_values(&mut group, &FrostState::new(7, 2)).unwrap();
+    generate_keygen_values(&mut group, &FrostState::new(8, 2)).unwrap();
+    generate_keygen_values(&mut group, &FrostState::new(9, 2)).unwrap();
 
     group.finish();
 
-    let mut group = c.benchmark_group("FROST Key Generation Changing Threshold");
+    let mut group = c.benchmark_group("FROST Key Generation (Changing Threshold)");
 
-    group.bench_function("(5,2)", |b| {
-        b.iter(|| generate_keygen_values(&FrostState::new(5, 2)))
-    });
-    group.bench_function("(5,3)", |b| {
-        b.iter(|| generate_keygen_values(&FrostState::new(5, 3)))
-    });
-    group.bench_function("(5,4)", |b| {
-        b.iter(|| generate_keygen_values(&FrostState::new(5, 4)))
-    });
-    group.bench_function("(5,5)", |b| {
-        b.iter(|| generate_keygen_values(&FrostState::new(5, 5)))
-    });
+    generate_keygen_values(&mut group, &FrostState::new(9, 2)).unwrap();
+    generate_keygen_values(&mut group, &FrostState::new(9, 3)).unwrap();
+    generate_keygen_values(&mut group, &FrostState::new(9, 4)).unwrap();
+    generate_keygen_values(&mut group, &FrostState::new(9, 5)).unwrap();
+    generate_keygen_values(&mut group, &FrostState::new(9, 6)).unwrap();
+    generate_keygen_values(&mut group, &FrostState::new(9, 7)).unwrap();
+    generate_keygen_values(&mut group, &FrostState::new(9, 8)).unwrap();
+    generate_keygen_values(&mut group, &FrostState::new(9, 9)).unwrap();
 
     group.finish();
 }
