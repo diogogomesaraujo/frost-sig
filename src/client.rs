@@ -590,8 +590,6 @@ pub mod sign_client {
             (public_commitments, ids)
         };
 
-        println!("{config_file_path}");
-
         // load config variables
         let config = ConfigFile::from_file(&config_file_path).await?;
 
