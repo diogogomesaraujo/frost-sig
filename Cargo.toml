@@ -42,3 +42,7 @@ criterion = { version = "0.5", features = ["html_reports"] }
 [[bench]]
 name = "keygen"
 harness = false
+
+[[bench]]
+name = "sign"
+harness = false
