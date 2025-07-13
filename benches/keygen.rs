@@ -1,4 +1,4 @@
-//! This module does the Key Generation implementation benchmarking.
+//! Implementation of the Keygen operation benchmarks.
 
 use criterion::{
     criterion_group, criterion_main, measurement::WallTime, BenchmarkGroup, Criterion,
@@ -12,7 +12,8 @@ use frost_sig::{
 use rand::rngs::OsRng;
 use std::error::Error;
 
-/// Function used execute the keygeneration process for any number of participants.
+/// Function used execute the key generation process for any number of participants and threshold.
+/// The benchmark is then added to the given group.
 pub fn generate_keygen_values(
     group: &mut BenchmarkGroup<'_, WallTime>,
     state: &FrostState,
@@ -168,37 +169,29 @@ pub fn generate_keygen_values(
                     commitments,
                     signature,
                 };
-
                 assert!(round_1::verify_proofs(&broadcasts[1..]).unwrap());
-
                 let own_share = round_2::create_own_secret_share(&participant);
-
                 let shares_for: Vec<Message> = participants[1..]
                     .iter()
                     .map(|p| round_2::create_share_for(&p, &participant.id))
                     .collect();
-
                 shares_for
                     .iter()
                     .zip(broadcasts[1..].iter())
                     .for_each(|(s, b)| {
                         assert!(round_2::verify_share_validity(&participant, &s, &b,).unwrap());
                     });
-
                 let private_key = round_2::compute_private_key(&own_share, &shares_for).unwrap();
                 let public_key = round_2::compute_own_public_share(&private_key);
-
                 let others_verification_shares: Vec<CompressedEdwardsY> = broadcasts
                     .iter()
                     .map(|b| {
                         round_2::compute_participant_verification_share(&participant, b).unwrap()
                     })
                     .collect();
-
                 let aggregate_verification_share =
                     round_2::compute_others_verification_share(&others_verification_shares)
                         .unwrap();
-
                 assert_eq!(public_key, aggregate_verification_share);
                 let _group_public_key = round_2::compute_group_public_key(&broadcasts).unwrap();
             })
@@ -208,9 +201,12 @@ pub fn generate_keygen_values(
     Ok(())
 }
 
-/// Function that actually benchmarks the Key Generation.
+/// Function that benchmarks the Key Generation operation for different (n, t) pairs.
 fn keygen_benchmark(c: &mut Criterion) {
-    let mut group = c.benchmark_group("FROST Key Generation (Changing Participants)");
+    // group that will benchmark how the number of participants influences performance
+    let mut group = c.benchmark_group(
+        "FROST Key Generation - Impact of the Total Number of Participants for the Same Threshold",
+    );
 
     generate_keygen_values(&mut group, &FrostState::new(2, 2)).unwrap();
     generate_keygen_values(&mut group, &FrostState::new(3, 2)).unwrap();
@@ -223,7 +219,10 @@ fn keygen_benchmark(c: &mut Criterion) {
 
     group.finish();
 
-    let mut group = c.benchmark_group("FROST Key Generation (Changing Threshold)");
+    // group that will benchmark how the threshold influences performance
+    let mut group = c.benchmark_group(
+        "FROST Key Generation - Impact of Different Thresholds for the Same Number of Participants",
+    );
 
     generate_keygen_values(&mut group, &FrostState::new(9, 2)).unwrap();
     generate_keygen_values(&mut group, &FrostState::new(9, 3)).unwrap();

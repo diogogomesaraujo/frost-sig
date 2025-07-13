@@ -1,3 +1,5 @@
+//! Implementation of the Sign operation benchmarks.
+
 use criterion::{
     criterion_group, criterion_main, measurement::WallTime, BenchmarkGroup, Criterion,
 };
@@ -15,6 +17,8 @@ use frost_sig::{
 };
 use rand::rngs::OsRng;
 
+/// Function used execute the sign process for any number of participants and threshold.
+/// The benchmark is then added to the given group.
 fn generate_signature_values(
     group: &mut BenchmarkGroup<'_, WallTime>,
     state: &FrostState,
@@ -22,6 +26,7 @@ fn generate_signature_values(
     // get the os generator
     let mut rng = OsRng;
 
+    // generate keys that will be used for the sign process
     // round 1
 
     // each participant computes his polynomial
@@ -152,17 +157,22 @@ fn generate_signature_values(
             assert_eq!(*public_key, *aggregate_verification_share)
         });
 
+    // begin the actual sign process
+
     // compute the group public key from the commitments
     let group_public_key = round_2::compute_group_public_key(&broadcasts)?;
 
+    // default message that will be used for testing
     let message = "53656e6420426f62203130206275636b732e";
 
+    // calculate each participants nonces and commitments pair
     let commitments: Vec<((Scalar, Scalar), (CompressedEdwardsY, CompressedEdwardsY))> = (0..state
         .threshold)
         .into_iter()
         .map(|_| generate_nonces_and_commitments(&mut rng))
         .collect();
 
+    // convert the commitments into messages that can be sent to others
     let commitments_messages: Vec<Message> = commitments
         .iter()
         .enumerate()
@@ -174,6 +184,7 @@ fn generate_signature_values(
         })
         .collect();
 
+    // compute the group commitment and challenge that the group will use to compute responses
     let (_group_commitment, challenge) = compute_group_commitment_and_challenge(
         &commitments_messages,
         message,
@@ -181,11 +192,14 @@ fn generate_signature_values(
         &[],
     )?;
 
+    // get a vector with every participant's id
     let ids: Vec<u32> = (0..state.threshold).into_iter().map(|i| i as u32).collect();
 
+    // calculate each participants' lagrange coefficient
     let lagrange_coefficients: Vec<Scalar> =
         ids.iter().map(|i| lagrange_coefficient(&ids, &i)).collect();
 
+    // compute each participants' partial response
     let responses: Vec<Message> = (0..state.threshold)
         .into_iter()
         .map(|i| {
@@ -210,8 +224,7 @@ fn generate_signature_values(
         &format!("({},{})", state.participants, state.threshold),
         |b| {
             b.iter(|| {
-                let i = 0u32;
-
+                let i = 0u32; // participant id defaulted to 0
                 let (group_commitment, challenge) = compute_group_commitment_and_challenge(
                     &commitments_messages,
                     message,
@@ -219,9 +232,7 @@ fn generate_signature_values(
                     &[],
                 )
                 .unwrap();
-
                 let lagrange_coefficients = lagrange_coefficient(&ids, &i);
-
                 let _response = compute_own_response(
                     i,
                     &commitments_messages[i as usize],
@@ -235,9 +246,7 @@ fn generate_signature_values(
                     &[],
                 )
                 .unwrap();
-
                 let aggregate_response = compute_aggregate_response(&responses).unwrap();
-
                 let (signature, _) =
                     computed_response_to_signature(&aggregate_response, &group_commitment).unwrap();
 
@@ -255,10 +264,12 @@ fn generate_signature_values(
     Ok(())
 }
 
-/// Function that actually benchmarks the Key Generation.
+/// Function that benchmarks the Sign operation for different (n, t) pairs..
 fn sign_benchmark(c: &mut Criterion) {
-    let mut group = c.benchmark_group("FROST Sign (Changing Participants)");
-
+    // group that will benchmark how the number of participants influences performance
+    let mut group = c.benchmark_group(
+        "FROST Sign - Impact of the Total Number of Participants for the Same Threshold",
+    );
     generate_signature_values(&mut group, &FrostState::new(2, 2)).unwrap();
     generate_signature_values(&mut group, &FrostState::new(3, 2)).unwrap();
     generate_signature_values(&mut group, &FrostState::new(4, 2)).unwrap();
@@ -267,11 +278,12 @@ fn sign_benchmark(c: &mut Criterion) {
     generate_signature_values(&mut group, &FrostState::new(7, 2)).unwrap();
     generate_signature_values(&mut group, &FrostState::new(8, 2)).unwrap();
     generate_signature_values(&mut group, &FrostState::new(9, 2)).unwrap();
-
     group.finish();
 
-    let mut group = c.benchmark_group("FROST Sign (Changing Threshold)");
-
+    // group that will benchmark how the threshold influences performance
+    let mut group = c.benchmark_group(
+        "FROST Sign - Impact of Different Thresholds for the Same Number of Participants",
+    );
     generate_signature_values(&mut group, &FrostState::new(9, 2)).unwrap();
     generate_signature_values(&mut group, &FrostState::new(9, 3)).unwrap();
     generate_signature_values(&mut group, &FrostState::new(9, 4)).unwrap();
@@ -280,7 +292,6 @@ fn sign_benchmark(c: &mut Criterion) {
     generate_signature_values(&mut group, &FrostState::new(9, 7)).unwrap();
     generate_signature_values(&mut group, &FrostState::new(9, 8)).unwrap();
     generate_signature_values(&mut group, &FrostState::new(9, 9)).unwrap();
-
     group.finish();
 }
 
