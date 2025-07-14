@@ -99,6 +99,8 @@ Alternatively, you can run the project by following these steps.
 
 In order to run build this application from source you will need to have `cargo` installed. To install it you can follow this [tutorial](https://www.rust-lang.org/tools/install) from Rust's official website.
 
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
 ### Installation
 1. Clone the repository
    
@@ -111,6 +113,8 @@ In order to run build this application from source you will need to have `cargo`
    cargo build
    ```
 
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
 ### Run the Project
 1. Navigate to the project's directory
 2. Run `main.rs`, a simple CLI application demonstrating the `crate`'s socket implementation
@@ -119,12 +123,16 @@ In order to run build this application from source you will need to have `cargo`
    cargo run
    ```
 
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
 ### Documentation
 1. To build and open the documentation
    
    ```sh
    cargo doc --open
    ```
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ### Benchmarks
 1. To run benchmarks measuring each participant's computation latency according to threshold and total number of participants
