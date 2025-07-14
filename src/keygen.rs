@@ -138,7 +138,7 @@ pub mod round_1 {
 /// The second round is responsible for generating partial signatures for every participant and aggregate them to form the group keys that will be used to sign transactions.
 pub mod round_2 {
     use super::Participant;
-    use crate::{decompress, message::Message};
+    use crate::{decompress, message::Message, power_to_scalar};
     use curve25519_dalek::{
         constants::ED25519_BASEPOINT_POINT, edwards::CompressedEdwardsY, traits::Identity,
         EdwardsPoint, Scalar,
@@ -194,7 +194,7 @@ pub mod round_2 {
                 let others = commitments.iter().enumerate().try_fold(
                     EdwardsPoint::identity(),
                     |acc, (k, apk)| -> Result<EdwardsPoint, Box<dyn Error + Send + Sync>> {
-                        Ok(acc + (decompress(apk)? * Scalar::from(participant.id.pow(k as u32))))
+                        Ok(acc + (decompress(apk)? * power_to_scalar(participant.id, k as u32)?))
                     },
                 )?;
                 Ok(own == others)
@@ -274,7 +274,7 @@ pub mod round_2 {
                 .try_fold(
                     EdwardsPoint::identity(),
                     |acc, (k, apk)| -> Result<EdwardsPoint, Box<dyn Error + Send + Sync>> {
-                        Ok(acc + (decompress(apk)? * Scalar::from(participant.id.pow(k as u32))))
+                        Ok(acc + (decompress(apk)? * power_to_scalar(participant.id, k as u32)?))
                     },
                 )?
                 .compress()),

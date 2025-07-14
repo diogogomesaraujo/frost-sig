@@ -17,6 +17,7 @@ curve25519-dalek = { version = "4", features = [
 ] }
 # numbers
 blake2 = "0.10.6"
+rug = "1.27.0"
 ed25519-dalek-blake2b = "1.0.2"
 primitive-types = "0.13.1"
 rand = "0.8.0"

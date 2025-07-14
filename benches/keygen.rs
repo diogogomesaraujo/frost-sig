@@ -216,6 +216,7 @@ fn keygen_benchmark(c: &mut Criterion) {
     generate_keygen_values(&mut group, &FrostState::new(7, 2)).unwrap();
     generate_keygen_values(&mut group, &FrostState::new(8, 2)).unwrap();
     generate_keygen_values(&mut group, &FrostState::new(9, 2)).unwrap();
+    generate_keygen_values(&mut group, &FrostState::new(10, 2)).unwrap();
 
     group.finish();
 
@@ -224,14 +225,15 @@ fn keygen_benchmark(c: &mut Criterion) {
         "FROST Key Generation - Impact of Different Thresholds for the Same Number of Participants",
     );
 
-    generate_keygen_values(&mut group, &FrostState::new(9, 2)).unwrap();
-    generate_keygen_values(&mut group, &FrostState::new(9, 3)).unwrap();
-    generate_keygen_values(&mut group, &FrostState::new(9, 4)).unwrap();
-    generate_keygen_values(&mut group, &FrostState::new(9, 5)).unwrap();
-    generate_keygen_values(&mut group, &FrostState::new(9, 6)).unwrap();
-    generate_keygen_values(&mut group, &FrostState::new(9, 7)).unwrap();
-    generate_keygen_values(&mut group, &FrostState::new(9, 8)).unwrap();
-    generate_keygen_values(&mut group, &FrostState::new(9, 9)).unwrap();
+    generate_keygen_values(&mut group, &FrostState::new(10, 2)).unwrap();
+    generate_keygen_values(&mut group, &FrostState::new(10, 3)).unwrap();
+    generate_keygen_values(&mut group, &FrostState::new(10, 4)).unwrap();
+    generate_keygen_values(&mut group, &FrostState::new(10, 5)).unwrap();
+    generate_keygen_values(&mut group, &FrostState::new(10, 6)).unwrap();
+    generate_keygen_values(&mut group, &FrostState::new(10, 7)).unwrap();
+    generate_keygen_values(&mut group, &FrostState::new(10, 8)).unwrap();
+    generate_keygen_values(&mut group, &FrostState::new(10, 9)).unwrap();
+    generate_keygen_values(&mut group, &FrostState::new(10, 10)).unwrap();
 
     group.finish();
 }

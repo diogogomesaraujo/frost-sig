@@ -3,8 +3,9 @@
 use blake2::{digest::consts::U64, Blake2b, Digest};
 use curve25519_dalek::{edwards::CompressedEdwardsY, EdwardsPoint, Scalar};
 use message::Message;
+use rug::Integer;
 use serde::{Deserialize, Serialize};
-use std::error::Error;
+use std::{error::Error, str::FromStr};
 
 pub mod keygen;
 pub mod preprocess;
@@ -19,6 +20,10 @@ pub mod nano;
 
 #[cfg(test)]
 mod test;
+
+/// Modulus used by `curve25519-dalek` for modular aryihmetic.
+const MODULUS: &str =
+    "7237005577332262213973186563042994240857116359379907606001950938285454250989";
 
 /// Struct that saves the constants needed for FROST. These values should be used by all participants throughout the signing session and discarted after.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -82,4 +87,25 @@ pub fn hash_to_scalar(inputs: &[&[u8]]) -> Scalar {
     }
     let hash = h.finalize();
     Scalar::from_bytes_mod_order_wide(&hash.into())
+}
+
+/// Function used for doing power operations on `u32` values in a safe and modular way.
+pub fn power_to_scalar(base: u32, exponent: u32) -> Result<Scalar, Box<dyn Error + Sync + Send>> {
+    let base = Integer::from(base);
+    let exponent = Integer::from(exponent);
+    let modulus = Integer::from_str(MODULUS)?;
+
+    let result = match base.pow_mod(&exponent, &modulus) {
+        Ok(r) => r,
+        Err(e) => return Err(format!("{e}").into()),
+    };
+
+    let mut le_bytes = result.to_digits::<u8>(rug::integer::Order::Lsf);
+
+    le_bytes.resize(64, 0);
+
+    let mut wide_bytes = [0u8; 64];
+    wide_bytes.copy_from_slice(&le_bytes[..64]);
+
+    Ok(Scalar::from_bytes_mod_order_wide(&wide_bytes))
 }
