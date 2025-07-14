@@ -1,36 +1,155 @@
-# frost-sig
+<a id="readme-top"></a>
 
-`frost-sig` is a threshold signature crate that implements the FROST protocol for Nano Currency transactions.
 
-It was developed as my Final Project for my Computer Science degree in Universidade da Beira Interior and it was used to build [Aokiji](https://github.com/diogogomesaraujo/aokiji), a Rust wallet for Nano group transactions that uses FROST.
+<!-- PROJECT LOGO -->
+<br />
+<div align="center">
+  <h3 align="center">frost-sig</h3>
+  <p align="center">
+    A threshold signature `crate` that implements FROST for Nano transactions
+  </p>
+</div>
 
-## Features
 
-- FROST Keygen, Preprocess and Sign implementation for ed25519-blake2b variant.
-- Nano implementation to create shared account's and sign group transactions.
-- Servers/Clients to use the protocol in a pratical setting.
 
-## Usage Flow
+<!-- TABLE OF CONTENTS -->
+<details>
+  <summary>Table of Contents</summary>
+  <ol>
+    <li>
+      <a href="#about-the-project">About The Project</a>
+      <ul>
+        <li><a href="#built-with">Built With</a></li>
+      </ul>
+    </li>
+    <li>
+      <a href="#getting-started">Getting Started</a>
+      <ul>
+        <li><a href="#prerequisites">Prerequisites</a></li>
+        <li><a href="#installation">Installation</a></li>
+        <li><a href="#run-the-project">Run the Project</a></li>
+        <li><a href="#documentation">Documentation</a></li>
+        <li><a href="#benchmarks">Benchmarks</a></li>
+      </ul>
+    </li>
+    <li>
+      <a href="#usage">Usage</a>
+      <ul>
+        <li><a href="#flow">Flow</a></li>
+        <li><a href="#socket">Socket</a></li>
+        <li><a href="#frost">FROST</a></li>
+      </ul>
+    </li>
+    <li><a href="#benchmarks">Benchmarks</a>
+      <ul>
+        <li><a href="#influence-of-the-number-of-total-participants">Influence of the Number of Total Participants</a></li>
+        <li><a href="#influence-of-the-threshold">Influence of the Threshold</a></li>
+      </ul>
+    </li>
+    <li><a href="#support">Support</a></li>
+    <li><a href="#contributing">Contributing</a></li>
+  </ol>
+</details>
+
+
+
+<!-- ABOUT THE PROJECT -->
+## About The Project
+
+`frost-sig` is a Rust `crate` that implements the **FROST** signature protocol for computing **threshold digital signatures** that are **secure**, **distributed**, and **low-latency**. This project was developed as the Final Project for my Computer Science degree at Universidade da Beira Interior under the guidance of Professor Doctor Paul Andrew Crocker. The complete research and implementation details can be found in the [report](https://github.com/diogogomesaraujo/aokiji/blob/main/report.pdf).
+
+**What features does it provide?**
+* **Key Generation**, **Preprocess**, and **Sign** building blocks that enable the creation of group accounts and collective message signing (such as transactions).
+* **TCP Client/Server** implementations for generating keys and signing messages in distributed environments.
+* Infrastructure for utilizing FROST's signature scheme to sign and publish transactions on Nano's blockchain.
+
+To see `frost-sig` in action within a real-world application, check out [aokiji](https://github.com/diogogomesaraujo/aokiji), a digital wallet that leverages this `crate`.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+
+### Built With
+
+These are some of the tools used to build this application. They provided a strong foundation to assure its integrity and robustness.
+
+* `curve25519_dalek` for elliptic curve cryptography.
+* `ed25519-dalek-blake2b` for signature validation.
+* `rand` for random number generation.
+* `serde` for json serialization and deserialization.
+* `hex` for hexadecimal serialization and deserialization.
+* `tokio` for the TCP sockets implementation (multithreaded and async).
+* `reqwest` for HTTP requests.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+
+
+<!-- GETTING STARTED -->
+## Getting Started
+
+You can use this crate inside an already existing project by adding the following line to your `Cargo.toml` dependencies
+
+```toml
+frost-sig = { git = "https://github.com/diogogomesaraujo/frost-sig.git" }
+```
+
+Alternatively, you can run the project by following these steps.
+
+### Prerequisites
+
+In order to run build this application from source you will need to have `cargo` installed. To install it you can follow this [tutorial](https://www.rust-lang.org/tools/install) from Rust's official website.
+
+### Installation
+1. Clone the repository
+   
+   ```sh
+   git clone https://github.com/diogogomesaraujo/frost-sig.git
+   ```
+2. Build the project
+   
+   ```sh
+   cargo build
+   ```
+
+### Run the Project
+1. Navigate to the project's directory
+2. Run `main.rs`, a simple CLI application demonstrating the `crate`'s socket implementation
+   
+   ```sh
+   cargo run
+   ```
+
+### Documentation
+1. To build and open the documentation
+   
+   ```sh
+   cargo doc --open
+   ```
+
+### Benchmarks
+1. To run benchmarks measuring each participant's computation latency according to threshold and total number of participants
+   
+   ```sh
+   cargo bench
+   ```
+3. To view the benchmark results, navigate to `./target/criterion/report` and open `index.html`
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+
+
+<!-- USAGE EXAMPLES -->
+## Usage
+
+### Flow
+
+To get a better understanding of how to use the `crate`'s building blocks take a look at the follwing UML diagram.
 
 ![Activity Diagrams](./doc/assets/frost-server.jpg)
 
-## Dependencies
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-- `curve25519_dalek` for elliptic curve cryptography.
-- `ed25519-dalek-blake2b` for signature validation.
-- `rand` for random number generation.
-- `serde` for json serialization and deserialization.
-- `hex` for hexadecimal serialization and deserialization.
-- `tokio` for the TCP sockets implementation (multithreaded and async).
-- `reqwest` for HTTP requests.
-
-## Requirements
-
-- Cargo installed
-
-## Example
-
-### Socket implementation
+### Socket
 
 This example shows how to use the `client` and `server` modules to create a socket for participants to generate keys and sign transactions in a real-time CLI enviroment.
 
@@ -115,7 +234,11 @@ cargo run -- client keygen frost.json
 cargo run -- client sign frost.json
 ```
 
-### Socketless Implementation
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+### FROST
+
+This example shows how to use the FROST implementation itself, without the sockets.
 
 First we initialize the random generator from the OS and the state with the correct number of participants and threshold.
 ```rust
@@ -438,6 +561,80 @@ let verifying_key = PublicKey::from_bytes(group_public_key.as_bytes()).expect("C
 verifying_key.verify(&hex::decode(&message)?, &signature).expect("Couldn't verify the signature with the public key!");
 ```
 
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+<!-- BENCHMARKS -->
+## Benchmarks
+
+To understand the behavior of the protocol used and how the `crate`'s performance adapts to the number of participants and threshold chosen look at the following graphs.
+
+### Influence of the Number of Total Participants
+
+#### Key Generation
+![Keygen-Participants](benches/assets/keygen_participants.jpg)
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+#### Sign
+![Keygen-Participants](benches/assets/sign_participants.jpg)
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+### Influence of the Threshold
+
+#### Key Generation
+![Keygen-Participants](benches/assets/keygen_threshold.jpg)
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+#### Sign
+![Keygen-Participants](benches/assets/sign_threshold.jpg)
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
 ## Support
 
 The resources used for this project are [FROST's official paper](https://eprint.iacr.org/2020/852.pdf) and [Nano Node documentation](https://docs.nano.org/integration-guides/key-management/) here.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+<!-- CONTRIBUTING -->
+## Contributing
+
+This `crate` is fully **open-source** so feel free to contribute to it or fork and adapt it to your liking.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+
+
+<!-- MARKDOWN LINKS & IMAGES -->
+<!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
+[contributors-shield]: https://img.shields.io/github/contributors/othneildrew/Best-README-Template.svg?style=for-the-badge
+[contributors-url]: https://github.com/othneildrew/Best-README-Template/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/othneildrew/Best-README-Template.svg?style=for-the-badge
+[forks-url]: https://github.com/othneildrew/Best-README-Template/network/members
+[stars-shield]: https://img.shields.io/github/stars/othneildrew/Best-README-Template.svg?style=for-the-badge
+[stars-url]: https://github.com/othneildrew/Best-README-Template/stargazers
+[issues-shield]: https://img.shields.io/github/issues/othneildrew/Best-README-Template.svg?style=for-the-badge
+[issues-url]: https://github.com/othneildrew/Best-README-Template/issues
+[license-shield]: https://img.shields.io/github/license/othneildrew/Best-README-Template.svg?style=for-the-badge
+[license-url]: https://github.com/othneildrew/Best-README-Template/blob/master/LICENSE.txt
+[linkedin-shield]: https://img.shields.io/badge/-LinkedIn-black.svg?style=for-the-badge&logo=linkedin&colorB=555
+[linkedin-url]: https://linkedin.com/in/othneildrew
+[product-screenshot]: images/screenshot.png
+[Next.js]: https://img.shields.io/badge/next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white
+[Next-url]: https://nextjs.org/
+[React.js]: https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB
+[React-url]: https://reactjs.org/
+[Vue.js]: https://img.shields.io/badge/Vue.js-35495E?style=for-the-badge&logo=vuedotjs&logoColor=4FC08D
+[Vue-url]: https://vuejs.org/
+[Angular.io]: https://img.shields.io/badge/Angular-DD0031?style=for-the-badge&logo=angular&logoColor=white
+[Angular-url]: https://angular.io/
+[Svelte.dev]: https://img.shields.io/badge/Svelte-4A4A55?style=for-the-badge&logo=svelte&logoColor=FF3E00
+[Svelte-url]: https://svelte.dev/
+[Laravel.com]: https://img.shields.io/badge/Laravel-FF2D20?style=for-the-badge&logo=laravel&logoColor=white
+[Laravel-url]: https://laravel.com
+[Bootstrap.com]: https://img.shields.io/badge/Bootstrap-563D7C?style=for-the-badge&logo=bootstrap&logoColor=white
+[Bootstrap-url]: https://getbootstrap.com
+[JQuery.com]: https://img.shields.io/badge/jQuery-0769AD?style=for-the-badge&logo=jquery&logoColor=white
+[JQuery-url]: https://jquery.com
