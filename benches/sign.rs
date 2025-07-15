@@ -270,28 +270,32 @@ fn sign_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group(
         "FROST Sign - Impact of the Total Number of Participants for the Same Threshold",
     );
-    generate_signature_values(&mut group, &FrostState::new(2, 2)).unwrap();
-    generate_signature_values(&mut group, &FrostState::new(3, 2)).unwrap();
-    generate_signature_values(&mut group, &FrostState::new(4, 2)).unwrap();
-    generate_signature_values(&mut group, &FrostState::new(5, 2)).unwrap();
-    generate_signature_values(&mut group, &FrostState::new(6, 2)).unwrap();
-    generate_signature_values(&mut group, &FrostState::new(7, 2)).unwrap();
-    generate_signature_values(&mut group, &FrostState::new(8, 2)).unwrap();
-    generate_signature_values(&mut group, &FrostState::new(9, 2)).unwrap();
+    generate_signature_values(&mut group, &FrostState::new(5, 5)).unwrap();
+    generate_signature_values(&mut group, &FrostState::new(10, 5)).unwrap();
+    generate_signature_values(&mut group, &FrostState::new(15, 5)).unwrap();
+    generate_signature_values(&mut group, &FrostState::new(20, 5)).unwrap();
+    generate_signature_values(&mut group, &FrostState::new(25, 5)).unwrap();
+    generate_signature_values(&mut group, &FrostState::new(30, 5)).unwrap();
+    generate_signature_values(&mut group, &FrostState::new(35, 5)).unwrap();
+    generate_signature_values(&mut group, &FrostState::new(40, 5)).unwrap();
+    generate_signature_values(&mut group, &FrostState::new(45, 5)).unwrap();
+    generate_signature_values(&mut group, &FrostState::new(50, 5)).unwrap();
     group.finish();
 
     // group that will benchmark how the threshold influences performance
     let mut group = c.benchmark_group(
         "FROST Sign - Impact of Different Thresholds for the Same Number of Participants",
     );
-    generate_signature_values(&mut group, &FrostState::new(9, 2)).unwrap();
-    generate_signature_values(&mut group, &FrostState::new(9, 3)).unwrap();
-    generate_signature_values(&mut group, &FrostState::new(9, 4)).unwrap();
-    generate_signature_values(&mut group, &FrostState::new(9, 5)).unwrap();
-    generate_signature_values(&mut group, &FrostState::new(9, 6)).unwrap();
-    generate_signature_values(&mut group, &FrostState::new(9, 7)).unwrap();
-    generate_signature_values(&mut group, &FrostState::new(9, 8)).unwrap();
-    generate_signature_values(&mut group, &FrostState::new(9, 9)).unwrap();
+    generate_signature_values(&mut group, &FrostState::new(50, 5)).unwrap();
+    generate_signature_values(&mut group, &FrostState::new(50, 10)).unwrap();
+    generate_signature_values(&mut group, &FrostState::new(50, 15)).unwrap();
+    generate_signature_values(&mut group, &FrostState::new(50, 20)).unwrap();
+    generate_signature_values(&mut group, &FrostState::new(50, 25)).unwrap();
+    generate_signature_values(&mut group, &FrostState::new(50, 30)).unwrap();
+    generate_signature_values(&mut group, &FrostState::new(50, 35)).unwrap();
+    generate_signature_values(&mut group, &FrostState::new(50, 40)).unwrap();
+    generate_signature_values(&mut group, &FrostState::new(50, 45)).unwrap();
+    generate_signature_values(&mut group, &FrostState::new(50, 50)).unwrap();
     group.finish();
 }
 
