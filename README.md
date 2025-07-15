@@ -70,7 +70,7 @@ To see `frost-sig` in action within a real-world application, check out [aokiji]
 
 ### Built With
 
-These are some of the tools used to build this application. They provided a strong foundation to assure its integrity and robustness.
+These are some of the tools used to build this `crate`. They provided a strong foundation to assure its integrity and robustness.
 
 * `curve25519_dalek` for elliptic curve cryptography.
 * `ed25519-dalek-blake2b` for signature validation.
@@ -79,6 +79,7 @@ These are some of the tools used to build this application. They provided a stro
 * `hex` for hexadecimal serialization and deserialization.
 * `tokio` for the TCP sockets implementation (multithreaded and async).
 * `reqwest` for HTTP requests.
+* `criterion` for benchmarking.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -574,7 +575,7 @@ verifying_key.verify(&hex::decode(&message)?, &signature).expect("Couldn't verif
 <!-- BENCHMARKS -->
 ## Benchmarks
 
-To understand the behavior of the protocol used and how the `crate`'s performance adapts to the number of participants and threshold chosen look at the following graphs.
+To understand the behavior of the protocol used and how the `crate`'s performance adapts to the number of participants and threshold chosen, look at the following graphs generated using `criterion`, a Rust benchmarking tool.
 
 ### Influence of the Number of Total Participants
 
