@@ -93,19 +93,17 @@ pub fn hash_to_scalar(inputs: &[&[u8]]) -> Scalar {
 pub fn power_to_scalar(base: u32, exponent: u32) -> Result<Scalar, Box<dyn Error + Sync + Send>> {
     let base = Integer::from(base);
     let exponent = Integer::from(exponent);
-    let modulus = Integer::from_str(MODULUS)?;
 
-    let result = match base.pow_mod(&exponent, &modulus) {
+    let result = match base.pow_mod(&exponent, &Integer::from_str(MODULUS)?) {
         Ok(r) => r,
         Err(e) => return Err(format!("{e}").into()),
     };
 
-    let mut le_bytes = result.to_digits::<u8>(rug::integer::Order::Lsf);
+    let mut result_bytes_vec = result.to_digits::<u8>(rug::integer::Order::Lsf);
+    result_bytes_vec.resize(64, 0);
 
-    le_bytes.resize(64, 0);
+    let mut result_bytes = [0u8; 64];
+    result_bytes.copy_from_slice(&result_bytes_vec[..64]);
 
-    let mut wide_bytes = [0u8; 64];
-    wide_bytes.copy_from_slice(&le_bytes[..64]);
-
-    Ok(Scalar::from_bytes_mod_order_wide(&wide_bytes))
+    Ok(Scalar::from_bytes_mod_order_wide(&result_bytes))
 }
