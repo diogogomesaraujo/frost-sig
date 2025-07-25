@@ -152,7 +152,7 @@ In order to run build this application from source you will need to have `cargo`
 
 ### Flow
 
-To get a better understanding of how to use the `crate`'s building blocks take a look at the follwing UML diagram.
+To get a better understanding of how to use the `crate`'s building blocks take a look at the following UML diagrams.
 
 ![Activity Diagrams](./doc/assets/frost-server.jpg)
 
@@ -160,7 +160,7 @@ To get a better understanding of how to use the `crate`'s building blocks take a
 
 ### Socket
 
-This example shows how to use the `client` and `server` modules to create a socket for participants to generate keys and sign transactions in a real-time CLI enviroment.
+This example shows how to use the `client` and `server` modules to create a socket for participants to generate keys and sign transactions in a real-time CLI environment.
 
 ```rust
 use frost_sig::{client, server};
@@ -231,15 +231,12 @@ To run the program (`p` and `t` are the desired number of participants and the t
 cargo run -- server keygen p t
 
 # for the sign server
-cargo run -- server keygen p t
-
-# for the keygen client
-cargo run -- server keygen p t
+cargo run -- server sign p t
 
 # for the keygen client (saves the keys in frost.json)
 cargo run -- client keygen frost.json
 
-# for the keygen client (gets the keys from frost.json)
+# for the sign client (gets the keys from frost.json)
 cargo run -- client sign frost.json
 ```
 
@@ -298,7 +295,7 @@ let skylar_broadcast = Message::Broadcast {
 };
 ```
 
-Each participant verifies the broadcasts recieved from others, and we finishing round 1.
+Each participant verifies the broadcasts received from others, and we finishing round 1.
 ```rust
 assert!(round_1::verify_proofs(&[
     jessie_broadcast.clone(),
@@ -333,7 +330,7 @@ let share_from_jessie_to_skylar = round_2::create_share_for(&jessie, &skylar.id)
 let share_from_walter_to_skylar = round_2::create_share_for(&walter, &skylar.id);
 ```
 
-Each participant verifies the recieved secret shares.
+Each participant verifies the received secret shares.
 ```rust
 {
     assert!(round_2::verify_share_validity(
@@ -402,7 +399,7 @@ let jessie_public_key = round_2::compute_own_public_share(&jessie_private_key);
 let skylar_public_key = round_2::compute_own_public_share(&skylar_private_key);
 ```
 
-Each participant computes their verification share and one for each broadcast recieved.
+Each participant computes their verification share and one for each broadcast received.
 ```rust
 let walter_own_verification_share =
     round_2::compute_participant_verification_share(&walter, &walter_broadcast)?;
@@ -426,7 +423,7 @@ let skylar_walter_verification_share =
     round_2::compute_participant_verification_share(&skylar, &walter_broadcast)?;
 ```
 
-Each participant computes the aggregate verification share from the recieved secret shares.
+Each participant computes the aggregate verification share from the received secret shares.
 ```rust
 let walter_aggregate_verification_share = round_2::compute_others_verification_share(&[
     walter_own_verification_share,
@@ -482,7 +479,7 @@ let skylar_commitments_message = Message::PublicCommitment {
 };
 ```
 
-Each participant computes the group commitment and challenge from the recieved commitments.
+Each participant computes the group commitment and challenge from the received commitments.
 ```rust
 let commitments = vec![
      walter_commitments_message.clone(),
