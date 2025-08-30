@@ -600,14 +600,14 @@ To understand the behavior of the protocol used and how the `crate`'s performanc
 
 ## Support
 
-The resources used for this project are [FROST's official paper](https://eprint.iacr.org/2020/852.pdf) and [Nano Node documentation](https://docs.nano.org/integration-guides/key-management/) here.
+The resources used for this project are [FROST's official paper](https://eprint.iacr.org/2020/852.pdf) and [Nano Node documentation](https://docs.nano.org/integration-guides/key-management/).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- CONTRIBUTING -->
 ## Contributing
 
-This `crate` is fully **open-source** so feel free to contribute to it or fork and adapt it to your liking.
+This `crate` is fully **open-source** so feel free to contribute, fork or adapt the project to your liking.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
