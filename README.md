@@ -6,7 +6,7 @@
 <div align="center">
   <h3 align="center">frost-sig</h3>
   <p align="center">
-    A threshold signature `crate` that implements FROST for Nano transactions
+    A threshold signature <tt>crate</tt> that implements FROST for Nano transactions
   </p>
 </div>
 
@@ -95,6 +95,8 @@ frost-sig = { git = "https://github.com/diogogomesaraujo/frost-sig.git" }
 ```
 
 Alternatively, you can run the project by following these steps.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ### Prerequisites
 
