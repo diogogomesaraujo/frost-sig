@@ -58,6 +58,10 @@
 
 `frost-sig` is a Rust `crate` that implements the **FROST** signature protocol for computing **threshold digital signatures** that are **secure**, **distributed**, and **low-latency**. This project was developed as the Final Project for my Computer Science degree at Universidade da Beira Interior under the guidance of Professor Doctor Paul Andrew Crocker. The complete research and implementation details can be found in the [report](https://github.com/diogogomesaraujo/aokiji/blob/main/report.pdf).
 
+**What does this project try to solve?**
+
+**Nano lacks built in support for shared account creation** and current wallets that enabled them **don't provide threshold solutions**. This project aims to propose an optimized API for threshold signing in Nano's blockchain that, additionally, **reduce the number of rounds of communication the group has to perform** to produce the signature using **modern cryptographic protocols** like FROST.
+
 **What features does it provide?**
 * **Key Generation**, **Preprocess**, and **Sign** building blocks that enable the creation of group accounts and collective message signing (such as transactions).
 * **TCP Client/Server** implementations for generating keys and signing messages in distributed environments.
