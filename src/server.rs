@@ -48,7 +48,7 @@ impl FrostServer {
     /// Function that sends a message to all participants but the one sending the message.
     pub async fn broadcast(&mut self, sender: &SocketAddr, message: Message) {
         for participant in self.by_addr.iter_mut() {
-            if &*participant.0 != sender {
+            if participant.0 != sender {
                 let _ = participant.1.send(message.clone());
             }
         }
@@ -159,9 +159,7 @@ pub async fn handle(
     let mut participant = Participant::new(id, rx, tx, addr);
 
     // send the assigned id to the participant
-    participant
-        .sender
-        .send(Message::Id(participant.id.clone()))?;
+    participant.sender.send(Message::Id(participant.id))?;
 
     // wait for all participants to join
     barrier.wait().await;
@@ -169,7 +167,7 @@ pub async fn handle(
     // handle all incoming and and outgoing messages
     loop {
         tokio::select! {
-            // if a message is recieved from the server send to client
+            // if a message is received from the server send to client
             Some(msg) = participant.receiver.recv() => {
                 let msg_json = msg.to_json_string()?;
                 writer.send(msg_json).await?;
@@ -178,12 +176,10 @@ pub async fn handle(
             Some(Ok(msg_json)) = reader.next() => {
                 match Message::from_json_string(msg_json.as_str()) {
                     // if completed close the socket
-                    Some(msg) if matches!(msg, Message::Completed(_)) => break Ok(()),
+                    Some(Message::Completed(_)) => break Ok(()),
                     // if some error happens close the socket
-                    Some(msg) if matches!(msg, Message::Error(_)) => {
-                        if let Message::Error(e) = msg {
-                            break Err(e.as_str().into());
-                        }
+                    Some(Message::Error(e)) => {
+                        break Err(e.as_str().into());
                     }
                     // usual cases
                     Some(msg) => server.lock().await.send_message(&participant, msg).await?,

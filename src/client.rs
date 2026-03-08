@@ -52,12 +52,10 @@ pub async fn receive_message(
 ) -> Result<Message, Box<dyn Error + Send + Sync>> {
     // Number of retries to account for missing messages.
     match lines.next().await {
-        Some(Ok(line)) => {
-            return Ok(Message::from_json_string(line.as_str())
-                .expect(&format!("Failed to send message: {}.", line)))
-        }
-        Some(Err(e)) => return Err(format!("Network Error: {e}").into()),
-        None => return Err("Connection closed suddenly.".into()),
+        Some(Ok(line)) => Ok(Message::from_json_string(line.as_str())
+            .unwrap_or_else(|| panic!("Failed to send message: {}.", line))),
+        Some(Err(e)) => Err(format!("Network Error: {e}").into()),
+        None => Err("Connection closed suddenly.".into()),
     }
 }
 
@@ -299,7 +297,7 @@ pub mod keygen_client {
 
             // generate broadcast message
             let own_broadcast = Message::Broadcast {
-                participant_id: participant_self.id.clone(),
+                participant_id: participant_self.id,
                 commitments,
                 signature,
             };
@@ -384,8 +382,8 @@ pub mod keygen_client {
                         .unwrap();
                     assert!(round_2::verify_share_validity(
                         &participant_self,
-                        &s,
-                        &broadcast
+                        s,
+                        broadcast
                     )?);
                     Ok(())
                 })?;
@@ -407,7 +405,7 @@ pub mod keygen_client {
                 let verification_shares: Vec<CompressedEdwardsY> = all_broadcasts
                     .iter()
                     .map(|b| {
-                        round_2::compute_participant_verification_share(&participant_self, &b)
+                        round_2::compute_participant_verification_share(&participant_self, b)
                             .unwrap()
                     })
                     .collect();
@@ -428,7 +426,7 @@ pub mod keygen_client {
                 format!(
                     "This is the group's nano account {}{}{}.",
                     logging::YELLOW,
-                    public_key_to_nano_account(&aggregate_public_key.as_bytes()),
+                    public_key_to_nano_account(aggregate_public_key.as_bytes()),
                     logging::RESET,
                 )
                 .as_str(),
@@ -539,9 +537,9 @@ pub mod sign_client {
         // compute public commitment to send
         let own_public_commitment = Message::PublicCommitment {
             participant_id: client.own_id,
-            di: nonces_and_commitments.1 .0.clone(),
-            ei: nonces_and_commitments.1 .1.clone(),
-            public_share: sign_input.own_public_share.clone(),
+            di: nonces_and_commitments.1 .0,
+            ei: nonces_and_commitments.1 .1,
+            public_share: sign_input.own_public_share,
         };
 
         // send public commitment
@@ -583,7 +581,7 @@ pub mod sign_client {
                     di: _,
                     ei: _,
                     public_share: _,
-                } => participant_id.clone(),
+                } => *participant_id,
                 _ => 0u32,
             });
 
@@ -591,7 +589,7 @@ pub mod sign_client {
         };
 
         // load config variables
-        let config = ConfigFile::from_file(&config_file_path).await?;
+        let config = ConfigFile::from_file(config_file_path).await?;
 
         // create the state for the rpc
         let state = RPCState::new(&config.url);
@@ -670,10 +668,10 @@ pub mod sign_client {
                                     .expect("Couldn't get participant's id.");
 
                                 let verify = verify_participant(
-                                    &participant_commitment,
+                                    participant_commitment,
                                     &public_commitments,
                                     &message,
-                                    &r,
+                                    r,
                                     &challenge,
                                     &sign_input.public_aggregated_key,
                                     &[],
@@ -683,7 +681,7 @@ pub mod sign_client {
                                 assert!(verify);
                                 Ok(())
                             }
-                            _ => return Err("Couldn't parse message.".into()),
+                            _ => Err("Couldn't parse message.".into()),
                         }
                     })?;
 
@@ -720,7 +718,7 @@ pub mod sign_client {
                         &state,
                         sign_input.message,
                         &signature_string.to_uppercase(),
-                        &hex::encode(&sign_input.public_aggregated_key.as_bytes()),
+                        &hex::encode(sign_input.public_aggregated_key.as_bytes()),
                         &config.key,
                     )
                     .await?;

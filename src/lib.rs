@@ -63,7 +63,7 @@ pub fn decompress(
 ) -> Result<EdwardsPoint, Box<dyn Error + Send + Sync>> {
     match compressed_point.decompress() {
         Some(point) => Ok(point),
-        None => return Err("Couldn't decompress the point.".into()),
+        None => Err("Couldn't decompress the point.".into()),
     }
 }
 

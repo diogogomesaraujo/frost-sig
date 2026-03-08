@@ -105,14 +105,14 @@ pub fn compute_binding_value(
                                 hasher.extend_from_slice(ei.as_bytes());
                                 Ok(())
                             }
-                            _ => return Err("Message was not a Public Commitment.".into()),
+                            _ => Err("Message was not a Public Commitment.".into()),
                         }
                     },
                 )?;
                 hasher
             };
             binding_value.extend_from_slice(&commitments_hash);
-            binding_value.extend_from_slice(&additional_prefix);
+            binding_value.extend_from_slice(additional_prefix);
             binding_value.extend_from_slice(&participant_id.to_le_bytes());
             hash_to_scalar(&[&binding_value[..]])
         }),
@@ -140,11 +140,11 @@ pub fn compute_group_commitment_and_challenge(
                         public_share: _,
                     } => Ok({
                         let binding_value = compute_binding_value(
-                            &pc,
-                            &participants_commitments,
-                            &message,
+                            pc,
+                            participants_commitments,
+                            message,
                             &group_public_key,
-                            &additional_prefix,
+                            additional_prefix,
                         )?;
                         acc + (decompress(di)? + (decompress(ei)? * binding_value))
                     }),
@@ -157,7 +157,7 @@ pub fn compute_group_commitment_and_challenge(
         let mut hasher = vec![];
         hasher.extend_from_slice(group_commitment.as_bytes());
         hasher.extend_from_slice(group_public_key.as_bytes());
-        hasher.extend_from_slice(&hex::decode(&message)?);
+        hasher.extend_from_slice(&hex::decode(message)?);
         hash_to_scalar(&[&hasher[..]])
     };
     Ok((group_commitment, challenge))
@@ -165,7 +165,7 @@ pub fn compute_group_commitment_and_challenge(
 
 /// Function that calculates the lagrange_coefficient of a participant.
 pub fn lagrange_coefficient(ids: &[u32], target_id: &u32) -> Scalar {
-    let id = Scalar::from(target_id.clone());
+    let id = Scalar::from(*target_id);
     ids.iter()
         .filter(|&&j| &j != target_id)
         .fold(Scalar::ONE, |acc, &j| {
@@ -229,14 +229,14 @@ pub fn verify_participant(
             let gz = value * ED25519_BASEPOINT_POINT;
             let binding_value = compute_binding_value(
                 participant_commitment,
-                &all_commitments,
+                all_commitments,
                 message,
                 verifying_key,
                 additional_prefix,
             )?;
             let ri = decompress(di)? + (decompress(ei)? * binding_value);
             let to_validate = {
-                let exponent = challenge * lagrange_coefficient(&ids, &participant_id);
+                let exponent = challenge * lagrange_coefficient(ids, participant_id);
                 ri + (decompress(public_share)? * exponent)
             };
             assert_eq!(
@@ -274,7 +274,7 @@ pub fn computed_response_to_signature(
     bytes[0..32].copy_from_slice(group_commitment.as_bytes());
     bytes[32..].copy_from_slice(&aggregate_response.to_bytes());
     match Signature::from_bytes(&bytes) {
-        Ok(sig) => Ok((sig, hex::encode(&bytes))),
+        Ok(sig) => Ok((sig, hex::encode(bytes))),
         Err(_) => Err("Couldn't compute signature.".into()),
     }
 }

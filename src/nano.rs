@@ -91,7 +91,7 @@ pub mod sign {
             key: &str,
         ) -> Result<String, Box<dyn Error + Send + Sync>> {
             let mut block_state = [0u8; 32];
-            block_state[31] = 6 as u8;
+            block_state[31] = 6_u8;
             let account = hex::decode(
                 AccountKey::get_from_rpc(state, &self.account, key)
                     .await?
@@ -119,7 +119,7 @@ pub mod sign {
             hasher.update(&link);
             let mut bytes = [0u8; 32];
             hasher.finalize_variable(&mut bytes).unwrap();
-            Ok(hex::encode(&bytes))
+            Ok(hex::encode(bytes))
         }
 
         /// Function that signs an `UnsignedBlock` with a signature and a proof of work.
@@ -141,12 +141,12 @@ pub mod sign {
             account_address: &str,
             key: &str,
         ) -> Result<Self, Box<dyn Error + Send + Sync>> {
-            let receivable = rpc::Receivable::get_from_rpc(&state, account_address, 1, key).await?;
-            let first_receivable = match receivable.blocks.get(0) {
+            let receivable = rpc::Receivable::get_from_rpc(state, account_address, 1, key).await?;
+            let first_receivable = match receivable.blocks.first() {
                 Some(block) => block,
                 None => return Err("Couldn't find any receivable blocks.".into()),
             };
-            let block = rpc::BlockInfo::get_from_rpc(&state, &first_receivable, key).await?;
+            let block = rpc::BlockInfo::get_from_rpc(state, first_receivable, key).await?;
 
             let account = account_address.to_string();
             let previous = "0".to_string();
@@ -168,18 +168,18 @@ pub mod sign {
             account_address: &str,
             key: &str,
         ) -> Result<Self, Box<dyn Error + Send + Sync>> {
-            let receivable = rpc::Receivable::get_from_rpc(&state, account_address, 1, key).await?;
-            let first_receivable = match receivable.blocks.get(0) {
+            let receivable = rpc::Receivable::get_from_rpc(state, account_address, 1, key).await?;
+            let first_receivable = match receivable.blocks.first() {
                 Some(block) => block,
                 None => return Err("Couldn't find any receivable blocks.".into()),
             };
-            let block = rpc::BlockInfo::get_from_rpc(&state, &first_receivable, key).await?;
-            let previous = rpc::AccountInfo::get_from_rpc(&state, account_address, key)
+            let block = rpc::BlockInfo::get_from_rpc(state, first_receivable, key).await?;
+            let previous = rpc::AccountInfo::get_from_rpc(state, account_address, key)
                 .await?
                 .frontier;
             let account = account_address.to_string();
             let representative = account_address.to_string();
-            let balance = rpc::AccountBalance::get_from_rpc(&state, &account_address, key)
+            let balance = rpc::AccountBalance::get_from_rpc(state, account_address, key)
                 .await?
                 .balance
                 .parse::<u128>()?
@@ -201,21 +201,21 @@ pub mod sign {
             amount_nano: &f64,
             key: &str,
         ) -> Result<Self, Box<dyn Error + Send + Sync>> {
-            let ammount_raw = rpc::NanoToRaw::get_from_rpc(&state, &amount_nano, key)
+            let amount_raw = rpc::NanoToRaw::get_from_rpc(state, amount_nano, key)
                 .await?
                 .raw;
-            let previous = rpc::AccountInfo::get_from_rpc(&state, own_account_address, key)
+            let previous = rpc::AccountInfo::get_from_rpc(state, own_account_address, key)
                 .await?
                 .frontier;
             let account = own_account_address.to_string();
             let representative = own_account_address.to_string();
-            let balance = rpc::AccountBalance::get_from_rpc(&state, &own_account_address, key)
+            let balance = rpc::AccountBalance::get_from_rpc(state, own_account_address, key)
                 .await?
                 .balance
                 .parse::<u128>()?
-                .checked_sub(ammount_raw.parse::<u128>()?)
+                .checked_sub(amount_raw.parse::<u128>()?)
                 .ok_or("Balance underflow")?;
-            let link = AccountKey::get_from_rpc(&state, receiver_account_address, key)
+            let link = AccountKey::get_from_rpc(state, receiver_account_address, key)
                 .await?
                 .key;
 
@@ -275,15 +275,15 @@ pub mod sign {
         key: &str,
     ) -> Result<SignedBlock, Box<dyn Error + Send + Sync>> {
         let work = super::rpc::WorkGenerate::get_from_rpc(
-            &state,
+            state,
             match unsigned_block.previous.as_str() {
                 "0" => aggregate_public_key,
                 previous => previous,
             },
-            &key,
+            key,
         )
         .await?;
-        Ok(unsigned_block.to_signed_block(&signature, &work.work))
+        Ok(unsigned_block.to_signed_block(signature, &work.work))
     }
 }
 

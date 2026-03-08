@@ -155,8 +155,8 @@ pub mod round_2 {
     pub fn create_own_secret_share(participant: &Participant) -> Message {
         let secret = calculate_y(&Scalar::from(participant.id), &participant.polynomial);
         Message::SecretShare {
-            sender_id: participant.id.clone(),
-            receiver_id: participant.id.clone(),
+            sender_id: participant.id,
+            receiver_id: participant.id,
             secret,
         }
     }
@@ -165,8 +165,8 @@ pub mod round_2 {
     pub fn create_share_for(sender: &Participant, receiver_id: &u32) -> Message {
         let secret = calculate_y(&Scalar::from(*receiver_id), &sender.polynomial);
         Message::SecretShare {
-            receiver_id: receiver_id.clone(),
-            sender_id: sender.id.clone(),
+            receiver_id: *receiver_id,
+            sender_id: sender.id,
             secret,
         }
     }

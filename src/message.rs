@@ -70,9 +70,6 @@ impl Message {
 
     /// Function that converts a JSON formatted `String` into a `Message`.
     pub fn from_json_string(message: &str) -> Option<Message> {
-        match serde_json::from_str::<Message>(&message) {
-            Ok(message) => Some(message),
-            Err(_) => None,
-        }
+        serde_json::from_str::<Message>(message).ok()
     }
 }
