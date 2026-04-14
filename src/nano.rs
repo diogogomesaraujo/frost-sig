@@ -633,10 +633,9 @@ pub mod rpc {
 
         // the unsigned block created and that will be signed
         let unsigned_block =
-            crate::nano::sign::UnsignedBlock::create_receive(&state, &account, &config.key).await?;
+            crate::nano::sign::UnsignedBlock::create_receive(&state, account, &config.key).await?;
 
         println!("{}", serde_json::to_string(&unsigned_block)?);
-        assert!(true);
 
         Ok(())
     }
@@ -658,15 +657,14 @@ pub mod rpc {
         // the unsigned block created and that will be signed
         let unsigned_block = crate::nano::sign::UnsignedBlock::create_send(
             &state,
-            &sender,
-            &receiver,
+            sender,
+            receiver,
             &0.00005,
             &config.key,
         )
         .await?;
 
         println!("{}", serde_json::to_string(&unsigned_block)?);
-        assert!(true);
 
         Ok(())
     }

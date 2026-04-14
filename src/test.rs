@@ -42,17 +42,17 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     // each participant computes and sends his broadcast
     let walter_broadcast = Message::Broadcast {
-        participant_id: walter.id.clone(),
+        participant_id: walter.id,
         commitments: walter_commitments,
         signature: walter_signature,
     };
     let jessie_broadcast = Message::Broadcast {
-        participant_id: jessie.id.clone(),
+        participant_id: jessie.id,
         commitments: jessie_commitments,
         signature: jessie_signature,
     };
     let skylar_broadcast = Message::Broadcast {
-        participant_id: skylar.id.clone(),
+        participant_id: skylar.id,
         commitments: skylar_commitments,
         signature: skylar_signature,
     };
@@ -201,7 +201,7 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     println!(
         "Aggregate Public Key: {}",
-        public_key_to_nano_account(&group_public_key.as_bytes())
+        public_key_to_nano_account(group_public_key.as_bytes())
     );
 
     // sign
@@ -214,15 +214,15 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error + Send + Sync>> {
     let skylar_commitments = generate_nonces_and_commitments(&mut rng);
 
     let walter_commitments_message = Message::PublicCommitment {
-        participant_id: walter.id.clone(),
-        di: walter_commitments.1 .0.clone(),
-        ei: walter_commitments.1 .1.clone(),
+        participant_id: walter.id,
+        di: walter_commitments.1 .0,
+        ei: walter_commitments.1 .1,
         public_share: walter_public_key,
     };
     let skylar_commitments_message = Message::PublicCommitment {
-        participant_id: skylar.id.clone(),
-        di: skylar_commitments.1 .0.clone(),
-        ei: skylar_commitments.1 .1.clone(),
+        participant_id: skylar.id,
+        di: skylar_commitments.1 .0,
+        ei: skylar_commitments.1 .1,
         public_share: skylar_public_key,
     };
 
@@ -243,26 +243,26 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     // each participant computes their response and sends to the sa
     let walter_response = compute_own_response(
-        walter.id.clone(),
+        walter.id,
         &walter_commitments_message,
         &commitments,
         &walter_private_key,
         &walter_commitments.0,
         &walter_lagrange_coefficient,
         &challenge,
-        &message,
+        message,
         &group_public_key,
         &[],
     )?;
     let skylar_response = compute_own_response(
-        skylar.id.clone(),
+        skylar.id,
         &skylar_commitments_message,
         &commitments,
         &skylar_private_key,
         &skylar_commitments.0,
         &skylar_lagrange_coefficient,
         &challenge,
-        &message,
+        message,
         &group_public_key,
         &[],
     )?;
@@ -271,7 +271,7 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error + Send + Sync>> {
     let verify_walter = verify_participant(
         &walter_commitments_message,
         &commitments,
-        &message,
+        message,
         &walter_response,
         &challenge,
         &group_public_key,
@@ -281,7 +281,7 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error + Send + Sync>> {
     let verify_skylar = verify_participant(
         &skylar_commitments_message,
         &commitments,
-        &message,
+        message,
         &skylar_response,
         &challenge,
         &group_public_key,
@@ -302,7 +302,7 @@ pub fn test_keygen_and_sign() -> Result<(), Box<dyn Error + Send + Sync>> {
         let verifying_key = PublicKey::from_bytes(group_public_key.as_bytes())
             .expect("Couldn't create the public key!");
         verifying_key
-            .verify(&hex::decode(&message)?, &signature)
+            .verify(&hex::decode(message)?, &signature)
             .expect("Couldn't verify the signature with the public key!");
     }
 

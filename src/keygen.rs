@@ -105,7 +105,7 @@ pub mod round_1 {
     pub fn verify_proofs(
         participants_broadcasts: &[Message],
     ) -> Result<bool, Box<dyn Error + Send + Sync>> {
-        Ok(participants_broadcasts.iter().try_fold(
+        participants_broadcasts.iter().try_fold(
             true,
             |acc, pb| -> Result<bool, Box<dyn Error + Send + Sync>> {
                 match pb {
@@ -131,7 +131,7 @@ pub mod round_1 {
                     _ => Ok(false),
                 }
             },
-        )?)
+        )
     }
 }
 

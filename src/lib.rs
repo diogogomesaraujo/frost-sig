@@ -1,3 +1,10 @@
+#![warn(
+    clippy::all,
+    clippy::restriction,
+    clippy::pedantic,
+    clippy::nursery,
+    clippy::cargo
+)]
 #![doc = include_str!("../README.md")]
 
 use blake2::{digest::consts::U64, Blake2b, Digest};

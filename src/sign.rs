@@ -189,11 +189,11 @@ pub fn compute_own_response(
     additional_prefix: &[u8],
 ) -> Result<Message, Box<dyn Error + Send + Sync>> {
     let binding_value = compute_binding_value(
-        &participant_commitment,
-        &all_commitments,
-        &message,
-        &verifying_key,
-        &additional_prefix,
+        participant_commitment,
+        all_commitments,
+        message,
+        verifying_key,
+        additional_prefix,
     )?;
     let (di, ei) = private_nonces;
     Ok(Message::Response {
